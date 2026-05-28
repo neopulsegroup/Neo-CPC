@@ -2296,14 +2296,54 @@
         "noPermission": "You do not have permission to access this section. Admin only.",
         "loadError": "Could not load the event log.",
         "empty": "No events recorded.",
-        "searchPlaceholder": "Search by action, user or context...",
+        "searchPlaceholder": "Search by action, user, context or target...",
+        "searchFilter": {
+          "label": "Search"
+        },
         "count": "{count} event(s)",
+        "unknownActor": "Unknown user",
+        "scopeFilter": {
+          "label": "Filter by user type",
+          "options": {
+            "all": "All",
+            "migrant": "Migrant",
+            "company": "Company",
+            "cpc": "CPC"
+          }
+        },
+        "userFilter": {
+          "label": "User",
+          "all": "All users"
+        },
+        "dateFilter": {
+          "from": "Start date",
+          "to": "End date"
+        },
         "columns": {
           "date": "Date",
           "action": "Action",
           "actor": "User",
           "context": "Context",
           "target": "Target"
+        },
+        "actions": {
+          "unauthorized_attempt": "Unauthorized access attempt",
+          "system_settings_updated": "System settings updated",
+          "smtp_test_ok": "Mail (SMTP) test succeeded",
+          "smtp_test_error": "Mail (SMTP) test failed",
+          "mail_sent": "Email sent",
+          "mail_send_error": "Email send error",
+          "user": {
+            "blocked": "User blocked",
+            "unblocked": "User unblocked",
+            "deactivated": "User deactivated",
+            "reactivated": "User reactivated"
+          },
+          "activities": {
+            "create": "Activity created",
+            "update": "Activity updated",
+            "delete": "Activity deleted"
+          }
         }
       }
     }

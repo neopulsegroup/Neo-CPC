@@ -2296,14 +2296,54 @@
         "noPermission": "No tiene permiso para acceder a esta sección. Solo Admin.",
         "loadError": "No se pudo cargar el registro de eventos.",
         "empty": "Sin eventos registrados.",
-        "searchPlaceholder": "Buscar por acción, usuario o contexto...",
+        "searchPlaceholder": "Buscar por acción, usuario, contexto u objetivo...",
+        "searchFilter": {
+          "label": "Búsqueda"
+        },
         "count": "{count} evento(s)",
+        "unknownActor": "Usuario desconocido",
+        "scopeFilter": {
+          "label": "Filtrar por tipo de usuario",
+          "options": {
+            "all": "Todos",
+            "migrant": "Migrante",
+            "company": "Empresa",
+            "cpc": "CPC"
+          }
+        },
+        "userFilter": {
+          "label": "Usuario",
+          "all": "Todos los usuarios"
+        },
+        "dateFilter": {
+          "from": "Fecha inicial",
+          "to": "Fecha final"
+        },
         "columns": {
           "date": "Fecha",
           "action": "Acción",
           "actor": "Usuario",
           "context": "Contexto",
           "target": "Objetivo"
+        },
+        "actions": {
+          "unauthorized_attempt": "Intento de acceso no autorizado",
+          "system_settings_updated": "Configuración del sistema actualizada",
+          "smtp_test_ok": "Prueba de correo (SMTP) correcta",
+          "smtp_test_error": "Error en la prueba de correo (SMTP)",
+          "mail_sent": "Correo enviado",
+          "mail_send_error": "Error al enviar correo",
+          "user": {
+            "blocked": "Usuario bloqueado",
+            "unblocked": "Usuario desbloqueado",
+            "deactivated": "Usuario desactivado",
+            "reactivated": "Usuario reactivado"
+          },
+          "activities": {
+            "create": "Actividad creada",
+            "update": "Actividad actualizada",
+            "delete": "Actividad eliminada"
+          }
         }
       }
     }

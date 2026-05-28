@@ -2296,14 +2296,54 @@
         "noPermission": "Aucune autorisation pour accéder à cette section. Admin uniquement.",
         "loadError": "Impossible de charger le journal des événements.",
         "empty": "Aucun événement enregistré.",
-        "searchPlaceholder": "Rechercher par action, utilisateur ou contexte...",
+        "searchPlaceholder": "Rechercher par action, utilisateur, contexte ou cible...",
+        "searchFilter": {
+          "label": "Recherche"
+        },
         "count": "{count} événement(s)",
+        "unknownActor": "Utilisateur inconnu",
+        "scopeFilter": {
+          "label": "Filtrer par type d'utilisateur",
+          "options": {
+            "all": "Tous",
+            "migrant": "Migrant",
+            "company": "Entreprise",
+            "cpc": "CPC"
+          }
+        },
+        "userFilter": {
+          "label": "Utilisateur",
+          "all": "Tous les utilisateurs"
+        },
+        "dateFilter": {
+          "from": "Date de début",
+          "to": "Date de fin"
+        },
         "columns": {
           "date": "Date",
           "action": "Action",
           "actor": "Utilisateur",
           "context": "Contexte",
           "target": "Cible"
+        },
+        "actions": {
+          "unauthorized_attempt": "Tentative d'accès non autorisée",
+          "system_settings_updated": "Paramètres système mis à jour",
+          "smtp_test_ok": "Test de messagerie (SMTP) réussi",
+          "smtp_test_error": "Échec du test de messagerie (SMTP)",
+          "mail_sent": "E-mail envoyé",
+          "mail_send_error": "Erreur d'envoi d'e-mail",
+          "user": {
+            "blocked": "Utilisateur bloqué",
+            "unblocked": "Utilisateur débloqué",
+            "deactivated": "Utilisateur désactivé",
+            "reactivated": "Utilisateur réactivé"
+          },
+          "activities": {
+            "create": "Activité créée",
+            "update": "Activité mise à jour",
+            "delete": "Activité supprimée"
+          }
         }
       }
     }

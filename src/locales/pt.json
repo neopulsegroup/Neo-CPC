@@ -2296,14 +2296,54 @@
         "noPermission": "Sem permissão para aceder a esta secção. Apenas Admin.",
         "loadError": "Não foi possível carregar o log de eventos.",
         "empty": "Sem eventos registados.",
-        "searchPlaceholder": "Pesquisar por ação, utilizador ou contexto...",
+        "searchPlaceholder": "Pesquisar por ação, utilizador, contexto ou alvo...",
+        "searchFilter": {
+          "label": "Pesquisa"
+        },
         "count": "{count} evento(s)",
+        "unknownActor": "Utilizador desconhecido",
+        "scopeFilter": {
+          "label": "Filtrar por tipo de utilizador",
+          "options": {
+            "all": "Todos",
+            "migrant": "Migrante",
+            "company": "Empresa",
+            "cpc": "CPC"
+          }
+        },
+        "userFilter": {
+          "label": "Utilizador",
+          "all": "Todos os utilizadores"
+        },
+        "dateFilter": {
+          "from": "Data inicial",
+          "to": "Data final"
+        },
         "columns": {
           "date": "Data",
           "action": "Ação",
           "actor": "Utilizador",
           "context": "Contexto",
           "target": "Alvo"
+        },
+        "actions": {
+          "unauthorized_attempt": "Tentativa de acesso não autorizado",
+          "system_settings_updated": "Definições do sistema atualizadas",
+          "smtp_test_ok": "Teste de correio (SMTP) concluído com sucesso",
+          "smtp_test_error": "Falha no teste de correio (SMTP)",
+          "mail_sent": "E-mail enviado",
+          "mail_send_error": "Erro ao enviar e-mail",
+          "user": {
+            "blocked": "Utilizador bloqueado",
+            "unblocked": "Utilizador desbloqueado",
+            "deactivated": "Utilizador desativado",
+            "reactivated": "Utilizador reativado"
+          },
+          "activities": {
+            "create": "Atividade criada",
+            "update": "Atividade atualizada",
+            "delete": "Atividade eliminada"
+          }
         }
       }
     }
