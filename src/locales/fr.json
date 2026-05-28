@@ -3072,6 +3072,15 @@
       "notFound": "Candidat introuvable",
       "back": "Pour revenir",
       "backToDashboard": "Retour au tableau de bord",
+      "backToApplications": "Retour aux candidatures",
+      "professionalProfile": {
+        "title": "Profil professionnel",
+        "professionalTitle": "Titre professionnel",
+        "professionalExperience": "Expérience professionnelle",
+        "skills": "Compétences",
+        "languages": "Langues",
+        "resume": "CV"
+      },
       "resume": {
         "title": "Programme d'études",
         "iframeTitle": "Programme d'études",
