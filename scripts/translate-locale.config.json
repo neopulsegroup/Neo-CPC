@@ -1,0 +1,52 @@
+{
+  "_about": "Configuração do scripts/translate-locale.mjs. Termos em `protectedTerms` são SUBSTITUÍDOS por placeholders antes de enviar ao DeepL e restaurados depois — garante que nomes próprios e siglas não sofrem tradução acidental. Veja docs/I18N.md.",
+  "protectedTerms": [
+    "CPC",
+    "Connecting People & Companies",
+    "EMPIS",
+    "CIBEA",
+    "Algarve",
+    "Lisboa",
+    "Lisbon",
+    "Faro",
+    "Albufeira",
+    "Portugal",
+    "Português",
+    "Portuguese",
+    "Portugais",
+    "Portuguesa",
+    "Neopulse",
+    "Firebase",
+    "Firestore",
+    "Google",
+    "WhatsApp",
+    "Carla",
+    "Sarah",
+    "Mateo",
+    "Silva",
+    "Vol1",
+    "OP2",
+    "OP3",
+    "T1",
+    "SCAS",
+    "PDI",
+    "NIF",
+    "CEP",
+    "SNS"
+  ],
+  "skipKeyPaths": [
+    "common.languages.pt",
+    "common.languages.en",
+    "common.languages.es",
+    "common.languages.fr"
+  ],
+  "_skipKeyPathsNote": "Estes paths não são traduzidos porque já contêm os nomes correctos dos idiomas em cada locale (ver common.languages no pt.json) — traduzir 'English' para FR daria 'Anglais', desalinhando do que aparece no seletor.",
+  "deepl": {
+    "freeApiUrl": "https://api-free.deepl.com/v2/translate",
+    "proApiUrl": "https://api.deepl.com/v2/translate",
+    "_apiUrlNote": "Default = free. Trocar para `proApiUrl` se a chave for de tier Pro (não tem sufixo `:fx`).",
+    "batchSize": 25,
+    "preserveFormatting": true,
+    "tagHandling": "xml"
+  }
+}

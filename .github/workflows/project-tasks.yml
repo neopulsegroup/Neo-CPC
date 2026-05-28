@@ -1,0 +1,156 @@
+name: Project Tasks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "0 9 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate project-tasks.md
+        id: validate_tasks
+        run: node scripts/validate-project-tasks.mjs
+
+      - name: Check project-tasks.md updated in PR
+        if: github.event_name == 'pull_request'
+        id: check_updated
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "${BASE_REF}" --depth=1
+          CHANGED="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          echo "${CHANGED}"
+
+          REQUIRES_TASKS_UPDATE="0"
+          if echo "${CHANGED}" | grep -Eq '^(src/|scripts/|package\.json|package-lock\.json|vite\.config|tsconfig|firebase\.json)'; then
+            REQUIRES_TASKS_UPDATE="1"
+          fi
+
+          HAS_TASKS_UPDATE="0"
+          if echo "${CHANGED}" | grep -Eq '^project-tasks\.md$'; then
+            HAS_TASKS_UPDATE="1"
+          fi
+
+          if [ "${REQUIRES_TASKS_UPDATE}" = "1" ] && [ "${HAS_TASKS_UPDATE}" = "0" ]; then
+            echo "missing=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify missing update
+        if: github.event_name == 'pull_request' && steps.check_updated.outputs.missing == '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = [
+              "project-tasks.md não foi atualizado nesta PR.",
+              "",
+              "Como regra do projeto, alterações em código/infra/testes exigem refletir imediatamente as tarefas no **Registro de Tarefas (Obrigatório)** com status, prioridade, responsável, prazo, progresso e atualizado em.",
+              "",
+              "Atualize o arquivo e reenvie a PR."
+            ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body
+            });
+
+      - name: Fail when project-tasks.md update is missing
+        if: github.event_name == 'pull_request' && steps.check_updated.outputs.missing == '1'
+        run: exit 1
+
+  daily_review:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run validation (capture output)
+        id: validate_capture
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TASKS_STRICT=1 node scripts/validate-project-tasks.mjs > tasks_validation.log 2>&1 || echo "FAILED=1" >> "$GITHUB_ENV"
+          echo "log<<EOF" >> "$GITHUB_OUTPUT"
+          cat tasks_validation.log >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update daily review issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Revisão diária project-tasks.md (${new Date().toISOString().slice(0,10)})`;
+            const log = ${{ toJSON(steps.validate_capture.outputs.log) }};
+            const body = [
+              "Revisão diária obrigatória do **project-tasks.md**.",
+              "",
+              "- Verificar se o Registro de Tarefas reflete o estado real do projeto",
+              "- Atualizar `Status`, `Progresso`, `Prazo` e `Atualizado em` das tarefas ativas",
+              "- Replanejar tarefas vencidas (ajustar prazo) ou concluir",
+              "",
+              "Resultado da validação:",
+              "```",
+              log || "(sem output)",
+              "```"
+            ].join("\n");
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 50
+            });
+
+            const existing = issues.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+            }
+
+      - name: Fail if validation failed
+        if: env.FAILED == '1'
+        run: exit 1

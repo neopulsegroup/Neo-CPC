@@ -1,0 +1,625 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is accessing their own data
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAccountEnabled() {
+      let userDoc = isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+      return userDoc != null
+        && (
+          !(userDoc.active is bool) || userDoc.active == true
+        )
+        && (
+          !(userDoc.blocked is bool) || userDoc.blocked == false
+        );
+    }
+    
+    function userRole() {
+      let userDoc = isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+      let profileDoc = isAuthenticated()
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data
+        : null;
+
+      let rawRole = userDoc != null && (userDoc.role is string) ? userDoc.role.lower()
+        : userDoc != null && (userDoc.profile is string) ? userDoc.profile.lower()
+        : userDoc != null && (userDoc.perfil is string) ? userDoc.perfil.lower()
+        : userDoc != null && (userDoc.type is string) ? userDoc.type.lower()
+        : profileDoc != null && (profileDoc.role is string) ? profileDoc.role.lower()
+        : profileDoc != null && (profileDoc.profile is string) ? profileDoc.profile.lower()
+        : profileDoc != null && (profileDoc.perfil is string) ? profileDoc.perfil.lower()
+        : profileDoc != null && (profileDoc.type is string) ? profileDoc.type.lower()
+        : null;
+      return rawRole in ['admin', 'administrador'] ? 'admin'
+        : rawRole in ['cpc', 'staff', 'equipa', 'team'] ? 'admin'
+        : rawRole in ['manager', 'gestor'] ? 'manager'
+        : rawRole in ['coordinator', 'coordenador'] ? 'coordinator'
+        : rawRole in ['mediator', 'mediador'] ? 'mediator'
+        : rawRole in ['lawyer', 'jurista'] ? 'lawyer'
+        : rawRole in ['psychologist', 'psicologo', 'psicóloga', 'psicologa'] ? 'psychologist'
+        : rawRole in ['trainer', 'formador'] ? 'trainer'
+        : rawRole in ['company', 'empresa', 'employer', 'business', 'empresario', 'empresário'] ? 'company'
+        : rawRole;
+    }
+
+    // Helper function to check if user has a specific role
+    function hasRole(role) {
+      return userRole() == role;
+    }
+
+    function isCpcStaff() {
+      return isAccountEnabled() && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+    }
+
+    function isEditingOtherProfile(userId) {
+      return isAuthenticated() && request.auth.uid != userId;
+    }
+
+    function isValidMigrantRegion(value) {
+      return value in ['Lisboa', 'Norte', 'Centro', 'Alentejo', 'Algarve', 'Outra'];
+    }
+
+    function isValidMigrantAddress(value) {
+      return (value is string) && value.size() >= 10 && value.size() <= 200;
+    }
+
+    function isValidMigrantAddressNumber(value) {
+      return (value is string)
+        && value.size() >= 1
+        && value.size() <= 20;
+    }
+
+    function isValidMigrantCep(value) {
+      return (value is string)
+        && value.size() >= 4
+        && value.size() <= 14
+        && value.matches('^[0-9\\-]+$');
+    }
+
+    function isValidMigrantRegionOther(region, value) {
+      return region != 'Outra' || ((value is string) && value.size() >= 2 && value.size() <= 80);
+    }
+
+    function isValidMigrantPersonalInfoForCpc() {
+      return isValidMigrantAddress(request.resource.data.address)
+        && isValidMigrantAddressNumber(request.resource.data.addressNumber)
+        && isValidMigrantCep(request.resource.data.cep)
+        && (request.resource.data.region is string)
+        && isValidMigrantRegion(request.resource.data.region)
+        && isValidMigrantRegionOther(request.resource.data.region, request.resource.data.regionOther);
+    }
+
+    function canManageCpcTeam() {
+      return isAccountEnabled() && userRole() in ['admin', 'manager', 'coordinator'];
+    }
+
+    function isCompany() {
+      return isAccountEnabled() && userRole() == 'company';
+    }
+
+    function isMigrant() {
+      return isAccountEnabled() && userRole() == 'migrant';
+    }
+
+    function isMigrantRoleValue() {
+      return userRole() in ['migrant', 'migrante', 'refugiado', 'imigrante'];
+    }
+
+    function isCpcRoleName(role) {
+      return role in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+    }
+
+    function roleByUserId(uid) {
+      let userDoc = exists(/databases/$(database)/documents/users/$(uid))
+        ? get(/databases/$(database)/documents/users/$(uid)).data
+        : null;
+      let profileDoc = exists(/databases/$(database)/documents/profiles/$(uid))
+        ? get(/databases/$(database)/documents/profiles/$(uid)).data
+        : null;
+      let rawRole = userDoc != null && (userDoc.role is string) ? userDoc.role.lower()
+        : userDoc != null && (userDoc.profile is string) ? userDoc.profile.lower()
+        : userDoc != null && (userDoc.perfil is string) ? userDoc.perfil.lower()
+        : userDoc != null && (userDoc.type is string) ? userDoc.type.lower()
+        : profileDoc != null && (profileDoc.role is string) ? profileDoc.role.lower()
+        : profileDoc != null && (profileDoc.profile is string) ? profileDoc.profile.lower()
+        : profileDoc != null && (profileDoc.perfil is string) ? profileDoc.perfil.lower()
+        : profileDoc != null && (profileDoc.type is string) ? profileDoc.type.lower()
+        : null;
+      return rawRole in ['admin', 'administrador'] ? 'admin'
+        : rawRole in ['cpc', 'staff', 'equipa', 'team'] ? 'admin'
+        : rawRole in ['manager', 'gestor'] ? 'manager'
+        : rawRole in ['coordinator', 'coordenador'] ? 'coordinator'
+        : rawRole in ['mediator', 'mediador'] ? 'mediator'
+        : rawRole in ['lawyer', 'jurista'] ? 'lawyer'
+        : rawRole in ['psychologist', 'psicologo', 'psicóloga', 'psicologa'] ? 'psychologist'
+        : rawRole in ['trainer', 'formador'] ? 'trainer'
+        : rawRole in ['company', 'empresa', 'employer', 'business', 'empresario', 'empresário'] ? 'company'
+        : rawRole;
+    }
+
+    function otherParticipantId(participants) {
+      return participants[0] == request.auth.uid ? participants[1] : participants[0];
+    }
+
+    function canStartConversationWithTarget(targetRole, convoType) {
+      return userRole() == 'company'
+        ? (targetRole == 'migrant' || isCpcRoleName(targetRole))
+        : isCpcStaff()
+          ? (targetRole == 'migrant' || targetRole == 'company' || isCpcRoleName(targetRole))
+          : isMigrantRoleValue()
+            ? (convoType == 'support_request' && isCpcRoleName(targetRole))
+            : false;
+    }
+
+    function canCreateConversationDoc() {
+      let participants = request.resource.data.participants;
+      let convoType = request.resource.data.type;
+      return messagingAccountEnabled()
+        && (participants is list)
+        && participants.size() == 2
+        && request.auth.uid in participants
+        && (convoType is string)
+        && convoType in ['direct', 'support_request']
+        && request.resource.data.created_by == request.auth.uid
+        && canStartConversationWithTarget(roleByUserId(otherParticipantId(participants)), convoType);
+    }
+
+    function companyDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId));
+    }
+
+    function isEmployerRoleValue(v) {
+      return v is string
+        && v.lower().matches('^\\s*(company|empresa|employer|business|empresario|empresário)\\s*$');
+    }
+
+    // Papel de empresa além de userRole() (ex.: role não-string no doc users, ou só em profiles).
+    // Importante: nunca chamar get(users/uid) sem exists — caso contrário a avaliação da regra falha por completo.
+    function employerRoleOnUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && employerRoleOnUserDocWhenExists();
+    }
+
+    function employerRoleOnUserDocWhenExists() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isEmployerRoleValue(u.role)
+        || isEmployerRoleValue(u.profile)
+        || isEmployerRoleValue(u.perfil)
+        || isEmployerRoleValue(u.type);
+    }
+
+    function profileDocLooksEmployer(p) {
+      return isEmployerRoleValue(p.role)
+        || isEmployerRoleValue(p.profile)
+        || isEmployerRoleValue(p.perfil)
+        || isEmployerRoleValue(p.type);
+    }
+
+    function employerRoleOnProfileDoc() {
+      return exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && profileDocLooksEmployer(get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data);
+    }
+
+    // Conta “ok” para escrita de empresa: doc users/{uid} com active/blocked coerentes.
+    // Caso raro: utilizador tem profiles (papel empresa) + companies/{uid} mas não tem users/{uid}
+    // (dados legados / importação). Sem este ramo, isAccountEnabled() falha e bloqueia job_offers.
+    function employerProfileFallbackWhenNoUserDoc() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && employerRoleOnProfileDoc()
+        && exists(/databases/$(database)/documents/companies/$(request.auth.uid));
+    }
+
+    // Migrante com doc em profiles mas sem users/{uid} (legado / importação): permitir mensagens como participante.
+    function migrantProfileFallbackWhenNoUserDoc() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && userRole() in ['migrant', 'migrante', 'refugiado', 'imigrante'];
+    }
+
+    // Equipa CPC com perfil mas sem users/{uid} (legado / importação): isCpcStaff() exige isAccountEnabled() e falhava aqui.
+    function cpcStaffProfileFallbackWhenNoUserDoc() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+    }
+    function canEditCmsContent() {
+      return isAccountEnabled() && userRole() == 'admin';
+    }
+    function messagingAccountEnabled() {
+      return isAccountEnabled()
+        || employerProfileFallbackWhenNoUserDoc()
+        || migrantProfileFallbackWhenNoUserDoc()
+        || cpcStaffProfileFallbackWhenNoUserDoc();
+    }
+
+    function employerPublisherRoleMatch() {
+      return userRole() == 'company'
+        || employerRoleOnUserDoc()
+        || employerRoleOnProfileDoc();
+    }
+
+    function employerPublisher() {
+      return isAuthenticated()
+        && employerPublisherRoleMatch()
+        && (
+          isAccountEnabled()
+          || employerProfileFallbackWhenNoUserDoc()
+        );
+    }
+
+    // Dono do documento companies/{companyId}:
+    // - Se company_id na vaga == auth.uid e existe companies/{uid}, aceita (convénio do app: doc canónico no ID do utilizador).
+    // - Caso contrário: user_id / userId no doc (string ou referência a users/{uid}).
+    function companyUserIdFieldMatches(fieldVal) {
+      return fieldVal == request.auth.uid
+        || fieldVal == /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function companyOwnsCompanyId(companyId) {
+      return companyId is string
+        && companyId.size() > 0
+        && exists(/databases/$(database)/documents/companies/$(companyId))
+        && (
+          companyId == request.auth.uid
+          || companyUserIdFieldMatches(companyDoc(companyId).data.get('user_id', null))
+          || companyUserIdFieldMatches(companyDoc(companyId).data.get('userId', null))
+          || (
+            companyId == request.auth.uid
+            && !(companyDoc(companyId).data.keys().hasAny(['user_id', 'userId']))
+          )
+        );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if (isAuthenticated() && isOwner(userId)) || isCpcStaff();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if (isAccountEnabled() && hasRole('admin')) || (
+        isAccountEnabled() && isOwner(userId) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.active == resource.data.active &&
+        request.resource.data.blocked == resource.data.blocked &&
+        request.resource.data.blockedAt == resource.data.blockedAt &&
+        request.resource.data.blockedBy == resource.data.blockedBy &&
+        request.resource.data.disabledAt == resource.data.disabledAt
+      );
+      allow delete: if isAccountEnabled() && hasRole('admin') && resource.data.role == 'migrant';
+    }
+    
+    // Profiles collection
+    match /profiles/{userId} {
+      allow read: if isOwner(userId) ||
+        (isAccountEnabled() && isCpcStaff()) ||
+        (employerPublisher() && resource.data.availableForWork == true);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) ||
+        (isAccountEnabled() && hasRole('admin')) ||
+        (isCpcStaff() && isEditingOtherProfile(userId) && isValidMigrantPersonalInfoForCpc());
+      allow delete: if isAccountEnabled() && hasRole('admin');
+    }
+    
+    // Triage collection
+    match /triage/{userId} {
+      allow read: if isOwner(userId) || (isAccountEnabled() && isCpcStaff());
+      allow write: if isOwner(userId);
+      allow delete: if isAccountEnabled() && hasRole('admin');
+    }
+
+    match /i18n/{docId} {
+      allow read: if true;
+      allow write: if canManageCpcTeam();
+    }
+
+    match /i18n_overrides/{docId} {
+      allow read: if true;
+      allow write: if canManageCpcTeam();
+    }
+    
+    // Page content overrides for public pages (CMS)
+    match /page_content/{pageId} {
+      allow read: if true;
+      allow create, update, delete: if canEditCmsContent();
+    }
+    
+    // Companies collection
+    match /companies/{companyId} {
+      allow read: if true;
+      allow create: if (isAuthenticated() && request.auth.uid == companyId && request.resource.data.user_id == request.auth.uid) || isCpcStaff();
+      // Atualizar perfil próprio; corrigir user_id em legado (sem campo ou só em companies/{uid}).
+      allow update: if isCpcStaff() || (
+        isAuthenticated() && (
+          resource.data.user_id == request.auth.uid
+          || (
+            companyId == request.auth.uid
+            && !(resource.data.keys().hasAll(['user_id']))
+          )
+          || (
+            employerPublisher()
+            && !(resource.data.keys().hasAll(['user_id']))
+            && request.resource.data.user_id == request.auth.uid
+          )
+        )
+      );
+      allow delete: if isCpcStaff();
+    }
+
+    // Job offers
+    match /job_offers/{jobId} {
+      allow read: if isAccountEnabled() &&
+        (
+          resource.data.status == 'active' ||
+          isCpcStaff() ||
+          (employerPublisher() && companyOwnsCompanyId(resource.data.company_id))
+        );
+      allow create: if employerPublisher()
+        && request.resource.data.company_id is string
+        && companyOwnsCompanyId(request.resource.data.company_id);
+      allow update: if isCpcStaff() ||
+        (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
+      allow delete: if isCpcStaff();
+    }
+
+    // Job applications
+    match /job_applications/{applicationId} {
+      allow read: if isCpcStaff() ||
+        (isAccountEnabled() && resource.data.applicant_id == request.auth.uid) ||
+        (
+          employerPublisher() &&
+          resource.data.job_id is string &&
+          companyOwnsCompanyId(get(/databases/$(database)/documents/job_offers/$(resource.data.job_id)).data.company_id)
+        );
+      // get(vaga) está sujeito às mesmas regras de leitura de job_offers; migrante só lê vagas active → candidatura só a vagas ativas.
+      allow create: if isAccountEnabled() &&
+        request.resource.data.applicant_id == request.auth.uid &&
+        request.resource.data.job_id is string &&
+        request.resource.data.keys().hasOnly(['job_id', 'applicant_id', 'cover_letter', 'status', 'created_at']) &&
+        request.resource.data.status == 'submitted' &&
+        (request.resource.data.cover_letter == null || request.resource.data.cover_letter is string) &&
+        (request.resource.data.created_at is string) &&
+        get(/databases/$(database)/documents/job_offers/$(request.resource.data.job_id)).data.status == 'active';
+      allow update: if isCpcStaff() ||
+        (
+          employerPublisher() &&
+          resource.data.job_id is string &&
+          companyOwnsCompanyId(get(/databases/$(database)/documents/job_offers/$(resource.data.job_id)).data.company_id)
+        );
+      allow delete: if isCpcStaff();
+    }
+
+    match /company_candidates/{candidateId} {
+      allow read: if isCpcStaff() || (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
+      allow create: if employerPublisher()
+        && companyOwnsCompanyId(request.resource.data.company_id)
+        && request.resource.data.keys().hasAll(['company_id', 'name', 'cpf', 'email', 'phone', 'desired_role', 'experience', 'stage', 'created_at'])
+        && request.resource.data.keys().hasOnly([
+          'company_id',
+          'name',
+          'cpf',
+          'email',
+          'phone',
+          'desired_role',
+          'experience',
+          'skills',
+          'job_offer_id',
+          'match_percent',
+          'stage',
+          'created_at',
+          'updatedAt'
+        ]);
+      allow update: if isCpcStaff() || (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
+      allow delete: if isCpcStaff() || (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
+    }
+
+    // Trails and modules (content)
+    match /trails/{trailId} {
+      allow read: if isAccountEnabled();
+      allow write: if isCpcStaff();
+    }
+
+    match /trail_modules/{moduleId} {
+      allow read: if isAccountEnabled();
+      allow write: if isCpcStaff();
+    }
+
+    // Trail progress
+    match /user_trail_progress/{progressId} {
+      allow read: if isCpcStaff() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
+      allow create: if isCpcStaff() || (isAuthenticated() && request.resource.data.user_id == request.auth.uid);
+      allow update: if isCpcStaff() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
+      allow delete: if isCpcStaff();
+    }
+
+    // Sessions
+    match /sessions/{sessionId} {
+      allow read: if isCpcStaff() ||
+        (
+          isAccountEnabled() &&
+          (
+            resource.data.migrant_id == request.auth.uid ||
+            resource.data.professional_id == request.auth.uid
+          )
+        );
+      allow create: if isCpcStaff() ||
+        (isAccountEnabled() && request.resource.data.migrant_id == request.auth.uid);
+      allow update: if isCpcStaff() ||
+        (isAccountEnabled() && resource.data.migrant_id == request.auth.uid);
+      allow delete: if isCpcStaff();
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated()
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants
+        && messagingAccountEnabled();
+      allow create: if canCreateConversationDoc();
+      allow update: if messagingAccountEnabled()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
+      allow delete: if false;
+    }
+
+    match /conversation_messages/{messageId} {
+      function conversationDocRef() {
+        return get(/databases/$(database)/documents/conversations/$(request.resource.data.conversation_id));
+      }
+
+      function canCreateConversationMessage() {
+        let convo = conversationDocRef();
+        let senderIsParticipant = convo.exists()
+          && convo.data.participants is list
+          && request.auth.uid in convo.data.participants;
+        let senderIsMigrant = isMigrantRoleValue();
+        let migrantCanPost = convo.exists() && (
+          convo.data.type == 'support_request' ||
+          convo.data.created_by_role != 'migrant'
+        );
+        return messagingAccountEnabled()
+          && (request.resource.data.conversation_id is string)
+          && senderIsParticipant
+          && request.resource.data.sender_id == request.auth.uid
+          && (request.resource.data.text is string)
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && (!senderIsMigrant || migrantCanPost);
+      }
+
+      function conversationDocForMessageRead() {
+        return get(/databases/$(database)/documents/conversations/$(resource.data.conversation_id));
+      }
+
+      allow read: if isAuthenticated()
+        && resource.data.conversation_id is string
+        && conversationDocForMessageRead().exists()
+        && conversationDocForMessageRead().data.participants is list
+        && request.auth.uid in conversationDocForMessageRead().data.participants
+        && messagingAccountEnabled();
+      allow create: if canCreateConversationMessage();
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isCpcStaff() || (isAccountEnabled() && resource.data.recipient_id == request.auth.uid);
+      allow create: if isCpcStaff()
+        && request.resource.data.keys().hasAll(['recipient_id', 'title', 'body', 'created_at'])
+        && request.resource.data.recipient_id is string
+        && request.resource.data.title is string
+        && request.resource.data.body is string;
+      allow update, delete: if false;
+    }
+
+    match /activities/{activityId} {
+      // Migrante: ler só se estiver na lista (UID ou email em participantMigrantIds).
+      // Usa isAuthenticated (não isAccountEnabled) para não bloquear quem tem Auth mas falta/está incompleto o doc users/{uid}.
+      allow read: if isCpcStaff() ||
+        (
+          isAuthenticated() &&
+          (
+            request.auth.uid in resource.data.get('participantMigrantIds', []) ||
+            (
+              request.auth.token.email is string &&
+              request.auth.token.email in resource.data.get('participantMigrantIds', [])
+            )
+          ) &&
+          (
+            !(resource.data.keys().hasAny(['deletedAt'])) ||
+            resource.data.deletedAt == null
+          )
+        );
+      allow create: if isCpcStaff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow update: if isCpcStaff()
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isCpcStaff();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAccountEnabled() && hasRole('admin');
+      function isUnauthorizedAttemptLog() {
+        return isAuthenticated()
+          && request.resource.data.action == 'unauthorized_attempt'
+          && request.resource.data.actor_id == request.auth.uid
+          && request.resource.data.keys().hasAll(['action', 'actor_id', 'context', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['action', 'actor_id', 'context', 'createdAt', 'target_id'])
+          && (request.resource.data.context is string)
+          && request.resource.data.context.size() <= 200;
+      }
+
+      allow create: if isAuthenticated()
+        && request.resource.data.actor_id == request.auth.uid
+        && (
+          isCpcStaff() ||
+          isUnauthorizedAttemptLog()
+        );
+      allow update, delete: if false;
+    }
+
+    match /system_settings/{docId} {
+      allow read: if (docId == 'contact') || (isAccountEnabled() && hasRole('admin'));
+      allow create, update, delete: if isAccountEnabled() && hasRole('admin');
+    }
+
+    match /contact_messages/{messageId} {
+      allow read: if isAccountEnabled() && hasRole('admin');
+      function isValidContactMessage() {
+        return request.resource.data.keys().hasAll(['name', 'email', 'message', 'createdAt', 'source'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'message', 'createdAt', 'source'])
+          && (request.resource.data.name is string) && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120
+          && (request.resource.data.email is string) && request.resource.data.email.size() >= 5 && request.resource.data.email.size() <= 254
+          && (request.resource.data.message is string) && request.resource.data.message.size() >= 2 && request.resource.data.message.size() <= 5000
+          && (request.resource.data.source is string) && request.resource.data.source.size() <= 80;
+      }
+      allow create: if isValidContactMessage();
+      allow update, delete: if false;
+    }
+
+    match /mail/{mailId} {
+      allow read: if isAccountEnabled() && hasRole('admin');
+
+      function contactNotificationEmail() {
+        return exists(/databases/$(database)/documents/system_settings/contact)
+          && (get(/databases/$(database)/documents/system_settings/contact).data.notificationEmail is string)
+          ? get(/databases/$(database)/documents/system_settings/contact).data.notificationEmail
+          : null;
+      }
+
+      function isValidContactMail() {
+        let to = contactNotificationEmail();
+        return to != null
+          && request.resource.data.keys().hasAll(['to', 'message', 'createdAt', 'tag'])
+          && request.resource.data.keys().hasOnly(['to', 'message', 'createdAt', 'tag'])
+          && request.resource.data.tag == 'contact'
+          && (request.resource.data.to is string) && request.resource.data.to == to
+          && (request.resource.data.message is map)
+          && request.resource.data.message.keys().hasAll(['subject', 'text', 'html'])
+          && (request.resource.data.message.subject is string) && request.resource.data.message.subject.size() <= 200
+          && (request.resource.data.message.text is string) && request.resource.data.message.text.size() <= 6000
+          && (request.resource.data.message.html is string) && request.resource.data.message.html.size() <= 12000;
+      }
+
+      allow create: if isValidContactMail() || (isAccountEnabled() && hasRole('admin'));
+      allow update, delete: if false;
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

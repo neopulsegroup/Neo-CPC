@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Regras alinhadas ao uso atual:
+// - Foto de perfil: profile_photos/{userId} (ficheiro único por utilizador)
+// - Identidade visual (CPC): profile_photos/{userId}/document_branding/{fileName}
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /profile_photos/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /profile_photos/{userId}/document_branding/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
