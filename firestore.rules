@@ -617,6 +617,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
+    // CV uploads audit trail (empresa anexa CV externo a uma candidatura).
+    match /cv_uploads_audit/{auditId} {
+      allow read: if isAuthenticated()
+        && (resource.data.uploaderUid == request.auth.uid || isCpcStaff());
+      allow create: if isAuthenticated()
+        && request.resource.data.uploaderUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

@@ -353,6 +353,27 @@
       }
     }
   },
+  "cvUpload": {
+    "button": "Téléverser le CV",
+    "uploading": "Téléversement...",
+    "viewUploaded": "Voir le CV téléversé",
+    "hint": "PDF, DOC ou DOCX. Maximum {maxSize} Mo.",
+    "errors": {
+      "tooLarge": {
+        "title": "Fichier trop volumineux",
+        "description": "Le fichier doit faire au maximum {maxSize} Mo."
+      },
+      "invalidType": {
+        "title": "Format non pris en charge",
+        "description": "Seuls les PDF, DOC ou DOCX sont acceptés."
+      },
+      "uploadFailed": {
+        "title": "Erreur lors du téléversement du CV",
+        "description": "Veuillez réessayer."
+      }
+    },
+    "success": "CV téléversé avec succès"
+  },
   "needs": {
     "title": "Profil de Besoins",
     "empty": "Nous n'avons pas encore identifié de besoins spécifiques. Complétez la Situation Initiale pour obtenir un profil personnalisé.",
@@ -2700,8 +2721,12 @@
           "candidate": "Candidat",
           "email": "E-mail",
           "date": "Date",
-          "coverLetter": "Lettre de motivation"
-        }
+          "coverLetter": "Lettre de motivation",
+          "candidateCv": "CV du candidat",
+          "attachedCv": "CV joint par l'entreprise"
+        },
+        "viewCandidateCv": "Voir le CV du candidat",
+        "noCandidateCv": "Le candidat n'a pas joint de CV."
       }
     },
     "applicationsHub": {

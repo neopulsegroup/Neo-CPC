@@ -353,6 +353,27 @@
       }
     }
   },
+  "cvUpload": {
+    "button": "Carregar CV",
+    "uploading": "A carregar...",
+    "viewUploaded": "Ver CV carregado",
+    "hint": "PDF, DOC ou DOCX. Máximo {maxSize} MB.",
+    "errors": {
+      "tooLarge": {
+        "title": "Ficheiro demasiado grande",
+        "description": "O ficheiro deve ter no máximo {maxSize} MB."
+      },
+      "invalidType": {
+        "title": "Formato não suportado",
+        "description": "Aceite PDF, DOC ou DOCX apenas."
+      },
+      "uploadFailed": {
+        "title": "Erro ao carregar CV",
+        "description": "Tente novamente."
+      }
+    },
+    "success": "CV carregado com sucesso"
+  },
   "needs": {
     "title": "Perfil de Necessidades",
     "empty": "Ainda não identificámos necessidades específicas. Complete a Situação Inicial para receber um perfil personalizado.",
@@ -2700,8 +2721,12 @@
           "candidate": "Candidato",
           "email": "Email",
           "date": "Data",
-          "coverLetter": "Carta de Apresentação"
-        }
+          "coverLetter": "Carta de Apresentação",
+          "candidateCv": "CV do candidato",
+          "attachedCv": "CV anexado pela empresa"
+        },
+        "viewCandidateCv": "Ver CV do candidato",
+        "noCandidateCv": "O candidato não anexou CV."
       }
     },
     "applicationsHub": {

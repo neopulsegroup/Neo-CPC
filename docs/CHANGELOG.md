@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-28 · Sprint B · Empresa: importar CV com seletor de arquivo
+
+- **Cenário implementado: A2** — a empresa anexa um CV externo (PDF/DOC/DOCX, máx. 5 MB) a uma candidatura, **complementando** (não substituindo) o CV do próprio migrante.
+- `CVUploadButton` (`src/features/cv/CVUploadButton.tsx`) — seletor de ficheiro com validação client-side (tipo + tamanho), estados de loading, link "Ver CV carregado" e remoção. Totalmente i18n.
+- `uploadCvFile` (`src/features/cv/uploadCvFile.ts`) — upload para Firebase Storage (`cv_uploads/{contextType}/{contextId}/...`) + **audit trail** em `cv_uploads_audit` (conformidade RGPD básica). Validação também server-side-ish via `validateCvFile`.
+- Integração em `JobApplicationsPage` (painel de detalhe da candidatura): mostra o CV do candidato (quando existe) E o upload do CV anexado pela empresa, gravado em `job_applications/{id}.company_attached_cv_url`.
+- Regras de segurança: `firestore.rules` (`cv_uploads_audit`: leitura por uploader/CPC, criação só pelo próprio, sem update/delete) e `storage.rules` (`cv_uploads/...`: leitura autenticada, escrita com limite 5 MB e tipos PDF/DOC/DOCX).
+- i18n `cvUpload.*` + `company.applications.details.{candidateCv,attachedCv,viewCandidateCv,noCandidateCv}` em PT/EN/ES/FR.
+- 11 testes unitários novos (5 uploadCvFile + 6 CVUploadButton).
+
+**Por fazer (requer a tua ação):** deploy das regras (`firebase deploy --only firestore:rules,storage:rules`) — **não foi feito** porque afeta produção e a autenticação Firebase deste ambiente não tem acesso de admin ao projeto. Sem o deploy, o upload real falha em produção até as regras subirem.
+
+
 ## 2026-05-28 · Sprint A · Triagem Inteligente
 
 - **Perfil de Necessidades** gerado automaticamente a partir da Situação Inicial (`inferNeedsProfile.ts`)

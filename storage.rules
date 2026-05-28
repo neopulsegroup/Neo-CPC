@@ -20,5 +20,17 @@ service firebase.storage {
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+
+    // CV anexado pela empresa a uma candidatura (PDF/DOC/DOCX, máx. 5 MB).
+    match /cv_uploads/{contextType}/{contextId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+    }
   }
 }

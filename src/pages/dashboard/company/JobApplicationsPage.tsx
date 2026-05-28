@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { CVUploadButton } from '@/features/cv/CVUploadButton';
 import {
   ArrowLeft,
   User,
@@ -20,6 +22,9 @@ interface Application {
   cover_letter: string | null;
   status: string;
   created_at: string;
+  applicantId: string;
+  applicantResumeUrl: string | null;
+  companyAttachedCvUrl: string | null;
   applicant: {
     name: string;
     email: string;
@@ -35,6 +40,7 @@ interface JobOffer {
 export default function JobApplicationsPage() {
   const { jobId } = useParams();
   const { language, t } = useLanguage();
+  const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [job, setJob] = useState<JobOffer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +59,7 @@ export default function JobApplicationsPage() {
       if (jobData) setJob(jobData);
 
       // Fetch applications with applicant profiles
-      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string }>(
+      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string; company_attached_cv_url?: string | null }>(
         'job_applications',
         [{ field: 'job_id', operator: '==', value: jobId }],
         undefined
@@ -65,19 +71,28 @@ export default function JobApplicationsPage() {
       });
 
       if (appsData.length > 0) {
-        // Fetch applicant profiles
+        // Fetch applicant profiles (nome, email e CV do próprio migrante)
         const applicantIds = Array.from(new Set(appsData.map(app => app.applicant_id)));
-        const profileDocs = await Promise.all(applicantIds.map(id => getDocument<{ id: string; name?: string | null; email?: string | null }>('profiles', id)));
-        const profilesById = new Map<string, { name: string; email: string }>();
+        const profileDocs = await Promise.all(applicantIds.map(id => getDocument<{ id: string; name?: string | null; email?: string | null; resumeUrl?: string | null }>('profiles', id)));
+        const profilesById = new Map<string, { name: string; email: string; resumeUrl: string | null }>();
         applicantIds.forEach((id, idx) => {
           const p = profileDocs[idx];
-          if (p) profilesById.set(id, { name: p.name || t.get('company.applications.unknownApplicant'), email: p.email || '' });
+          if (p) profilesById.set(id, { name: p.name || t.get('company.applications.unknownApplicant'), email: p.email || '', resumeUrl: (typeof p.resumeUrl === 'string' && p.resumeUrl.trim()) ? p.resumeUrl.trim() : null });
         });
 
-        const applicationsWithProfiles = appsData.map(app => ({
-          ...app,
-          applicant: profilesById.get(app.applicant_id) || { name: t.get('company.applications.unknownApplicant'), email: '' }
-        }));
+        const applicationsWithProfiles: Application[] = appsData.map(app => {
+          const prof = profilesById.get(app.applicant_id);
+          return {
+            id: app.id,
+            cover_letter: app.cover_letter,
+            status: app.status,
+            created_at: app.created_at,
+            applicantId: app.applicant_id,
+            applicantResumeUrl: prof?.resumeUrl ?? null,
+            companyAttachedCvUrl: (typeof app.company_attached_cv_url === 'string' && app.company_attached_cv_url.trim()) ? app.company_attached_cv_url.trim() : null,
+            applicant: prof ? { name: prof.name, email: prof.email } : { name: t.get('company.applications.unknownApplicant'), email: '' },
+          };
+        });
 
         setApplications(applicationsWithProfiles);
       } else {
@@ -97,6 +112,12 @@ export default function JobApplicationsPage() {
     await updateDocument('job_applications', applicationId, { status: newStatus });
     setApplications(prev => prev.map(app => (app.id === applicationId ? { ...app, status: newStatus } : app)));
     setSelectedApplication(null);
+  }
+
+  async function setCompanyAttachedCv(applicationId: string, url: string | null) {
+    await updateDocument('job_applications', applicationId, { company_attached_cv_url: url });
+    setApplications(prev => prev.map(app => (app.id === applicationId ? { ...app, companyAttachedCvUrl: url } : app)));
+    setSelectedApplication(prev => (prev && prev.id === applicationId ? { ...prev, companyAttachedCvUrl: url } : prev));
   }
 
   const getStatusConfig = (status: string) => {
@@ -241,6 +262,39 @@ export default function JobApplicationsPage() {
                         </p>
                       </div>
                     )}
+
+                    <div className="pt-4 border-t border-border space-y-3">
+                      <div>
+                        <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.candidateCv')}</label>
+                        {selectedApplication.applicantResumeUrl ? (
+                          <a
+                            href={selectedApplication.applicantResumeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 flex items-center gap-2 text-sm text-primary hover:underline"
+                          >
+                            <FileText className="h-4 w-4" />
+                            {t.get('company.applications.details.viewCandidateCv')}
+                          </a>
+                        ) : (
+                          <p className="mt-1 text-sm text-muted-foreground">{t.get('company.applications.details.noCandidateCv')}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.attachedCv')}</label>
+                        <div className="mt-1">
+                          <CVUploadButton
+                            contextId={selectedApplication.id}
+                            contextType="application"
+                            uploaderUid={user?.uid ?? ''}
+                            currentUrl={selectedApplication.companyAttachedCvUrl}
+                            onUploadComplete={(url) => void setCompanyAttachedCv(selectedApplication.id, url)}
+                            onRemove={() => void setCompanyAttachedCv(selectedApplication.id, null)}
+                            disabled={!user?.uid}
+                          />
+                        </div>
+                      </div>
+                    </div>
 
                     <div className="pt-4 border-t border-border space-y-2">
                       <p className="text-sm font-medium mb-2">{t.get('company.applications.details.updateStatus')}</p>

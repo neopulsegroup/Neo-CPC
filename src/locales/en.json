@@ -353,6 +353,27 @@
       }
     }
   },
+  "cvUpload": {
+    "button": "Upload CV",
+    "uploading": "Uploading...",
+    "viewUploaded": "View uploaded CV",
+    "hint": "PDF, DOC or DOCX. Maximum {maxSize} MB.",
+    "errors": {
+      "tooLarge": {
+        "title": "File too large",
+        "description": "The file must be at most {maxSize} MB."
+      },
+      "invalidType": {
+        "title": "Unsupported format",
+        "description": "Only PDF, DOC or DOCX are accepted."
+      },
+      "uploadFailed": {
+        "title": "Error uploading CV",
+        "description": "Please try again."
+      }
+    },
+    "success": "CV uploaded successfully"
+  },
   "needs": {
     "title": "Needs Profile",
     "empty": "We haven't identified specific needs yet. Complete the Initial Situation to get a personalised profile.",
@@ -2700,8 +2721,12 @@
           "candidate": "Candidate",
           "email": "Email",
           "date": "Date",
-          "coverLetter": "Cover letter"
-        }
+          "coverLetter": "Cover letter",
+          "candidateCv": "Candidate CV",
+          "attachedCv": "CV attached by the company"
+        },
+        "viewCandidateCv": "View candidate CV",
+        "noCandidateCv": "The candidate did not attach a CV."
       }
     },
     "applicationsHub": {
