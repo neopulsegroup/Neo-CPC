@@ -1,5 +1,6 @@
 import type { User } from 'firebase/auth';
 import { countDocuments, getDocument, queryDocuments, setDocument } from '@/integrations/firebase/firestore';
+import { loadApplicantIdentityMap } from '@/pages/dashboard/company/applicantIdentity';
 
 export type CompanyJobOfferScope = {
   companyId: string | null;
@@ -175,6 +176,7 @@ export type CompanyHomeJobRow = {
 export type CompanyHomeApplicationRow = {
   id: string;
   applicantName: string;
+  profileUnavailable: boolean;
   jobTitle: string;
   jobId: string;
   createdAt: string;
@@ -310,25 +312,21 @@ export async function fetchCompanyHomeSnapshot(jobOfferCompanyIds: string[], unk
     .slice(0, 5);
 
   const applicantIds = Array.from(new Set(flatApps.map((a) => a.applicant_id).filter((id): id is string => Boolean(id))));
-  const profileDocs = await Promise.all(
-    applicantIds.map((id) => getDocument<{ name?: string | null; email?: string | null }>('profiles', id))
-  );
-  const profileById = new Map<string, { name: string }>();
-  applicantIds.forEach((id, idx) => {
-    const p = profileDocs[idx];
-    profileById.set(id, {
-      name: p?.name?.trim() || unknownApplicantLabel,
-    });
-  });
+  const identityById = await loadApplicantIdentityMap(applicantIds, unknownApplicantLabel);
 
   const mappedApps = flatApps
     .map((app) => {
       const jobId = app.job_id || '';
       if (!jobId || !offersById.has(jobId)) return null;
-      const profileRow = profileById.get(app.applicant_id || '') ?? { name: unknownApplicantLabel };
+      const profileRow = identityById.get(app.applicant_id || '') ?? {
+        name: unknownApplicantLabel,
+        email: '',
+        profileUnavailable: true,
+      };
       return {
         id: app.id,
         applicantName: profileRow.name,
+        profileUnavailable: profileRow.profileUnavailable,
         jobTitle: offersById.get(jobId)?.title || '—',
         jobId,
         createdAt: createdAtToIso(app.created_at),

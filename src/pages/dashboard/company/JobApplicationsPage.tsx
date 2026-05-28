@@ -29,6 +29,7 @@ interface Application {
   applicant: {
     name: string;
     email: string;
+    profileUnavailable: boolean;
   };
 }
 
@@ -204,7 +205,10 @@ export default function JobApplicationsPage() {
                             {app.applicant.name.charAt(0)}
                           </div>
                           <div>
-                            <h3 className="font-semibold">{app.applicant.name}</h3>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold">{app.applicant.name}</h3>
+                              {app.applicant.profileUnavailable ? <ApplicantProfileUnavailableBadge /> : null}
+                            </div>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Mail className="h-3 w-3" />
                               {app.applicant.email}
@@ -241,7 +245,12 @@ export default function JobApplicationsPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.candidate')}</label>
-                      <p className="font-medium">{selectedApplication.applicant.name}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <p className="font-medium">{selectedApplication.applicant.name}</p>
+                        {selectedApplication.applicant.profileUnavailable ? (
+                          <ApplicantProfileUnavailableBadge />
+                        ) : null}
+                      </div>
                     </div>
 
                     <div>

@@ -2651,7 +2651,9 @@
         "loadFailedTitle": "Error",
         "loadFailedDesc": "No se pudo cargar esta vacante para editarla.",
         "createFailedTitle": "Error",
-        "createFailedDesc": "No se pudo crear la oferta. Inténtalo de nuevo."
+        "createFailedDesc": "No se pudo crear la oferta. Inténtalo de nuevo.",
+        "studyAreaRequired": "Seleccione el área de estudios para el nivel de cualificación elegido.",
+        "studyAreaOtherRequired": "Indique el área de estudios cuando seleccione «Otra»."
       },
       "form": {
         "sectionTitle": "Información de la oferta",
@@ -2662,6 +2664,9 @@
           "sector": "Setor",
           "contractType": "Tipo de contrato",
           "workMode": "Modalidad de trabajo",
+          "minimumQualification": "Cualificación mínima",
+          "studyArea": "Área de estudios",
+          "studyAreaOther": "Especificar área de estudios",
           "salaryRange": "Rango salarial",
           "requirements": "Requisitos",
           "skills": "Competencias"
@@ -2672,6 +2677,8 @@
           "location": "Ej.: Lisboa",
           "sector": "Ej.: Servicios, Logística",
           "salaryRange": "Ej.: 900€ - 1100€/mes",
+          "studyArea": "Seleccione el área de estudios",
+          "studyAreaOther": "Ej.: Arquitectura, Marketing",
           "requirements": "Lista los requisitos y cualificaciones necesarias...",
           "skills": "Ej.: Carpintería, Atención al cliente, Excel (separar por comas)"
         },
@@ -2685,6 +2692,27 @@
           "on_site": "Presencial",
           "hybrid": "Híbrido",
           "remote": "Remoto"
+        },
+        "qualificationLevels": {
+          "none": "Sin requisito mínimo",
+          "basic": "Educación básica",
+          "secondary": "Educación secundaria",
+          "technical": "Formación técnica / profesional",
+          "bachelor": "Licenciatura",
+          "master": "Máster",
+          "phd": "Doctorado"
+        },
+        "studyAreas": {
+          "economics_management": "Economía / Gestión",
+          "engineering": "Ingeniería",
+          "computer_science": "Informática",
+          "health": "Salud",
+          "law": "Derecho",
+          "arts_humanities": "Artes / Humanidades",
+          "sciences": "Ciencias",
+          "education": "Educación",
+          "social_sciences": "Ciencias sociales",
+          "other": "Otra"
         }
       },
       "actions": {
@@ -2771,6 +2799,8 @@
     },
     "applications": {
       "unknownApplicant": "Desconocido",
+      "profileUnavailable": "Perfil no disponible",
+      "profileUnavailableHint": "El candidato desactivó «Disponible para trabajar» o el perfil ya no es visible para la empresa. La candidatura sigue registrada.",
       "backToOffers": "Volver a las ofertas",
       "pageTitle": "Candidaturas",
       "count": "{count} candidatura(s) recibida(s)",

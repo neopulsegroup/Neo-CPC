@@ -2651,7 +2651,9 @@
         "loadFailedTitle": "Error",
         "loadFailedDesc": "Could not load this job for editing.",
         "createFailedTitle": "Error",
-        "createFailedDesc": "Could not create the job. Please try again."
+        "createFailedDesc": "Could not create the job. Please try again.",
+        "studyAreaRequired": "Select a field of study for the chosen qualification level.",
+        "studyAreaOtherRequired": "Specify the field of study when selecting «Other»."
       },
       "form": {
         "sectionTitle": "Job details",
@@ -2662,6 +2664,9 @@
           "sector": "Sector",
           "contractType": "Contract type",
           "workMode": "Work mode",
+          "minimumQualification": "Minimum qualifications",
+          "studyArea": "Field of study",
+          "studyAreaOther": "Specify field of study",
           "salaryRange": "Salary range",
           "requirements": "Requirements",
           "skills": "Skills"
@@ -2672,6 +2677,8 @@
           "location": "E.g.: Lisbon",
           "sector": "E.g.: Services, Logistics",
           "salaryRange": "E.g.: €900 - €1100/month",
+          "studyArea": "Select a field of study",
+          "studyAreaOther": "E.g.: Architecture, Marketing",
           "requirements": "List the required qualifications...",
           "skills": "E.g.: Carpentry, Customer service, Excel (comma-separated)"
         },
@@ -2685,6 +2692,27 @@
           "on_site": "On-site",
           "hybrid": "Hybrid",
           "remote": "Remote"
+        },
+        "qualificationLevels": {
+          "none": "No minimum requirement",
+          "basic": "Basic education",
+          "secondary": "Secondary education",
+          "technical": "Technical / vocational education",
+          "bachelor": "Bachelor's degree",
+          "master": "Master's degree",
+          "phd": "Doctorate"
+        },
+        "studyAreas": {
+          "economics_management": "Economics / Management",
+          "engineering": "Engineering",
+          "computer_science": "Computer science",
+          "health": "Health",
+          "law": "Law",
+          "arts_humanities": "Arts / Humanities",
+          "sciences": "Sciences",
+          "education": "Education",
+          "social_sciences": "Social sciences",
+          "other": "Other"
         }
       },
       "actions": {
@@ -2771,6 +2799,8 @@
     },
     "applications": {
       "unknownApplicant": "Unknown",
+      "profileUnavailable": "Profile unavailable",
+      "profileUnavailableHint": "The candidate turned off «Available for Work» or their profile is no longer visible to your company. The application remains on record.",
       "backToOffers": "Back to jobs",
       "pageTitle": "Applications",
       "count": "{count} application(s) received",

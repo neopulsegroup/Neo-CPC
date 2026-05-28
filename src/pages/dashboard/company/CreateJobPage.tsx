@@ -8,6 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save } from 'lucide-react';
+import {
+  JOB_MIN_QUALIFICATION_VALUES,
+  JOB_STUDY_AREA_VALUES,
+  jobQualificationRequiresStudyArea,
+  normalizeJobMinQualification,
+  normalizeJobStudyArea,
+  type JobMinQualification,
+  type JobStudyArea,
+} from '@/features/jobs/jobOfferQualifications';
 
 function normalizeRoleValue(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -52,6 +61,9 @@ export default function CreateJobPage() {
     sector: '',
     contract_type: 'full_time',
     work_mode: 'on_site' as 'on_site' | 'hybrid' | 'remote',
+    minimum_qualification: 'none' as JobMinQualification,
+    study_area: '' as JobStudyArea | '',
+    study_area_other: '',
     salary_range: '',
     requirements: '',
     skills: '',
@@ -157,6 +169,9 @@ export default function CreateJobPage() {
         sector?: string | null;
         contract_type?: string | null;
         work_mode?: string | null;
+        minimum_qualification?: string | null;
+        study_area?: string | null;
+        study_area_other?: string | null;
         salary_range?: string | null;
         requirements?: string | null;
         required_skills?: string[] | null;
@@ -192,6 +207,8 @@ export default function CreateJobPage() {
       const wm = offer.work_mode;
       const workMode: 'on_site' | 'hybrid' | 'remote' =
         wm === 'hybrid' || wm === 'remote' || wm === 'on_site' ? wm : 'on_site';
+      const minQual = normalizeJobMinQualification(offer.minimum_qualification);
+      const studyArea = normalizeJobStudyArea(offer.study_area);
       setForm({
         title: offer.title ?? '',
         description: offer.description ?? '',
@@ -199,6 +216,12 @@ export default function CreateJobPage() {
         sector: offer.sector ?? '',
         contract_type: offer.contract_type ?? 'full_time',
         work_mode: workMode,
+        minimum_qualification: minQual,
+        study_area: jobQualificationRequiresStudyArea(minQual) ? studyArea : '',
+        study_area_other:
+          jobQualificationRequiresStudyArea(minQual) && studyArea === 'other'
+            ? (typeof offer.study_area_other === 'string' ? offer.study_area_other : '')
+            : '',
         salary_range: offer.salary_range ?? '',
         requirements: offer.requirements ?? '',
         skills: Array.isArray(offer.required_skills) ? offer.required_skills.join(', ') : '',
@@ -230,6 +253,24 @@ export default function CreateJobPage() {
       toast({
         title: t.get('company.createJob.errors.createFailedTitle'),
         description: t.get('company.createJob.errors.createFailedDesc'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const needsStudyArea = jobQualificationRequiresStudyArea(form.minimum_qualification);
+    if (needsStudyArea && !form.study_area) {
+      toast({
+        title: t.get('company.createJob.errors.createFailedTitle'),
+        description: t.get('company.createJob.errors.studyAreaRequired'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (needsStudyArea && form.study_area === 'other' && !form.study_area_other.trim()) {
+      toast({
+        title: t.get('company.createJob.errors.createFailedTitle'),
+        description: t.get('company.createJob.errors.studyAreaOtherRequired'),
         variant: 'destructive',
       });
       return;
@@ -278,6 +319,13 @@ export default function CreateJobPage() {
       // Doc canónico no ID do utilizador (regras aceitam company_id == auth.uid quando o doc existe).
       await setDocument('companies', publisherId, { user_id: publisherId }, true);
 
+      const qualificationPayload = {
+        minimum_qualification: form.minimum_qualification === 'none' ? null : form.minimum_qualification,
+        study_area: needsStudyArea && form.study_area ? form.study_area : null,
+        study_area_other:
+          needsStudyArea && form.study_area === 'other' ? form.study_area_other.trim() || null : null,
+      };
+
       if (editJobId) {
         await updateDocument('job_offers', editJobId, {
           title: form.title,
@@ -286,6 +334,7 @@ export default function CreateJobPage() {
           sector: form.sector || null,
           contract_type: form.contract_type || null,
           work_mode: form.work_mode,
+          ...qualificationPayload,
           salary_range: form.salary_range || null,
           requirements: form.requirements || null,
           required_skills: parseSkills(form.skills),
@@ -305,6 +354,7 @@ export default function CreateJobPage() {
           sector: form.sector || null,
           contract_type: form.contract_type || null,
           work_mode: form.work_mode,
+          ...qualificationPayload,
           salary_range: form.salary_range || null,
           requirements: form.requirements || null,
           required_skills: parseSkills(form.skills),
@@ -402,34 +452,18 @@ export default function CreateJobPage() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.contractType')}</label>
-                  <select
-                    value={form.contract_type}
-                    onChange={(e) => setForm({ ...form, contract_type: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border border-input bg-background"
-                  >
-                    <option value="full_time">{t.get('company.createJob.form.contractTypes.full_time')}</option>
-                    <option value="part_time">{t.get('company.createJob.form.contractTypes.part_time')}</option>
-                    <option value="temporary">{t.get('company.createJob.form.contractTypes.temporary')}</option>
-                    <option value="internship">{t.get('company.createJob.form.contractTypes.internship')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.workMode')}</label>
-                  <select
-                    value={form.work_mode}
-                    onChange={(e) =>
-                      setForm({ ...form, work_mode: e.target.value as 'on_site' | 'hybrid' | 'remote' })
-                    }
-                    className="w-full px-4 py-2 rounded-lg border border-input bg-background"
-                  >
-                    <option value="on_site">{t.get('company.createJob.form.workModes.on_site')}</option>
-                    <option value="hybrid">{t.get('company.createJob.form.workModes.hybrid')}</option>
-                    <option value="remote">{t.get('company.createJob.form.workModes.remote')}</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.contractType')}</label>
+                <select
+                  value={form.contract_type}
+                  onChange={(e) => setForm({ ...form, contract_type: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+                >
+                  <option value="full_time">{t.get('company.createJob.form.contractTypes.full_time')}</option>
+                  <option value="part_time">{t.get('company.createJob.form.contractTypes.part_time')}</option>
+                  <option value="temporary">{t.get('company.createJob.form.contractTypes.temporary')}</option>
+                  <option value="internship">{t.get('company.createJob.form.contractTypes.internship')}</option>
+                </select>
               </div>
 
               <div>
@@ -441,6 +475,90 @@ export default function CreateJobPage() {
                 />
               </div>
             </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.workMode')}</label>
+                <select
+                  value={form.work_mode}
+                  onChange={(e) =>
+                    setForm({ ...form, work_mode: e.target.value as 'on_site' | 'hybrid' | 'remote' })
+                  }
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+                >
+                  <option value="on_site">{t.get('company.createJob.form.workModes.on_site')}</option>
+                  <option value="hybrid">{t.get('company.createJob.form.workModes.hybrid')}</option>
+                  <option value="remote">{t.get('company.createJob.form.workModes.remote')}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  {t.get('company.createJob.form.labels.minimumQualification')}
+                </label>
+                <select
+                  value={form.minimum_qualification}
+                  onChange={(e) => {
+                    const minimum_qualification = e.target.value as JobMinQualification;
+                    const keepStudy = jobQualificationRequiresStudyArea(minimum_qualification);
+                    setForm({
+                      ...form,
+                      minimum_qualification,
+                      study_area: keepStudy ? form.study_area : '',
+                      study_area_other: keepStudy ? form.study_area_other : '',
+                    });
+                  }}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+                >
+                  {JOB_MIN_QUALIFICATION_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {t.get(`company.createJob.form.qualificationLevels.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {jobQualificationRequiresStudyArea(form.minimum_qualification) ? (
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.studyArea')}</label>
+                  <select
+                    value={form.study_area}
+                    onChange={(e) => {
+                      const study_area = e.target.value as JobStudyArea | '';
+                      setForm({
+                        ...form,
+                        study_area,
+                        study_area_other: study_area === 'other' ? form.study_area_other : '',
+                      });
+                    }}
+                    className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+                    required
+                  >
+                    <option value="">{t.get('company.createJob.form.placeholders.studyArea')}</option>
+                    {JOB_STUDY_AREA_VALUES.map((value) => (
+                      <option key={value} value={value}>
+                        {t.get(`company.createJob.form.studyAreas.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {form.study_area === 'other' ? (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      {t.get('company.createJob.form.labels.studyAreaOther')}
+                    </label>
+                    <Input
+                      placeholder={t.get('company.createJob.form.placeholders.studyAreaOther')}
+                      value={form.study_area_other}
+                      onChange={(e) => setForm({ ...form, study_area_other: e.target.value })}
+                      required
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div>
               <label className="text-sm font-medium mb-2 block">{t.get('company.createJob.form.labels.requirements')}</label>

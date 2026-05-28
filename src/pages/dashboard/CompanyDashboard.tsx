@@ -20,6 +20,7 @@ import CandidateProfilePage from './company/CandidateProfilePage';
 import CandidatesPage from './company/CandidatesPage';
 import CompanyApplicationsPage from './company/CompanyApplicationsPage';
 import CompanyMessagesPage from './company/MessagesPage';
+import { ApplicantProfileUnavailableBadge } from './company/ApplicantProfileUnavailableBadge';
 import { bootstrapCompanyJobOfferScope, fetchCompanyHomeSnapshot, type CompanyHomeSnapshot } from './company/companyDashboardHomeData';
 
 function normalizeText(value?: string | null): string {
@@ -595,7 +596,10 @@ function CompanyHome() {
                       {row.applicantName.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{row.applicantName}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium truncate">{row.applicantName}</p>
+                        {row.profileUnavailable ? <ApplicantProfileUnavailableBadge /> : null}
+                      </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {row.jobTitle} •{' '}
                         {(() => {

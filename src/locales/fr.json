@@ -2651,7 +2651,9 @@
         "loadFailedTitle": "Erreur",
         "loadFailedDesc": "Impossible de charger le poste vacant pour le modifier.",
         "createFailedTitle": "Erreur",
-        "createFailedDesc": "Impossible de créer une offre. Veuillez réessayer."
+        "createFailedDesc": "Impossible de créer une offre. Veuillez réessayer.",
+        "studyAreaRequired": "Sélectionnez le domaine d'études pour le niveau de qualification choisi.",
+        "studyAreaOtherRequired": "Indiquez le domaine d'études lorsque vous sélectionnez « Autre »."
       },
       "form": {
         "sectionTitle": "Informations sur l'offre",
@@ -2662,6 +2664,9 @@
           "sector": "Secteur",
           "contractType": "Type de contrat",
           "workMode": "Mode de travail",
+          "minimumQualification": "Qualifications minimales",
+          "studyArea": "Domaine d'études",
+          "studyAreaOther": "Préciser le domaine d'études",
           "salaryRange": "Échelle salariale",
           "requirements": "Exigences",
           "skills": "Compétences"
@@ -2672,6 +2677,8 @@
           "location": "Ex : Lisboa",
           "sector": "Ex : Services, Logistique",
           "salaryRange": "Ex : 900€ - 1100€/mois",
+          "studyArea": "Sélectionnez le domaine d'études",
+          "studyAreaOther": "Ex. : Architecture, Marketing",
           "requirements": "Énumérez les exigences et les qualifications nécessaires...",
           "skills": "Ex : Menuiserie, Service client, Excel (séparées par des virgules)"
         },
@@ -2685,6 +2692,27 @@
           "on_site": "En personne",
           "hybrid": "Hybride",
           "remote": "Télécommande"
+        },
+        "qualificationLevels": {
+          "none": "Aucune exigence minimale",
+          "basic": "Enseignement de base",
+          "secondary": "Enseignement secondaire",
+          "technical": "Formation technique / professionnelle",
+          "bachelor": "Licence",
+          "master": "Master",
+          "phd": "Doctorat"
+        },
+        "studyAreas": {
+          "economics_management": "Économie / Gestion",
+          "engineering": "Ingénierie",
+          "computer_science": "Informatique",
+          "health": "Santé",
+          "law": "Droit",
+          "arts_humanities": "Arts / Humanités",
+          "sciences": "Sciences",
+          "education": "Éducation",
+          "social_sciences": "Sciences sociales",
+          "other": "Autre"
         }
       },
       "actions": {
@@ -2771,6 +2799,8 @@
     },
     "applications": {
       "unknownApplicant": "Inconnu",
+      "profileUnavailable": "Profil indisponible",
+      "profileUnavailableHint": "Le candidat a désactivé « Disponible pour travailler » ou le profil n'est plus visible pour l'entreprise. La candidature reste enregistrée.",
       "backToOffers": "Retour aux offres",
       "pageTitle": "Applications",
       "count": "{count} candidature(s) reçue(s)",

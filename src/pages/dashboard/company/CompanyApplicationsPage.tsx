@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDocument, queryDocuments, setDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { resolveJobOfferCompanyIds } from '@/pages/dashboard/company/companyDashboardHomeData';
+import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/ApplicantProfileUnavailableBadge';
+import { loadApplicantIdentityMap } from '@/pages/dashboard/company/applicantIdentity';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +41,7 @@ interface ApplicationRow {
   applicantId: string;
   applicantName: string;
   applicantEmail: string;
+  profileUnavailable: boolean;
   jobId: string;
   jobTitle: string;
   jobLocation: string | null;
@@ -248,17 +251,7 @@ export default function CompanyApplicationsPage() {
       });
 
       const applicantIds = Array.from(new Set(flatApps.map((a) => a.applicant_id).filter((id): id is string => Boolean(id))));
-      const profileDocs = await Promise.all(
-        applicantIds.map((id) => getDocument<{ name?: string | null; email?: string | null }>('profiles', id))
-      );
-      const profileById = new Map<string, { name: string; email: string }>();
-      applicantIds.forEach((id, idx) => {
-        const p = profileDocs[idx];
-        profileById.set(id, {
-          name: p?.name?.trim() || t.get('company.applications.unknownApplicant'),
-          email: p?.email?.trim() || '',
-        });
-      });
+      const profileById = await loadApplicantIdentityMap(applicantIds, t.get('company.applications.unknownApplicant'));
 
       const mapped = flatApps
         .map((app) => {
@@ -267,12 +260,14 @@ export default function CompanyApplicationsPage() {
           const profileRow = profileById.get(app.applicant_id || '') ?? {
             name: t.get('company.applications.unknownApplicant'),
             email: '',
+            profileUnavailable: true,
           };
           return {
             id: app.id,
             applicantId: app.applicant_id || '',
             applicantName: profileRow.name,
             applicantEmail: profileRow.email,
+            profileUnavailable: profileRow.profileUnavailable,
             jobId,
             jobTitle: offersById.get(jobId)?.title || '—',
             jobLocation: offersById.get(jobId)?.location ?? null,
@@ -529,6 +524,7 @@ export default function CompanyApplicationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold truncate">{row.applicantName}</h3>
+                      {row.profileUnavailable ? <ApplicantProfileUnavailableBadge /> : null}
                       {statusBadge(row.status)}
                     </div>
                     <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-3 mt-1">
@@ -555,7 +551,7 @@ export default function CompanyApplicationsPage() {
                         {t.get('company.applicationsHub.actions.viewOffer')}
                       </Button>
                     </Link>
-                    {row.applicantId ? (
+                    {row.applicantId && !row.profileUnavailable ? (
                       <Link to={`/dashboard/empresa/candidatos/${row.applicantId}`}>
                         <Button size="sm" variant="outline" className="gap-2">
                           <User className="h-4 w-4" />
