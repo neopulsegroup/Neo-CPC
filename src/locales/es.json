@@ -353,6 +353,87 @@
       }
     }
   },
+  "needs": {
+    "title": "Perfil de Necesidades",
+    "empty": "Aún no hemos identificado necesidades específicas. Completa la Situación Inicial para recibir un perfil personalizado.",
+    "category": {
+      "legal": "Apoyo Jurídico",
+      "housing": "Vivienda",
+      "employment": "Empleo",
+      "language": "Apoyo Lingüístico",
+      "psychological": "Apoyo Psicológico",
+      "social": "Apoyo Social"
+    },
+    "priority": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "reason": {
+      "legal": {
+        "unregularized": "Situación legal no regularizada",
+        "in_process": "Proceso legal en curso",
+        "urgent_marked": "Marcó el apoyo jurídico como prioridad"
+      },
+      "housing": {
+        "none": "Sin vivienda estable",
+        "precarious": "Vivienda precaria",
+        "urgent_marked": "Marcó la vivienda como prioridad"
+      },
+      "employment": {
+        "unemployed": "Buscando empleo",
+        "urgent_marked": "Marcó el apoyo al empleo como prioridad"
+      },
+      "language": {
+        "beginner": "Nivel inicial de portugués",
+        "basic": "Nivel básico de portugués",
+        "urgent_marked": "Marcó la formación en portugués como prioridad"
+      },
+      "psychological": {
+        "urgent_marked": "Marcó el apoyo psicológico como prioridad"
+      },
+      "social": {
+        "basic_needs": "Marcó las necesidades básicas como prioridad"
+      }
+    }
+  },
+  "firstActions": {
+    "title": "Próximos pasos sugeridos",
+    "priority": {
+      "urgent": "Urgente",
+      "recommended": "Recomendado",
+      "suggested": "Sugerido"
+    },
+    "completeTriage": {
+      "title": "Completa la Situación Inicial",
+      "description": "Responde a las preguntas para recibir recomendaciones personalizadas."
+    },
+    "bookLegal": {
+      "title": "Reservar sesión jurídica",
+      "description": "Habla con un jurista sobre tu situación.",
+      "descriptionInProcess": "Seguimiento del proceso legal en curso."
+    },
+    "bookPsychological": {
+      "title": "Reservar sesión psicológica",
+      "description": "Habla con un psicólogo del equipo CPC."
+    },
+    "bookSocial": {
+      "title": "Apoyo social urgente",
+      "description": "Reserva una sesión de mediación para apoyo inmediato."
+    },
+    "completeCv": {
+      "title": "Completar currículum",
+      "description": "Completa tu perfil profesional para ver ofertas relevantes."
+    },
+    "viewJobs": {
+      "title": "Ver ofertas de empleo",
+      "description": "Explora las vacantes disponibles en el Algarve."
+    },
+    "trailPortuguese": {
+      "title": "Inscribirse en Portugués",
+      "description": "Comienza un itinerario formativo de portugués."
+    }
+  },
   "triage": {
     "title": "Situación Inicial",
     "subtitle": "Responde algunas preguntas para que podamos personalizar tu asistencia.",

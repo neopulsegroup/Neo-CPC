@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-28 · Sprint A · Triagem Inteligente
+
+- **Perfil de Necessidades** gerado automaticamente a partir da Situação Inicial (`inferNeedsProfile.ts`)
+  - 6 categorias: jurídico, habitação, emprego, linguístico, psicológico, social
+  - Prioridades alta/média; ordenado por prioridade; `hasUrgentNeeds` para destaque
+  - `NeedsProfileCard` no topo do dashboard do migrante (quando há necessidade urgente) e no perfil pela equipa CPC (ProfilePage, vista de outro utilizador)
+- **Recomendação de primeiras ações** por regras leves (`firstActions.ts`)
+  - Até 5 ações priorizadas (urgent / recommended / suggested)
+  - Ações de "marcar sessão" abrem o `BookingSessionWizardDialog` no dashboard; restantes navegam para rotas reais (`/triagem`, `/dashboard/migrante/trilhas|curriculo|emprego`)
+  - `FirstActionsCard` no topo do dashboard; migrante sem triagem vê só "Completar Situação Inicial"
+- Chaves i18n `needs.*` e `firstActions.*` em PT/EN/ES/FR (traduções manuais)
+- 23 testes unitários novos (13 needs + 10 firstActions)
+- **Versão conceitual:** sem SCAS-R, scores numéricos validados ou fórmulas psicométricas
+
+**Nota de adaptação:** a estrutura real da Situação Inicial diverge da assumida no prompt (coleção `triage/{uid}`, não `users.triage_responses`; tokens em inglês: `not_regularized`/`unemployed_seeking`/`homeless`/`none`; sem `urgent_help` — usa `urgencies` derivado de `identified_needs`/`desired_support`; conclusão via `triage.completed`; CV em `profiles.resumeUrl`; agendamento é diálogo, não rota). As regras foram adaptadas aos valores e rotas reais, com mapeamento de tokens confirmado pelo utilizador.
+
+
 ## 2026-05-27 · Demandas de nível baixo (sprint curta)
 
 - **Triagem (Item 1, parcial):** removidos do fluxo os passos "Preparação Cultural" (6) e "Motivação e Expectativas" (7) inteiros, e a pergunta `arrival_date_pt` do passo "Integração" (8); `legal_status` mantido. Passos "Autonomia" (9) e "Perfil Socioprofissional" (12) **adiados a pedido** (impacto em filtros de idioma/situação laboral por rever). Campos preservados no Firestore; código de leitura a jusante usa optional chaining (não quebra).

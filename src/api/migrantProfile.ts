@@ -68,6 +68,7 @@ export type MigrantTriageDoc = {
   completedAt?: string | null;
   answers?: Record<string, unknown> | null;
   legal_status?: string | null;
+  housing_status?: string | null;
   work_status?: string | null;
   language_level?: string | null;
   interests?: string[] | null;

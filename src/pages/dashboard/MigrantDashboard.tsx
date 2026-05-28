@@ -5,6 +5,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocument, subscribeDocument, subscribeQuery } from '@/integrations/firebase/firestore';
 import { loadActiveJobOfferRows } from '@/features/jobs/loadActiveJobOffers';
+import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
+import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
+import { inferFirstActions } from '@/features/recommendations/firstActions';
+import { FirstActionsCard } from '@/features/recommendations/FirstActionsCard';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser, MAX_PARTICIPANT_ACTIVITIES_QUERY_LIMIT } from '@/features/activities/participantActivityList';
 import { APP_TIME_ZONE } from '@/lib/appCalendar';
@@ -111,7 +115,7 @@ function MigrantHome() {
   const [trails, setTrails] = useState<Record<string, { id: string; title: string; modules_count: number | null }>>({});
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; date: string; type?: string; href?: string }>>([]);
   const [dbNotifications, setDbNotifications] = useState<Array<{ id: string; title: string; body: string; date: string; type?: string; href?: string }>>([]);
-  const [triage, setTriage] = useState<{ completed?: boolean; legal_status?: string | null; work_status?: string | null; language_level?: string | null; interests?: string[] | null; urgencies?: string[] | null } | null>(null);
+  const [triage, setTriage] = useState<{ completed?: boolean; legal_status?: string | null; housing_status?: string | null; work_status?: string | null; language_level?: string | null; interests?: string[] | null; urgencies?: string[] | null } | null>(null);
   const [profileDoc, setProfileDoc] = useState<MigrantDashboardProfileDoc | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [urgentOpen, setUrgentOpen] = useState(false);
@@ -191,7 +195,7 @@ function MigrantHome() {
       if (ready.triage && ready.profile && ready.sessions && ready.progress) setLoading(false);
     };
 
-    const unsubTriage = subscribeDocument<{ completed?: boolean; interests?: string[] | null; urgencies?: string[] | null; legal_status?: string | null; work_status?: string | null; language_level?: string | null }>({
+    const unsubTriage = subscribeDocument<{ completed?: boolean; interests?: string[] | null; urgencies?: string[] | null; legal_status?: string | null; housing_status?: string | null; work_status?: string | null; language_level?: string | null }>({
       collectionName: 'triage',
       documentId: user.uid,
       onNext: (doc) => {
@@ -388,6 +392,18 @@ function MigrantHome() {
     return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
   }, [trailsProgressAvg, sessionsProgress, profileCompleteness, triageProgress]);
 
+  const needsProfile = useMemo(() => inferNeedsProfile(triage), [triage]);
+
+  const firstActions = useMemo(
+    () =>
+      inferFirstActions({
+        triage,
+        hasCv: Boolean(profileDoc?.resumeUrl && profileDoc.resumeUrl.trim()),
+        triageCompleted: Boolean(triage?.completed),
+      }),
+    [triage, profileDoc]
+  );
+
   const suggestedActions = useMemo(() => {
     const actions: Array<{ label: string; href: string }> = [];
     if (!(profileDoc?.professionalExperience || extras?.professionalExperience) || !(profileDoc?.professionalTitle || extras?.professionalTitle)) {
@@ -564,6 +580,13 @@ function MigrantHome() {
 
   return (
     <>
+      {(needsProfile.hasUrgentNeeds || firstActions.length > 0) ? (
+        <div className="grid gap-6 mb-8 lg:grid-cols-2">
+          {needsProfile.hasUrgentNeeds ? <NeedsProfileCard profile={needsProfile} /> : null}
+          <FirstActionsCard actions={firstActions} onBook={() => setBookOpen(true)} />
+        </div>
+      ) : null}
+
       <div className="grid xl:grid-cols-3 gap-6 mb-8">
         {/* Left Column (Main Content) */}
         <div className="xl:col-span-2 space-y-6">

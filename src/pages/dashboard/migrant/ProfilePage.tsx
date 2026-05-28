@@ -13,6 +13,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { PhoneInput, formatPhoneValueForDisplay } from '@/components/ui/phone-input';
 import { fetchMigrantProfile, type MigrantProfileDoc, type MigrantProfileResponse } from '@/api/migrantProfile';
+import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
+import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
 import { updateDocument } from '@/integrations/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { storage } from '@/integrations/firebase/client';
@@ -387,6 +389,7 @@ export default function ProfilePage() {
 
   const profileDoc: MigrantProfileDoc | null = data?.profile || null;
   const triage = data?.triage || null;
+  const needsProfile = useMemo(() => inferNeedsProfile(triage), [triage]);
   const triageAnswers = useMemo(() => {
     const a = triage?.answers;
     return a && typeof a === 'object' ? (a as Record<string, unknown>) : {};
@@ -1394,6 +1397,9 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
+      {isViewingOtherUser && needsProfile.items.length > 0 ? (
+        <NeedsProfileCard profile={needsProfile} />
+      ) : null}
       <div className="cpc-card p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
