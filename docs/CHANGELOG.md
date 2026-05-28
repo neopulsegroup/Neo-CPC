@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-05-28 · Correção Sprint B + Extensão para Migrante
+
+### Correções
+- **Bug 1 (CORS):** criado `storage-cors.json` com origens dev + produção. **A aplicar pelo Silva** via `gsutil cors set storage-cors.json gs://cpc-projeto-app.firebasestorage.app` (o agente não tem credenciais gcloud).
+- **Bug 2 (useLanguage):** investigado — a ordem de providers em `App.tsx` já está correta (`LanguageProvider` envolve Auth → Tooltip → Router → rotas) e a home carrega com 0 erros num load fresco. O erro reportado é um **artefacto de HMR** do Vite ao editar ficheiros de contexto ao vivo; resolve-se com hard-reload. **Sem alteração de código** (não havia defeito).
+- **Bug 3.1 (índices):** adicionados a `firestore.indexes.json` os índices `trails(is_active, category)` e `job_offers(company_id, created_at DESC)`. **Deploy pelo Silva.**
+- **Bug 3.2 (regras):** `firestore.rules` — adicionada permissão para o **migrante atualizar o CV da sua própria candidatura** (apenas `migrant_attached_cv_*`). Leitura pela empresa dona da vaga já era permitida via `employerPublisher`/`companyOwnsCompanyId`.
+
+### Nova funcionalidade (Opção C — ambos os pontos de entrada)
+- Migrante anexa CV personalizado **no momento da candidatura** (passo opcional após submeter, em `JobDetailPage`) e **na lista "Minhas Candidaturas"** (`MyApplicationsPage`).
+- Estados elegíveis para anexar/substituir: `submitted`, `reviewing`, `interview`. Estados finais (`accepted`, `rejected`) bloqueiam o upload mas mostram link se houver CV.
+- Gravado em `job_applications/{id}.migrant_attached_cv_url|name|uploaded_at`.
+- Vista da empresa (`JobApplicationsPage`) mostra até **3 CVs**: do perfil do candidato, anexado pelo migrante para a vaga, e anexado pela empresa.
+- Reutiliza 100% a infra da Sprint B (`CVUploadButton`, `uploadCvFile`, audit em `cv_uploads_audit`).
+- i18n `jobApply.*`, `myApplications.*`, `applicationDetail.*` em PT/EN/ES/FR.
+- 7 testes novos (1 uploadCvFile migrante + 3 MyApplicationsPage + 3 JobApplicationsPage).
+
+### Pendências de infraestrutura (Silva)
+1. `gsutil cors set storage-cors.json gs://cpc-projeto-app.firebasestorage.app`
+2. `firebase deploy --only firestore:rules,storage:rules,firestore:indexes`
+3. Aguardar 5-10 min (construção de índices) e fazer smoke test.
+
+**Nota:** os estados reais da candidatura são `submitted | reviewing | interview | accepted | rejected` (não `in_review`/`under_review`/`withdrawn`/`closed` do prompt); campos reais `applicant_id`/`job_id` (não `migrant_uid`/`job_offer_id`). Adaptado em conformidade.
+
+
 ## 2026-05-28 · Sprint B · Empresa: importar CV com seletor de arquivo
 
 - **Cenário implementado: A2** — a empresa anexa um CV externo (PDF/DOC/DOCX, máx. 5 MB) a uma candidatura, **complementando** (não substituindo) o CV do próprio migrante.

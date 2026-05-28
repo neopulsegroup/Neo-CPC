@@ -399,6 +399,11 @@ service cloud.firestore {
           resource.data.job_id is string &&
           companyOwnsCompanyId(get(/databases/$(database)/documents/job_offers/$(resource.data.job_id)).data.company_id)
         );
+      // Migrante anexa/substitui/remove o CV personalizado da sua própria candidatura (só estes campos).
+      allow update: if isAccountEnabled()
+        && resource.data.applicant_id == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['migrant_attached_cv_url', 'migrant_attached_cv_name', 'migrant_attached_cv_uploaded_at']);
       allow delete: if isCpcStaff();
     }
 

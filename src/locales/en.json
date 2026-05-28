@@ -353,6 +353,25 @@
       }
     }
   },
+  "jobApply": {
+    "optionalCv": {
+      "label": "Attach a tailored CV (optional)",
+      "hint": "You can attach a version of your CV specific to this job. PDF, DOC or DOCX, maximum 5 MB."
+    },
+    "submitting": "Submitting application...",
+    "submitted": "Application submitted successfully"
+  },
+  "myApplications": {
+    "personalCv": "Tailored CV for this application",
+    "personalCvAttached": "View attached tailored CV",
+    "cannotAttach": "You cannot attach a CV at this stage of the application."
+  },
+  "applicationDetail": {
+    "cvsAvailable": "Available CVs",
+    "candidateCv": "Candidate CV",
+    "migrantAttachedCv": "CV attached by the candidate for this job",
+    "companyAttachedCv": "CV attached by the company"
+  },
   "cvUpload": {
     "button": "Upload CV",
     "uploading": "Uploading...",

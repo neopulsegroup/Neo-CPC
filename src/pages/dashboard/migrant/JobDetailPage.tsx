@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { addDocument, getDocument, queryDocuments } from '@/integrations/firebase/firestore';
+import { addDocument, getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
+import { CVUploadButton } from '@/features/cv/CVUploadButton';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,12 +42,15 @@ export default function JobDetailPage() {
   const { jobId } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [job, setJob] = useState<JobOffer | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasApplied, setHasApplied] = useState(false);
   const [applying, setApplying] = useState(false);
   const [coverLetter, setCoverLetter] = useState('');
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [attachedCvUrl, setAttachedCvUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (jobId) fetchJob();
@@ -64,7 +69,7 @@ export default function JobDetailPage() {
       }
 
       if (user) {
-        const apps = await queryDocuments<{ id: string }>(
+        const apps = await queryDocuments<{ id: string; migrant_attached_cv_url?: string | null }>(
           'job_applications',
           [
             { field: 'job_id', operator: '==', value: jobId },
@@ -74,6 +79,12 @@ export default function JobDetailPage() {
           1
         );
         setHasApplied(apps.length > 0);
+        setApplicationId(apps[0]?.id ?? null);
+        setAttachedCvUrl(
+          typeof apps[0]?.migrant_attached_cv_url === 'string' && apps[0].migrant_attached_cv_url.trim()
+            ? apps[0].migrant_attached_cv_url.trim()
+            : null
+        );
       }
     } catch (error) {
       console.error('Error fetching job:', error);
@@ -88,7 +99,7 @@ export default function JobDetailPage() {
     setApplying(true);
 
     try {
-      await addDocument('job_applications', {
+      const newId = await addDocument('job_applications', {
         job_id: jobId,
         applicant_id: user.uid,
         cover_letter: coverLetter || null,
@@ -96,6 +107,7 @@ export default function JobDetailPage() {
         created_at: new Date().toISOString(),
       });
 
+      setApplicationId(newId);
       setHasApplied(true);
       setShowApplicationForm(false);
       toast({
@@ -282,6 +294,35 @@ export default function JobDetailPage() {
                 <p className="text-sm text-muted-foreground">
                   Já se candidatou a esta oferta. A empresa irá contactá-lo se houver interesse.
                 </p>
+                {applicationId ? (
+                  <div className="mt-4 pt-4 border-t text-left">
+                    <p className="text-sm font-medium mb-1">{t.get('jobApply.optionalCv.label')}</p>
+                    <p className="text-xs text-muted-foreground mb-2">{t.get('jobApply.optionalCv.hint')}</p>
+                    <CVUploadButton
+                      contextId={applicationId}
+                      contextType="application"
+                      uploaderUid={user?.uid ?? ''}
+                      currentUrl={attachedCvUrl ?? undefined}
+                      onUploadComplete={async (url, fileName) => {
+                        setAttachedCvUrl(url);
+                        await updateDocument('job_applications', applicationId, {
+                          migrant_attached_cv_url: url,
+                          migrant_attached_cv_name: fileName,
+                          migrant_attached_cv_uploaded_at: new Date().toISOString(),
+                        });
+                      }}
+                      onRemove={async () => {
+                        setAttachedCvUrl(null);
+                        await updateDocument('job_applications', applicationId, {
+                          migrant_attached_cv_url: null,
+                          migrant_attached_cv_name: null,
+                          migrant_attached_cv_uploaded_at: null,
+                        });
+                      }}
+                      disabled={!user?.uid}
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : showApplicationForm ? (
               <div className="space-y-4">

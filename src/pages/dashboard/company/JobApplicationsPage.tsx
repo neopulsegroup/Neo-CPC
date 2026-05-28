@@ -24,6 +24,7 @@ interface Application {
   created_at: string;
   applicantId: string;
   applicantResumeUrl: string | null;
+  migrantAttachedCvUrl: string | null;
   companyAttachedCvUrl: string | null;
   applicant: {
     name: string;
@@ -59,7 +60,7 @@ export default function JobApplicationsPage() {
       if (jobData) setJob(jobData);
 
       // Fetch applications with applicant profiles
-      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string; company_attached_cv_url?: string | null }>(
+      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string; company_attached_cv_url?: string | null; migrant_attached_cv_url?: string | null }>(
         'job_applications',
         [{ field: 'job_id', operator: '==', value: jobId }],
         undefined
@@ -89,6 +90,7 @@ export default function JobApplicationsPage() {
             created_at: app.created_at,
             applicantId: app.applicant_id,
             applicantResumeUrl: prof?.resumeUrl ?? null,
+            migrantAttachedCvUrl: (typeof app.migrant_attached_cv_url === 'string' && app.migrant_attached_cv_url.trim()) ? app.migrant_attached_cv_url.trim() : null,
             companyAttachedCvUrl: (typeof app.company_attached_cv_url === 'string' && app.company_attached_cv_url.trim()) ? app.company_attached_cv_url.trim() : null,
             applicant: prof ? { name: prof.name, email: prof.email } : { name: t.get('company.applications.unknownApplicant'), email: '' },
           };
@@ -280,6 +282,20 @@ export default function JobApplicationsPage() {
                           <p className="mt-1 text-sm text-muted-foreground">{t.get('company.applications.details.noCandidateCv')}</p>
                         )}
                       </div>
+                      {selectedApplication.migrantAttachedCvUrl ? (
+                        <div>
+                          <label className="text-sm text-muted-foreground">{t.get('applicationDetail.migrantAttachedCv')}</label>
+                          <a
+                            href={selectedApplication.migrantAttachedCvUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 flex items-center gap-2 text-sm text-primary hover:underline"
+                          >
+                            <FileText className="h-4 w-4" />
+                            {t.get('applicationDetail.migrantAttachedCv')}
+                          </a>
+                        </div>
+                      ) : null}
                       <div>
                         <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.attachedCv')}</label>
                         <div className="mt-1">

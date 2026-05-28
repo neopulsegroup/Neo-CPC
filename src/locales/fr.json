@@ -353,6 +353,25 @@
       }
     }
   },
+  "jobApply": {
+    "optionalCv": {
+      "label": "Joindre un CV personnalisé (facultatif)",
+      "hint": "Vous pouvez joindre une version de votre CV propre à cette offre. PDF, DOC ou DOCX, maximum 5 Mo."
+    },
+    "submitting": "Envoi de la candidature...",
+    "submitted": "Candidature envoyée avec succès"
+  },
+  "myApplications": {
+    "personalCv": "CV personnalisé pour cette candidature",
+    "personalCvAttached": "Voir le CV personnalisé joint",
+    "cannotAttach": "Impossible de joindre un CV à ce stade de la candidature."
+  },
+  "applicationDetail": {
+    "cvsAvailable": "CV disponibles",
+    "candidateCv": "CV du candidat",
+    "migrantAttachedCv": "CV joint par le candidat pour cette offre",
+    "companyAttachedCv": "CV joint par l'entreprise"
+  },
   "cvUpload": {
     "button": "Téléverser le CV",
     "uploading": "Téléversement...",

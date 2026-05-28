@@ -84,4 +84,18 @@ describe('uploadCvFile', () => {
     expect((payload as { uploaderUid: string }).uploaderUid).toBe('company-uid');
     expect((payload as { downloadUrl: string }).downloadUrl).toBe('https://storage.example.com/cv.pdf');
   });
+
+  it('upload pelo migrante (application) grava audit com o uploaderUid do migrante', async () => {
+    await uploadCvFile({
+      file: makeFile({ name: 'meu_cv.pdf' }),
+      contextId: 'app-42',
+      contextType: 'application',
+      uploaderUid: 'migrant-uid',
+    });
+    const [collection, , payload] = (setDocument as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(collection).toBe('cv_uploads_audit');
+    expect((payload as { uploaderUid: string }).uploaderUid).toBe('migrant-uid');
+    expect((payload as { contextType: string }).contextType).toBe('application');
+    expect((payload as { contextId: string }).contextId).toBe('app-42');
+  });
 });

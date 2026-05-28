@@ -353,6 +353,25 @@
       }
     }
   },
+  "jobApply": {
+    "optionalCv": {
+      "label": "Anexar CV personalizado (opcional)",
+      "hint": "Pode anexar uma versão do seu CV específica para esta vaga. PDF, DOC ou DOCX, máximo 5 MB."
+    },
+    "submitting": "A submeter candidatura...",
+    "submitted": "Candidatura submetida com sucesso"
+  },
+  "myApplications": {
+    "personalCv": "CV personalizado para esta candidatura",
+    "personalCvAttached": "Ver CV personalizado anexado",
+    "cannotAttach": "Não é possível anexar CV nesta fase da candidatura."
+  },
+  "applicationDetail": {
+    "cvsAvailable": "CVs disponíveis",
+    "candidateCv": "CV do candidato",
+    "migrantAttachedCv": "CV anexado pelo candidato para esta vaga",
+    "companyAttachedCv": "CV anexado pela empresa"
+  },
   "cvUpload": {
     "button": "Carregar CV",
     "uploading": "A carregar...",

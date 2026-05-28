@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getDocument, queryDocuments } from '@/integrations/firebase/firestore';
+import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { CVUploadButton } from '@/features/cv/CVUploadButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Briefcase,
@@ -38,7 +39,13 @@ type JobApplicationDoc = {
   cover_letter?: string | null;
   status?: string | null;
   created_at?: string | null;
+  migrant_attached_cv_url?: string | null;
+  migrant_attached_cv_name?: string | null;
+  migrant_attached_cv_uploaded_at?: string | null;
 };
+
+/** Estados em que o migrante ainda pode anexar/substituir o CV personalizado. */
+const CV_ELIGIBLE_STATES = ['submitted', 'reviewing', 'interview'];
 
 type JobOfferDoc = {
   id: string;
@@ -94,6 +101,21 @@ export default function MyApplicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<EnrichedApplication[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+  async function updateMigrantCv(applicationId: string, url: string | null, fileName: string | null) {
+    await updateDocument('job_applications', applicationId, {
+      migrant_attached_cv_url: url,
+      migrant_attached_cv_name: fileName,
+      migrant_attached_cv_uploaded_at: url ? new Date().toISOString() : null,
+    });
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.id === applicationId
+          ? { ...a, migrant_attached_cv_url: url, migrant_attached_cv_name: fileName }
+          : a
+      )
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -329,6 +351,33 @@ export default function MyApplicationsPage() {
                       {t.get('migrant.applications.viewOffer')}
                       <ChevronRight className="h-4 w-4" />
                     </Link>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-sm font-medium mb-2">{t.get('myApplications.personalCv')}</p>
+                    {CV_ELIGIBLE_STATES.includes(app.status ?? '') ? (
+                      <CVUploadButton
+                        contextId={app.id}
+                        contextType="application"
+                        uploaderUid={user?.uid ?? ''}
+                        currentUrl={app.migrant_attached_cv_url ?? undefined}
+                        onUploadComplete={(url, fileName) => void updateMigrantCv(app.id, url, fileName)}
+                        onRemove={() => void updateMigrantCv(app.id, null, null)}
+                        disabled={!user?.uid}
+                      />
+                    ) : app.migrant_attached_cv_url ? (
+                      <a
+                        href={app.migrant_attached_cv_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                      >
+                        <Eye className="h-4 w-4" />
+                        {t.get('myApplications.personalCvAttached')}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{t.get('myApplications.cannotAttach')}</p>
+                    )}
                   </div>
                 </article>
               ))}
