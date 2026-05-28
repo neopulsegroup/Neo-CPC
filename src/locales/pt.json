@@ -3072,6 +3072,15 @@
       "notFound": "Candidato não encontrado",
       "back": "Voltar",
       "backToDashboard": "Voltar ao painel",
+      "backToApplications": "Voltar às candidaturas",
+      "professionalProfile": {
+        "title": "Perfil Profissional",
+        "professionalTitle": "Título profissional",
+        "professionalExperience": "Experiência profissional",
+        "skills": "Competências",
+        "languages": "Idiomas",
+        "resume": "Currículo"
+      },
       "resume": {
         "title": "Currículo",
         "iframeTitle": "Currículo",

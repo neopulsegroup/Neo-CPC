@@ -3072,6 +3072,15 @@
       "notFound": "Candidate not found",
       "back": "Back",
       "backToDashboard": "Back to dashboard",
+      "backToApplications": "Back to applications",
+      "professionalProfile": {
+        "title": "Professional profile",
+        "professionalTitle": "Professional title",
+        "professionalExperience": "Professional experience",
+        "skills": "Skills",
+        "languages": "Languages",
+        "resume": "Resume"
+      },
       "resume": {
         "title": "Resume",
         "iframeTitle": "Resume",
