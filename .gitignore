@@ -32,3 +32,6 @@ service-account.json
 coverage
 test-results.json
 .tmp-config
+
+# Local agent settings (machine-specific)
+.claude/settings.local.json
