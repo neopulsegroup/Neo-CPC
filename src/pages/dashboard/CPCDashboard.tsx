@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import ContentEditorPage from '@/pages/dashboard/cpc/ContentEditorPage';
+import ServiceAreasAdminPage from '@/pages/dashboard/cpc/ServiceAreasAdminPage';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -1311,6 +1312,7 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/equipa', label: t.get('cpc.menu.team'), icon: UserCog },
     { to: '/dashboard/cpc/estatisticas', label: t.get('cpc.menu.statistics'), icon: TrendingUp },
     ...(isCpcAdmin ? [{ to: '/dashboard/cpc/conteudo', label: 'Editor de Conteúdo', icon: FileText }] : []),
+    ...(isCpcAdmin ? [{ to: '/dashboard/cpc/areas-servico', label: t.get('serviceAreas.title'), icon: UserCog }] : []),
     { to: '/dashboard/cpc/traducoes', label: t.get('cpcTranslations.title'), icon: Languages },
   ];
 
@@ -1580,6 +1582,7 @@ export default function CPCDashboard() {
                 <Route path="mensagens" element={<CPCMessagesPage />} />
                 <Route path="traducoes" element={<TranslationsAdminPage />} />
                 <Route path="conteudo" element={<ContentEditorPage />} />
+                <Route path="areas-servico" element={<ServiceAreasAdminPage />} />
               </Routes>
             </div>
           </div>

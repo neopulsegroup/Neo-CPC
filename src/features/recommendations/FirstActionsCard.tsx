@@ -15,6 +15,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { FirstAction, ActionPriority } from './firstActions';
+import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
 
 const ICONS: Record<string, LucideIcon> = {
   ClipboardList,
@@ -32,7 +33,13 @@ function priorityBadgeClass(priority: ActionPriority): string {
   return 'bg-slate-100 text-slate-600 border-slate-200';
 }
 
-export function FirstActionsCard({ actions, onBook }: { actions: FirstAction[]; onBook?: () => void }) {
+export function FirstActionsCard({
+  actions,
+  onBook,
+}: {
+  actions: FirstAction[];
+  onBook?: (area?: ServiceAreaId | null) => void;
+}) {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -40,7 +47,7 @@ export function FirstActionsCard({ actions, onBook }: { actions: FirstAction[]; 
 
   function handleClick(action: FirstAction) {
     if (action.opensBooking) {
-      onBook?.();
+      onBook?.(action.area ?? null);
       return;
     }
     if (action.route) navigate(action.route);
