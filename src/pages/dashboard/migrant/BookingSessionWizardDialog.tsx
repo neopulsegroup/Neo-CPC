@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { loadServiceAreas, isAreaBookable, type ServiceArea } from '@/features/serviceAreas/serviceAreas';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -28,9 +30,10 @@ export type BookingSpecialistOption = {
   id: string;
   name: string;
   role: BookingSpecialistRole;
-  languages: Array<'PT' | 'EN' | 'ES'>;
-  rating: number;
-  reviewCount: number;
+  /** Campos de demonstração — ausentes para responsáveis reais (atribuídos pelo admin). */
+  languages?: Array<'PT' | 'EN' | 'ES'>;
+  rating?: number;
+  reviewCount?: number;
 };
 
 export type BookingWizardStep = 1 | 2 | 3 | 4;
@@ -217,21 +220,25 @@ export function BookingSpecialistStep({
                   <p className="truncate text-sm font-semibold text-slate-900">{spec.name}</p>
                   <p className="text-xs text-slate-600">{specialistRoleLabel(spec.role)}</p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="flex items-center justify-end gap-1 text-slate-700">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    <span className="text-sm font-semibold">{spec.rating.toFixed(1)}</span>
+                {typeof spec.rating === 'number' ? (
+                  <div className="shrink-0 text-right">
+                    <div className="flex items-center justify-end gap-1 text-slate-700">
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      <span className="text-sm font-semibold">{spec.rating.toFixed(1)}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">{spec.reviewCount ?? 0} avaliações</div>
                   </div>
-                  <div className="text-[11px] text-slate-500">{spec.reviewCount} avaliações</div>
+                ) : null}
+              </div>
+              {spec.languages && spec.languages.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {spec.languages.map((lang) => (
+                    <Badge key={lang} variant="secondary" className="bg-slate-100 text-slate-600">
+                      {lang}
+                    </Badge>
+                  ))}
                 </div>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {spec.languages.map((lang) => (
-                  <Badge key={lang} variant="secondary" className="bg-slate-100 text-slate-600">
-                    {lang}
-                  </Badge>
-                ))}
-              </div>
+              ) : null}
             </div>
           </div>
         </Label>
@@ -344,16 +351,20 @@ export default function BookingSessionWizardDialog({
   onOpenChange,
   userId,
   preset,
+  initialArea,
   onBooked,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string | null;
   preset?: BookingWizardPreset;
+  /** Pré-seleciona uma área de serviço e salta a etapa 1 (seleção de serviço). */
+  initialArea?: BookingServiceId | null;
   onBooked?: () => void;
 }) {
-  const presetStep = preset?.step ?? 1;
-  const presetServiceId = preset?.serviceId ?? null;
+  const { t } = useLanguage();
+  const presetStep = initialArea ? 2 : (preset?.step ?? 1);
+  const presetServiceId = initialArea ?? preset?.serviceId ?? null;
   const presetSpecialistId = preset?.specialistId ?? null;
   const presetRescheduleId = preset?.rescheduleFromSessionId ?? null;
 
@@ -368,13 +379,25 @@ export default function BookingSessionWizardDialog({
   const [specialistsLoading, setSpecialistsLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [rescheduleFromSessionId, setRescheduleFromSessionId] = useState<string | null>(null);
+  const [areas, setAreas] = useState<ServiceArea[]>([]);
+  const [areasLoading, setAreasLoading] = useState(false);
 
   const selectedService = useMemo(() => (serviceId ? BOOKING_SERVICES.find((s) => s.id === serviceId) ?? null : null), [serviceId]);
-  const availableSpecialists = useMemo(() => {
-    if (!selectedService) return [];
-    return BOOKING_SPECIALISTS.filter((s) => selectedService.specialistRoles.includes(s.role));
-  }, [selectedService]);
-  const selectedSpecialist = useMemo(() => (specialistId ? BOOKING_SPECIALISTS.find((s) => s.id === specialistId) ?? null : null), [specialistId]);
+  const selectedArea = useMemo(() => (serviceId ? areas.find((a) => a.id === serviceId) ?? null : null), [areas, serviceId]);
+  const areaBookable = isAreaBookable(selectedArea);
+  const availableSpecialists = useMemo<BookingSpecialistOption[]>(() => {
+    if (!selectedService || !selectedArea || !isAreaBookable(selectedArea)) return [];
+    const role = selectedService.specialistRoles[0];
+    return selectedArea.responsible_uids.map((uid, index) => ({
+      id: uid,
+      name: selectedArea.responsible_names[index] ?? uid,
+      role,
+    }));
+  }, [selectedService, selectedArea]);
+  const selectedSpecialist = useMemo(
+    () => (specialistId ? availableSpecialists.find((s) => s.id === specialistId) ?? null : null),
+    [specialistId, availableSpecialists],
+  );
 
   function resetWizard() {
     setWizardStep(1);
@@ -407,6 +430,25 @@ export default function BookingSessionWizardDialog({
     setSlotsLoading(false);
     setRescheduleFromSessionId(presetRescheduleId);
   }, [open, presetRescheduleId, presetServiceId, presetSpecialistId, presetStep]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setAreasLoading(true);
+    loadServiceAreas()
+      .then((loaded) => {
+        if (!cancelled) setAreas(loaded);
+      })
+      .catch((error) => {
+        console.error('[BookingWizard] falha ao carregar áreas de serviço:', error);
+      })
+      .finally(() => {
+        if (!cancelled) setAreasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -471,6 +513,10 @@ export default function BookingSessionWizardDialog({
         service_label: selectedService.title,
         specialist_id: selectedSpecialist.id,
         specialist_name: selectedSpecialist.name,
+        service_area_id: selectedArea?.id ?? selectedService.id,
+        service_area_name: selectedArea ? t.get(selectedArea.name_key) : selectedService.title,
+        duration_minutes: selectedArea?.default_duration_minutes ?? 30,
+        consultant_uid: selectedSpecialist.id,
       });
       toast({ title: 'Sessão marcada', description: 'A sua marcação foi confirmada com sucesso.' });
       onOpenChange(false);
@@ -592,16 +638,22 @@ export default function BookingSessionWizardDialog({
                       <h2 className="text-xl font-semibold text-slate-900">Selecione o especialista</h2>
                       <p className="mt-1 text-sm text-slate-600">Profissionais disponíveis para o serviço escolhido.</p>
                       <div className="mt-5">
-                        <BookingSpecialistStep
-                          specialists={availableSpecialists}
-                          value={specialistId}
-                          onChange={(next) => {
-                            setSpecialistId(next);
-                            setSlotDate(null);
-                            setSlotTime(null);
-                          }}
-                          loading={specialistsLoading}
-                        />
+                        {!areasLoading && selectedService && !areaBookable ? (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                            {t.get('serviceAreas.areaUnavailable')}
+                          </div>
+                        ) : (
+                          <BookingSpecialistStep
+                            specialists={availableSpecialists}
+                            value={specialistId}
+                            onChange={(next) => {
+                              setSpecialistId(next);
+                              setSlotDate(null);
+                              setSlotTime(null);
+                            }}
+                            loading={specialistsLoading || areasLoading}
+                          />
+                        )}
                       </div>
                     </div>
                   ) : null}

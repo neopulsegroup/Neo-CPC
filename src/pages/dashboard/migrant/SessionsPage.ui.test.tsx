@@ -14,10 +14,15 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: stableUser }),
 }));
 
+vi.mock('@/contexts/LanguageContext', () => ({
+  useLanguage: () => ({ language: 'pt', setLanguage: vi.fn(), t: { get: (key: string) => key } }),
+}));
+
 vi.mock('@/integrations/firebase/firestore', () => ({
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   queryDocuments: (...args: unknown[]) => mockQueryDocuments(...args),
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
+  getCollection: vi.fn(async () => []),
 }));
 
 vi.mock('@/hooks/use-toast', () => ({

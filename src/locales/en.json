@@ -474,6 +474,26 @@
       "description": "Start a Portuguese learning track."
     }
   },
+  "serviceAreas": {
+    "title": "Service Areas",
+    "legal": "Legal",
+    "psychological": "Psychological",
+    "mediation": "Mediation",
+    "duration": "Default duration",
+    "duration30": "30 minutes",
+    "duration60": "60 minutes",
+    "responsibles": "Responsibles",
+    "active": "Active",
+    "inactive": "Inactive",
+    "editArea": "Edit area",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saveSuccess": "Area updated successfully.",
+    "saveError": "Could not save the area.",
+    "noResponsibles": "No responsibles assigned.",
+    "selectArea": "Select an area",
+    "areaUnavailable": "This area has no available responsibles yet. Please try again later or contact the CPC team."
+  },
   "triage": {
     "title": "Initial Situation",
     "subtitle": "Answer a few questions so we can personalize your support.",
