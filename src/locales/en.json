@@ -2424,6 +2424,13 @@
         "title": "Trails",
         "subtitle": "Create and edit learning trails and their modules."
       },
+      "contentEditor": {
+        "title": "Content editor",
+        "subtitle": "Select a page in the sidebar menu and edit the text shown on the public website.",
+        "noPermission": "Only administrators can edit public content.",
+        "activePage": "Active page",
+        "route": "Route"
+      },
       "settings": {
         "title": "Settings",
         "subtitle": "Manage notifications, SMTP and exported document branding.",

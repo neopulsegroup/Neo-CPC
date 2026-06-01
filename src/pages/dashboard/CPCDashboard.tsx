@@ -4,12 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import ContentEditorPage from '@/pages/dashboard/cpc/ContentEditorPage';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import ServiceAreasAdminPage from '@/pages/dashboard/cpc/ServiceAreasAdminPage';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { PAGE_SCHEMAS } from '@/features/cms/pageSchemas';
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
 import { registerUser } from '@/integrations/firebase/auth';
 import {
@@ -215,6 +217,7 @@ export default function CPCDashboard() {
     Array<{ id: string; migrant: string; type: string; time: string; status: string; statusRaw?: string | null }>
   >([]);
   const [messagesPending, setMessagesPending] = useState(0);
+  const [sidebarAccordionValue, setSidebarAccordionValue] = useState<string>('');
 
   const locale = useMemo(() => {
     if (language === 'en') return 'en-GB';
@@ -1324,6 +1327,18 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/perfil', label: t.get('cpc.menu.profile'), icon: Building2 },
     { to: '/dashboard/cpc/configuracoes', label: t.get('cpc.menu.settings'), icon: Settings },
   ];
+  const isContentEditorPath = location.pathname === '/dashboard/cpc/conteudo';
+  const contentEditorPageParam = new URLSearchParams(location.search).get('page');
+  const selectedContentEditorPageId = PAGE_SCHEMAS.some((page) => page.id === contentEditorPageParam)
+    ? contentEditorPageParam
+    : 'home';
+
+  useEffect(() => {
+    if (isContentEditorPath) {
+      setSidebarAccordionValue('content-editor');
+    }
+  }, [isContentEditorPath]);
+
   const isHome = location.pathname === '/dashboard/cpc' || location.pathname === '/dashboard/cpc/';
 
   return (
@@ -1350,6 +1365,47 @@ export default function CPCDashboard() {
                     <span>{item.label}</span>
                   </NavLink>
                 ))}
+
+                {isCpcAdmin ? (
+                  <Accordion
+                    type="single"
+                    collapsible
+                    value={sidebarAccordionValue}
+                    onValueChange={setSidebarAccordionValue}
+                    className="w-full"
+                  >
+                    <AccordionItem value="content-editor" className="border-none">
+                      <AccordionTrigger
+                        className={`rounded-lg px-3 py-2 text-sm hover:no-underline ${
+                          isContentEditorPath ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <FileText className="h-4 w-4" />
+                          <span>{t.get('cpc.pages.contentEditor.title')}</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-0 pl-3">
+                        <div className="space-y-1 pt-1">
+                          {PAGE_SCHEMAS.map((page) => {
+                            const isActive = isContentEditorPath && selectedContentEditorPageId === page.id;
+                            return (
+                              <NavLink
+                                key={page.id}
+                                to={`/dashboard/cpc/conteudo?page=${page.id}`}
+                                className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                                  isActive ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                }`}
+                              >
+                                {page.title}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                ) : null}
 
                 {sidebarItemsAdministration.length > 0 ? (
                   <div className="pt-4 mt-4 border-t">

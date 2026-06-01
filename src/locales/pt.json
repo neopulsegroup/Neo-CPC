@@ -2424,6 +2424,13 @@
         "title": "Trilhas",
         "subtitle": "Criar e editar trilhas formativas e respetivos módulos."
       },
+      "contentEditor": {
+        "title": "Editor de Conteúdo",
+        "subtitle": "Selecione uma página no menu lateral e altere os textos visíveis no site público.",
+        "noPermission": "Apenas administradores podem editar o conteúdo público.",
+        "activePage": "Página ativa",
+        "route": "Rota"
+      },
       "settings": {
         "title": "Configurações",
         "subtitle": "Gestão de notificações, SMTP e identidade visual dos documentos exportados.",

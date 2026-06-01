@@ -14,12 +14,12 @@ export default function ContentEditorField({ field, value, onChange }: ContentEd
   const overLimit = field.maxLength !== undefined && count > field.maxLength;
 
   return (
-    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <Label className="font-semibold text-slate-900">{field.label}</Label>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-700">{field.label}</Label>
         {field.maxLength ? (
-          <span className={`text-sm ${overLimit ? 'text-rose-600' : 'text-muted-foreground'}`}>
-            {count} / {field.maxLength}
+          <span className={`text-xs ${overLimit ? 'text-rose-600' : 'text-muted-foreground'}`}>
+            {count}/{field.maxLength}
           </span>
         ) : null}
       </div>
@@ -28,13 +28,14 @@ export default function ContentEditorField({ field, value, onChange }: ContentEd
         <Textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          rows={5}
-          className="min-h-[120px]"
+          rows={4}
+          className="min-h-[110px] bg-white"
         />
       ) : (
         <Input
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          className="bg-white"
         />
       )}
     </div>
