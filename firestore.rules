@@ -631,6 +631,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Áreas de serviço (Jurídico / Psicológico / Mediação): responsáveis e duração padrão.
+    // Leitura: qualquer utilizador autenticado (o migrante precisa para agendar).
+    // Escrita: apenas admin (gestão na ServiceAreasAdminPage).
+    match /service_areas/{areaId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAccountEnabled() && hasRole('admin');
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

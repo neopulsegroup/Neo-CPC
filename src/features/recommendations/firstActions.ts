@@ -1,4 +1,5 @@
 import type { TriageResponses } from '@/types/triage';
+import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
 
 export type ActionPriority = 'urgent' | 'recommended' | 'suggested';
 
@@ -12,6 +13,8 @@ export interface FirstAction {
   route?: string;
   /** Quando true, a ação abre o diálogo de agendamento (não navega). */
   opensBooking?: boolean;
+  /** Área de serviço pré-selecionada ao abrir o agendamento. */
+  area?: ServiceAreaId;
 }
 
 export interface UserState {
@@ -61,6 +64,7 @@ export function inferFirstActions(state: UserState): FirstAction[] {
       priority: 'urgent',
       icon: 'Scale',
       opensBooking: true,
+      area: 'legal',
     });
   }
 
@@ -72,6 +76,7 @@ export function inferFirstActions(state: UserState): FirstAction[] {
       priority: 'urgent',
       icon: 'HeartHandshake',
       opensBooking: true,
+      area: 'psychology',
     });
   }
 
@@ -83,6 +88,7 @@ export function inferFirstActions(state: UserState): FirstAction[] {
       priority: 'urgent',
       icon: 'LifeBuoy',
       opensBooking: true,
+      area: 'mediation',
     });
   }
 
@@ -95,6 +101,7 @@ export function inferFirstActions(state: UserState): FirstAction[] {
       priority: 'recommended',
       icon: 'Scale',
       opensBooking: true,
+      area: 'legal',
     });
   }
 

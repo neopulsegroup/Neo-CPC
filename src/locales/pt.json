@@ -474,6 +474,26 @@
       "description": "Comece uma trilha formativa de português."
     }
   },
+  "serviceAreas": {
+    "title": "Áreas de Serviço",
+    "legal": "Jurídico",
+    "psychological": "Psicológico",
+    "mediation": "Mediação",
+    "duration": "Duração padrão",
+    "duration30": "30 minutos",
+    "duration60": "60 minutos",
+    "responsibles": "Responsáveis",
+    "active": "Ativa",
+    "inactive": "Inativa",
+    "editArea": "Editar área",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "saveSuccess": "Área atualizada com sucesso.",
+    "saveError": "Não foi possível guardar a área.",
+    "noResponsibles": "Sem responsáveis atribuídos.",
+    "selectArea": "Selecione uma área",
+    "areaUnavailable": "Esta área ainda não tem responsáveis disponíveis. Tente novamente mais tarde ou contacte a equipa CPC."
+  },
   "triage": {
     "title": "Situação Inicial",
     "subtitle": "Responda a algumas perguntas para personalizarmos o seu apoio.",

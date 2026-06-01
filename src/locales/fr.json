@@ -474,6 +474,26 @@
       "description": "Commencez un parcours de formation en portugais."
     }
   },
+  "serviceAreas": {
+    "title": "Domaines de Service",
+    "legal": "Juridique",
+    "psychological": "Psychologique",
+    "mediation": "Médiation",
+    "duration": "Durée par défaut",
+    "duration30": "30 minutes",
+    "duration60": "60 minutes",
+    "responsibles": "Responsables",
+    "active": "Active",
+    "inactive": "Inactive",
+    "editArea": "Modifier le domaine",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "saveSuccess": "Domaine mis à jour avec succès.",
+    "saveError": "Impossible d'enregistrer le domaine.",
+    "noResponsibles": "Aucun responsable attribué.",
+    "selectArea": "Sélectionnez un domaine",
+    "areaUnavailable": "Ce domaine n'a pas encore de responsables disponibles. Réessayez plus tard ou contactez l'équipe CPC."
+  },
   "triage": {
     "title": "Situation Initiale",
     "subtitle": "Répondez à quelques questions afin que nous puissions personnaliser votre accompagnement.",

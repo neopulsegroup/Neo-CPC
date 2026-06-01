@@ -474,6 +474,26 @@
       "description": "Comienza un itinerario formativo de portugués."
     }
   },
+  "serviceAreas": {
+    "title": "Áreas de Servicio",
+    "legal": "Jurídico",
+    "psychological": "Psicológico",
+    "mediation": "Mediación",
+    "duration": "Duración predeterminada",
+    "duration30": "30 minutos",
+    "duration60": "60 minutos",
+    "responsibles": "Responsables",
+    "active": "Activa",
+    "inactive": "Inactiva",
+    "editArea": "Editar área",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "saveSuccess": "Área actualizada con éxito.",
+    "saveError": "No se pudo guardar el área.",
+    "noResponsibles": "Sin responsables asignados.",
+    "selectArea": "Seleccione un área",
+    "areaUnavailable": "Esta área aún no tiene responsables disponibles. Inténtelo de nuevo más tarde o contacte con el equipo CPC."
+  },
   "triage": {
     "title": "Situación Inicial",
     "subtitle": "Responde algunas preguntas para que podamos personalizar tu asistencia.",

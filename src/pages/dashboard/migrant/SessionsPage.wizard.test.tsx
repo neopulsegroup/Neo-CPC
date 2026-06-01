@@ -18,14 +18,35 @@ const mockToast = vi.fn();
 
 const stableUser = { uid: 'm1' };
 
+// Áreas de serviço semeadas: a área "legal" tem a Dra. Sarah Miller como responsável,
+// para que o fluxo completo (serviço jurídico → especialista) continue válido.
+const SERVICE_AREAS = [
+  {
+    id: 'legal',
+    name_key: 'serviceAreas.legal',
+    responsible_uids: ['u-sarah'],
+    responsible_names: ['Dra. Sarah Miller'],
+    default_duration_minutes: 30,
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    updated_by: 'admin',
+  },
+];
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: stableUser }),
+}));
+
+vi.mock('@/contexts/LanguageContext', () => ({
+  useLanguage: () => ({ language: 'pt', setLanguage: vi.fn(), t: { get: (key: string) => key } }),
 }));
 
 vi.mock('@/integrations/firebase/firestore', () => ({
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   queryDocuments: (...args: unknown[]) => mockQueryDocuments(...args),
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
+  getCollection: vi.fn(async (name: string) => (name === 'service_areas' ? SERVICE_AREAS : [])),
 }));
 
 vi.mock('@/hooks/use-toast', () => ({
@@ -185,6 +206,8 @@ describe('SessionsPage - wizard de marcação', () => {
       specialist_name: 'Dra. Sarah Miller',
       scheduled_date: '2099-10-11',
       status: 'Agendada',
+      service_area_id: 'legal',
+      duration_minutes: 30,
     });
 
     await waitFor(() => expect(mockToast).toHaveBeenCalled());

@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-05-29 · Sprint C-Item 4 · Áreas de Serviço
+
+### Nova funcionalidade
+- **Módulo `serviceAreas`** (`src/features/serviceAreas/serviceAreas.ts`): 3 áreas fixas — **Jurídico** (30 min), **Psicológico** (60 min), **Mediação** (30 min). Cada área tem responsáveis (UIDs + nomes), duração padrão e flag de ativa. Seed automático na coleção `service_areas` quando vazia.
+- **Página admin** (`ServiceAreasAdminPage`, rota `/dashboard/cpc/areas-servico`, só admin): atribuir/remover responsáveis (multi-seleção dos consultores via `listConsultants`), definir duração padrão (30/60) e ativar/desativar cada área. Entrada de menu visível só para admin.
+- **Integração no agendamento** (`BookingSessionWizardDialog`): os especialistas da etapa 2 deixam de ser dados de demonstração e passam a ser os **responsáveis reais** da área selecionada. Nova prop `initialArea` (salta a etapa 1 e pré-seleciona a área). Área inativa ou sem responsáveis mostra mensagem `serviceAreas.areaUnavailable` e bloqueia a marcação. A sessão criada grava `service_area_id`, `service_area_name`, `duration_minutes` e `consultant_uid` (campos aditivos — sessões antigas continuam válidas).
+- **Próximos passos** (`FirstActionsCard`/`MigrantDashboard`): as ações `book-legal`/`book-psychological`/`book-social` abrem o agendamento já na área correta (`legal`/`psychology`/`mediation`).
+
+### Regras Firestore (deploy pelo Silva)
+- `firestore.rules`: coleção `service_areas` — **leitura** por qualquer utilizador autenticado (o migrante precisa para agendar); **escrita** só admin. **Deploy pelo Silva** (`firebase deploy --only firestore:rules`).
+
+### i18n
+- Chaves `serviceAreas.*` em PT/EN/ES/FR (título, nomes das áreas, duração, responsáveis, estados, ações e mensagem de indisponibilidade).
+
+### Testes
+- 5 testes do módulo `serviceAreas` (load ordenado, seed, no-recreate, update, `isAreaBookable`).
+- 3 testes do `BookingSessionWizardDialog` (initialArea abre na etapa 2 com responsáveis reais; área sem responsáveis mostra indisponível; confirmação grava `service_area_id`/`duration_minutes`).
+- Testes existentes do `SessionsPage` adaptados às novas dependências (mock de `useLanguage` + `getCollection`).
+- Suíte completa: **242 testes a passar** (os 2 "errors" residuais são o artefacto pré-existente de `URL.revokeObjectURL` em `ProfilePage`, sem relação com este sprint).
+
+**Decisões confirmadas:** substituir especialistas hardcoded por responsáveis reais; manter a escolha **manual** do responsável (não automática); manter o token `psychology` (alinhado às sessões já gravadas), com a chave de nome `serviceAreas.psychological`.
+
+
 ## 2026-05-28 · Correção Sprint B + Extensão para Migrante
 
 ### Correções

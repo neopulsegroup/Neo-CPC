@@ -9,6 +9,7 @@ import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
 import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
 import { inferFirstActions } from '@/features/recommendations/firstActions';
 import { FirstActionsCard } from '@/features/recommendations/FirstActionsCard';
+import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser, MAX_PARTICIPANT_ACTIVITIES_QUERY_LIMIT } from '@/features/activities/participantActivityList';
 import { APP_TIME_ZONE } from '@/lib/appCalendar';
@@ -118,6 +119,7 @@ function MigrantHome() {
   const [triage, setTriage] = useState<{ completed?: boolean; legal_status?: string | null; housing_status?: string | null; work_status?: string | null; language_level?: string | null; interests?: string[] | null; urgencies?: string[] | null } | null>(null);
   const [profileDoc, setProfileDoc] = useState<MigrantDashboardProfileDoc | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
+  const [bookArea, setBookArea] = useState<ServiceAreaId | null>(null);
   const [urgentOpen, setUrgentOpen] = useState(false);
   const [urgentType, setUrgentType] = useState<'juridico' | 'psicologico' | 'habitacional' | 'necessidades'>('juridico');
   const [urgentDesc, setUrgentDesc] = useState('');
@@ -583,7 +585,13 @@ function MigrantHome() {
       {(needsProfile.hasUrgentNeeds || firstActions.length > 0) ? (
         <div className="grid gap-6 mb-8 lg:grid-cols-2">
           {needsProfile.hasUrgentNeeds ? <NeedsProfileCard profile={needsProfile} /> : null}
-          <FirstActionsCard actions={firstActions} onBook={() => setBookOpen(true)} />
+          <FirstActionsCard
+            actions={firstActions}
+            onBook={(area) => {
+              setBookArea(area ?? null);
+              setBookOpen(true);
+            }}
+          />
         </div>
       ) : null}
 
@@ -646,7 +654,15 @@ function MigrantHome() {
                 ) : (
                   <div className="text-sm text-muted-foreground mb-4">{t.dashboard.no_sessions}</div>
                 )}
-                <Button variant="default" size="sm" className="w-full" onClick={() => setBookOpen(true)}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    setBookArea(null);
+                    setBookOpen(true);
+                  }}
+                >
                   <Calendar className="h-4 w-4 mr-2" />
                   {t.dashboard.book_session_action}
                 </Button>
@@ -896,7 +912,15 @@ function MigrantHome() {
         </div>
       </div>
 
-      <BookingSessionWizardDialog open={bookOpen} onOpenChange={setBookOpen} userId={user?.uid ?? null} />
+      <BookingSessionWizardDialog
+        open={bookOpen}
+        onOpenChange={(next) => {
+          setBookOpen(next);
+          if (!next) setBookArea(null);
+        }}
+        userId={user?.uid ?? null}
+        initialArea={bookArea}
+      />
 
       <Dialog open={urgentOpen} onOpenChange={setUrgentOpen}>
         <DialogContent>
