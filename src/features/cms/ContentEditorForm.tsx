@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
+import { FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDocument, serverTimestamp, setDocument } from '@/integrations/firebase/firestore';
 import { PAGE_SCHEMAS, PageId } from './pageSchemas';
@@ -41,6 +42,20 @@ function useUnsavedChangesWarning(when: boolean) {
 function formatDate(date: Date | null): string {
   if (!date) return 'Nunca';
   return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(date);
+}
+
+function shouldSpanTwoColumns(key: string): boolean {
+  const lower = key.toLowerCase();
+  return (
+    lower.includes('subtitle') ||
+    lower.includes('description') ||
+    lower.includes('message') ||
+    lower.includes('quote') ||
+    lower.endsWith('.a') ||
+    lower.includes('lead') ||
+    lower.includes('text') ||
+    lower.includes('placeholder')
+  );
 }
 
 export function ContentEditorForm({ pageId }: { pageId: PageId }) {
@@ -231,19 +246,28 @@ export function ContentEditorForm({ pageId }: { pageId: PageId }) {
 
       <div className="grid gap-6">
         {sections.map((section) => (
-          <div key={section.section} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-xl font-semibold text-slate-900">{section.section}</h3>
-            <div className="space-y-4">
+          <section key={section.section} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <div className="mb-5 flex items-center gap-2 border-b border-slate-200 pb-3">
+              <FolderKanban className="h-4 w-4 text-primary" aria-hidden />
+              <h3 className="text-xl font-semibold text-slate-900">{section.section}</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {section.fields.map((field) => (
-                <ContentEditorField
+                <div
                   key={field.key}
-                  field={field}
-                  value={fields[field.key] ?? ''}
-                  onChange={(value) => handleFieldChange(field.key, value)}
-                />
+                  className={`rounded-xl border border-slate-200 bg-slate-50/30 p-3.5 ${
+                    field.type === 'textarea' || shouldSpanTwoColumns(field.key) ? 'md:col-span-2' : ''
+                  }`}
+                >
+                  <ContentEditorField
+                    field={field}
+                    value={fields[field.key] ?? ''}
+                    onChange={(value) => handleFieldChange(field.key, value)}
+                  />
+                </div>
               ))}
             </div>
-          </div>
+          </section>
         ))}
       </div>
 

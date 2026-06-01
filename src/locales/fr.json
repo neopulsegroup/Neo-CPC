@@ -2404,6 +2404,13 @@
         "title": "Sentiers",
         "subtitle": "Créer et modifier des parcours de formation et des modules respectifs."
       },
+      "contentEditor": {
+        "title": "Éditeur de contenu",
+        "subtitle": "Sélectionnez une page dans le menu latéral et modifiez les textes visibles sur le site public.",
+        "noPermission": "Seuls les administrateurs peuvent modifier le contenu public.",
+        "activePage": "Page active",
+        "route": "Route"
+      },
       "settings": {
         "title": "Paramètres",
         "subtitle": "Gestion des notifications, SMTP et identité visuelle des documents exportés.",

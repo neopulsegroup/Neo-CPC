@@ -2404,6 +2404,13 @@
         "title": "Rutas formativas",
         "subtitle": "Crear y editar rutas formativas y sus módulos."
       },
+      "contentEditor": {
+        "title": "Editor de contenido",
+        "subtitle": "Seleccione una página en el menú lateral y edite los textos visibles en el sitio público.",
+        "noPermission": "Solo los administradores pueden editar el contenido público.",
+        "activePage": "Página activa",
+        "route": "Ruta"
+      },
       "settings": {
         "title": "Configuración",
         "subtitle": "Gestión de notificaciones, SMTP e identidad visual de los documentos exportados.",
