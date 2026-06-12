@@ -2,7 +2,6 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
-    sendPasswordResetEmail,
     User,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
@@ -282,7 +281,11 @@ export async function logoutUser() {
 }
 
 /**
- * Send password reset email
+ * Send password reset email.
+ *
+ * Em vez do envio nativo do Firebase Auth, chama a Cloud Function
+ * `requestPasswordReset`, que gera o link via Admin SDK e o envia pelo
+ * SMTP configurado em `system_settings/smtp` (caixa geral@portalcpc.com).
  */
 export async function resetPassword(email: string) {
     const normalized = email.trim().toLowerCase();
@@ -291,7 +294,11 @@ export async function resetPassword(email: string) {
     const continueUrl = resolvePasswordResetContinueUrl();
 
     try {
-        await sendPasswordResetEmail(auth, normalized, { url: continueUrl });
+        const callReset = httpsCallable<{ email: string; continueUrl?: string }, { ok: boolean }>(
+            functions,
+            'requestPasswordReset'
+        );
+        await callReset({ email: normalized, continueUrl });
     } catch (error: unknown) {
         console.error('Error sending password reset email:', error);
         throw new Error(getErrorMessage(error, 'Error sending password reset email'));

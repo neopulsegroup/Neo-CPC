@@ -35,6 +35,9 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  UserCheck,
+  UserX,
+  UserMinus,
 } from 'lucide-react';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
 import { defaultBranding, fetchDocumentBranding } from '@/lib/documentBranding';
@@ -51,6 +54,12 @@ import {
   type MigrantRegionFilter,
 } from '@/lib/migrantRegion';
 import { isSortOption, SORT_STORAGE_KEY, sortMigrants, type SortOption } from './sortMigrants';
+import {
+  MIGRANT_CLASSIFICATIONS_COLLECTION,
+  normalizeEligibilityProfile,
+  type EligibilityFilter,
+  type EligibilityProfile,
+} from '@/lib/migrantEligibility';
 
 type TriageAnswers = Record<string, unknown>;
 
@@ -75,9 +84,13 @@ type MigrantRow = {
   region: MigrantRegion;
   /** Ano em que o migrante entrou no programa CIBEA. `null` se não definido. */
   registration_year: number | null;
+  /** Classificação interna de elegibilidade (Perfil A/B) ou `null` se ainda não definida. */
+  eligibility_profile: EligibilityProfile | null;
   /** Timestamp de criação do registo (Firestore Timestamp, ISO string, ou null). */
   created_at: unknown;
 };
+
+type ClassificationDoc = { id: string; eligibility_profile?: string | null };
 
 type UserDoc = { id: string; name?: string | null; email?: string | null; role?: string | null; nif?: string | null; blocked?: boolean | null; active?: boolean | null; createdAt?: unknown };
 type ProfileDoc = {
@@ -175,6 +188,7 @@ export default function MigrantsAdminPage() {
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'juridico' | 'psicologico' | 'habitacional'>('all');
   const [triageFilter, setTriageFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
   const [registrationYearFilter, setRegistrationYearFilter] = useState<'all' | number>('all');
+  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     try {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem(SORT_STORAGE_KEY) : null;
@@ -568,7 +582,7 @@ export default function MigrantsAdminPage() {
         }));
         const userIds = profileList.map((p) => p.user_id);
 
-        const [profileDocs, triageDocs, sessionDocs, progressDocs] = await Promise.all([
+        const [profileDocs, triageDocs, sessionDocs, progressDocs, classificationDocs] = await Promise.all([
           Promise.all(
             userIds.map(async (uid) => {
               try {
@@ -593,7 +607,16 @@ export default function MigrantsAdminPage() {
           ),
           queryDocuments<SessionDoc>('sessions', [{ field: 'status', operator: '==', value: 'Agendada' }]),
           queryDocuments<ProgressDoc>('user_trail_progress', []),
+          queryDocuments<ClassificationDoc>(MIGRANT_CLASSIFICATIONS_COLLECTION, []).catch((error) => {
+            console.error('Error loading migrant classifications:', error);
+            return [] as ClassificationDoc[];
+          }),
         ]);
+
+        const classificationMap: Record<string, EligibilityProfile | null> = {};
+        classificationDocs.forEach((doc) => {
+          classificationMap[doc.id] = normalizeEligibilityProfile(doc.eligibility_profile);
+        });
 
         const profileMap: Record<string, ProfileDoc> = {};
         profileDocs.forEach((p) => {
@@ -653,6 +676,7 @@ export default function MigrantsAdminPage() {
               Number.isFinite(profileMap[p.user_id]?.registrationYear as number)
                 ? (profileMap[p.user_id]?.registrationYear as number)
                 : null,
+            eligibility_profile: classificationMap[p.user_id] ?? null,
             created_at: p.created_at,
           };
         });
@@ -790,9 +814,12 @@ export default function MigrantsAdminPage() {
         (triageFilter === 'incomplete' && !r.triage_completed);
       const matchYear =
         registrationYearFilter === 'all' || r.registration_year === registrationYearFilter;
-      return matchQuery && matchLegal && matchWork && matchRegion && matchUrg && matchTriage && matchYear;
+      const matchEligibility =
+        eligibilityFilter === 'all' ||
+        (eligibilityFilter === 'unset' ? r.eligibility_profile === null : r.eligibility_profile === eligibilityFilter);
+      return matchQuery && matchLegal && matchWork && matchRegion && matchUrg && matchTriage && matchYear && matchEligibility;
     });
-  }, [rows, query, legalFilter, workFilter, regionFilter, urgencyFilter, triageFilter, registrationYearFilter]);
+  }, [rows, query, legalFilter, workFilter, regionFilter, urgencyFilter, triageFilter, registrationYearFilter, eligibilityFilter]);
 
   const filteredSorted = useMemo(() => sortMigrants(filtered, sortBy), [filtered, sortBy]);
 
@@ -806,7 +833,7 @@ export default function MigrantsAdminPage() {
 
   useEffect(() => {
     setPageIndex(0);
-  }, [query, legalFilter, workFilter, regionFilter, urgencyFilter, triageFilter, registrationYearFilter, pageSize]);
+  }, [query, legalFilter, workFilter, regionFilter, urgencyFilter, triageFilter, registrationYearFilter, eligibilityFilter, pageSize]);
 
   useEffect(() => {
     setPageIndex((p) => {
@@ -865,7 +892,7 @@ export default function MigrantsAdminPage() {
       </div>
 
       <div className="cpc-card p-6 mb-6 overflow-x-auto">
-        <div className="grid w-full min-w-[60rem] grid-cols-7 gap-4">
+        <div className="grid w-full min-w-[68rem] grid-cols-8 gap-4">
           <div className="min-w-0">
             <Label className="line-clamp-2">{t.get('cpc.migrantsAdmin.filters.search.label')}</Label>
             <Input
@@ -957,6 +984,18 @@ export default function MigrantsAdminPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="min-w-0">
+            <Label className="line-clamp-2">{t.get('cpc.migrantsAdmin.filters.eligibility.label')}</Label>
+            <Select value={eligibilityFilter} onValueChange={(v) => setEligibilityFilter(v as EligibilityFilter)}>
+              <SelectTrigger className="mt-1 h-11 text-base"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t.get('cpc.migrantsAdmin.filters.eligibility.all')}</SelectItem>
+                <SelectItem value="A">{t.get('cpc.migrantsAdmin.filters.eligibility.a')}</SelectItem>
+                <SelectItem value="B">{t.get('cpc.migrantsAdmin.filters.eligibility.b')}</SelectItem>
+                <SelectItem value="unset">{t.get('cpc.migrantsAdmin.filters.eligibility.unset')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="mt-6 pt-6 border-t flex flex-col gap-4">
@@ -1039,11 +1078,24 @@ export default function MigrantsAdminPage() {
             <div key={r.user_id} className="cpc-card p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <h3 className="font-semibold">{r.name}</h3>
                     {r.blocked ? (
                       <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">{t.get('cpc.migrantsAdmin.badges.blocked')}</span>
                     ) : null}
+                    {r.eligibility_profile === 'A' ? (
+                      <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 inline-flex items-center gap-1">
+                        <UserCheck className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.profileA')}
+                      </span>
+                    ) : r.eligibility_profile === 'B' ? (
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 inline-flex items-center gap-1">
+                        <UserX className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.profileB')}
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground inline-flex items-center gap-1">
+                        <UserMinus className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.unset')}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">{r.email}</p>
                   <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2 mt-3 text-sm text-muted-foreground">

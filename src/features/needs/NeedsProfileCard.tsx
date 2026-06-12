@@ -19,8 +19,15 @@ function priorityBadgeClass(priority: NeedPriority): string {
   return 'bg-slate-100 text-slate-600 border-slate-200';
 }
 
-export function NeedsProfileCard({ profile }: { profile: NeedsProfile }) {
+type NeedsProfileCardProps = {
+  profile: NeedsProfile;
+  /** `grid` — itens em três colunas (ex.: perfil CPC). `list` — empilhado (default). */
+  layout?: 'list' | 'grid';
+};
+
+export function NeedsProfileCard({ profile, layout = 'list' }: NeedsProfileCardProps) {
   const { t } = useLanguage();
+  const listClassName = layout === 'grid' ? 'grid grid-cols-1 md:grid-cols-3 gap-3' : 'space-y-3';
 
   return (
     <Card className="rounded-3xl">
@@ -34,7 +41,7 @@ export function NeedsProfileCard({ profile }: { profile: NeedsProfile }) {
         {profile.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t.get('needs.empty')}</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className={listClassName}>
             {profile.items.map((item) => {
               const Icon = CATEGORY_ICON[item.category];
               return (

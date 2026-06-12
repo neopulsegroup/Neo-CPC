@@ -5,7 +5,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList } from 'lucide-react';
+import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList, UserCheck, UserMinus, UserX } from 'lucide-react';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,13 @@ import { APP_TIME_ZONE, todayIsoAppCalendar } from '@/lib/appCalendar';
 import { cepDigitsPortugal, formatPortugalCepDigits, lookupAddressFromPortugalCep } from '@/lib/portugalCepLookup';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser } from '@/features/activities/participantActivityList';
+import {
+  ELIGIBILITY_PROFILE_OPTIONS,
+  canManageMigrantEligibility,
+  loadMigrantEligibilityClassification,
+  saveMigrantEligibilityClassification,
+  type EligibilityProfile,
+} from '@/lib/migrantEligibility';
 
 function readProfileExtrasFromStorage(userKey: string): Partial<MigrantProfileDoc> | null {
   const extrasRaw =
@@ -240,6 +247,8 @@ export default function ProfilePage() {
   const cepLookupSeq = useRef(0);
   const [cepLookupStatus, setCepLookupStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [cepLookupMessage, setCepLookupMessage] = useState<string | null>(null);
+  const [eligibilityProfile, setEligibilityProfile] = useState<EligibilityProfile | null>(null);
+  const [savingEligibility, setSavingEligibility] = useState(false);
 
   const targetUserId = migrantId || user?.uid || null;
   const isViewingOtherUser = !!(migrantId && user?.uid && migrantId !== user.uid);
@@ -254,6 +263,74 @@ export default function ProfilePage() {
       ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'].includes(role)
     );
   }, [authProfile?.role, isViewingOtherUser]);
+  const canClassifyEligibility = isViewingOtherUser && canManageMigrantEligibility(authProfile?.role);
+
+  useEffect(() => {
+    if (!targetUserId || !isViewingOtherUser) {
+      setEligibilityProfile(null);
+      return;
+    }
+    let cancelled = false;
+    void loadMigrantEligibilityClassification(targetUserId)
+      .then((value) => {
+        if (!cancelled) setEligibilityProfile(value);
+      })
+      .catch(() => {
+        if (!cancelled) setEligibilityProfile(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isViewingOtherUser, targetUserId]);
+
+  async function handleEligibilityChange(next: EligibilityProfile | null) {
+    if (!targetUserId || !canClassifyEligibility) {
+      toast({
+        title: t.get('cpc.migrantsAdmin.eligibility.no_permission_title'),
+        description: t.get('cpc.migrantsAdmin.eligibility.no_permission'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (eligibilityProfile === next) return;
+
+    const migrantName = edit.name || data?.profile?.name || data?.userProfile?.name || t.get('cpc.migrantsAdmin.fallback_migrant');
+    setSavingEligibility(true);
+    try {
+      await saveMigrantEligibilityClassification({
+        userId: targetUserId,
+        next,
+        actorId: user?.uid ?? null,
+      });
+      setEligibilityProfile(next);
+      if (next === null) {
+        toast({
+          title: t.get('cpc.migrantsAdmin.eligibility.set_success_title'),
+          description: t.get('cpc.migrantsAdmin.eligibility.cleared_success', { name: migrantName }),
+        });
+      } else {
+        const profileLabel = t.get(
+          next === 'A' ? 'cpc.migrantsAdmin.eligibility.profileA' : 'cpc.migrantsAdmin.eligibility.profileB',
+        );
+        toast({
+          title: t.get('cpc.migrantsAdmin.eligibility.set_success_title'),
+          description: t.get('cpc.migrantsAdmin.eligibility.set_success', { name: migrantName, profile: profileLabel }),
+        });
+      }
+    } catch (error: unknown) {
+      const rawMessage = error instanceof Error ? error.message : '';
+      const message = rawMessage.includes('Missing or insufficient permissions')
+        ? t.get('cpc.migrantsAdmin.delete.error.permission_denied')
+        : rawMessage || t.get('cpc.migrantsAdmin.eligibility.error');
+      toast({
+        title: t.get('cpc.migrantsAdmin.eligibility.error_title'),
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingEligibility(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1398,7 +1475,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       {isViewingOtherUser && needsProfile.items.length > 0 ? (
-        <NeedsProfileCard profile={needsProfile} />
+        <NeedsProfileCard profile={needsProfile} layout="grid" />
       ) : null}
       <div className="cpc-card p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -1460,7 +1537,24 @@ export default function ProfilePage() {
                   <h1 className="text-xl md:text-2xl font-bold truncate">{edit.name || '—'}</h1>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground truncate">{profileDoc.email || '—'}</p>
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <p className="text-sm text-muted-foreground truncate">{profileDoc.email || '—'}</p>
+                {isViewingOtherUser && canExportCpcData ? (
+                  eligibilityProfile === 'A' ? (
+                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 inline-flex items-center gap-1 shrink-0">
+                      <UserCheck className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.profileA')}
+                    </span>
+                  ) : eligibilityProfile === 'B' ? (
+                    <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 inline-flex items-center gap-1 shrink-0">
+                      <UserX className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.profileB')}
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground inline-flex items-center gap-1 shrink-0">
+                      <UserMinus className="h-3 w-3" /> {t.get('cpc.migrantsAdmin.eligibility.unset')}
+                    </span>
+                  )
+                ) : null}
+              </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {legalStatusLabel ? (
@@ -1591,6 +1685,41 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {canClassifyEligibility ? (
+          <div className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            <div className="md:col-span-2 space-y-1 min-w-0">
+              <h2 className="text-lg font-semibold">{t.get('cpc.migrantsAdmin.eligibility.label')}</h2>
+              <p className="text-sm text-muted-foreground">{t.get('cpc.migrantsAdmin.eligibility.page_description')}</p>
+            </div>
+            <div className="md:col-span-1 min-w-0">
+              <Label htmlFor="migrant-eligibility-profile">{t.get('cpc.migrantsAdmin.eligibility.label')}</Label>
+              <Select
+                value={eligibilityProfile ?? 'unset'}
+                onValueChange={(v) => void handleEligibilityChange(v === 'unset' ? null : (v as EligibilityProfile))}
+                disabled={savingEligibility}
+              >
+                <SelectTrigger id="migrant-eligibility-profile" className="mt-2 w-full">
+                  {savingEligibility ? (
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" /> {t.get('common.loading')}
+                    </span>
+                  ) : (
+                    <SelectValue />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">{t.get('cpc.migrantsAdmin.eligibility.unset')}</SelectItem>
+                  {ELIGIBILITY_PROFILE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t.get(option === 'A' ? 'cpc.migrantsAdmin.eligibility.profileA' : 'cpc.migrantsAdmin.eligibility.profileB')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

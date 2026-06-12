@@ -57,11 +57,11 @@ const welcomeMigrant = {
         subject: plain('Bem-vindo(a) ao CPC, {name}!', v),
         html: html(`<h1>Olá, {name}!</h1>
        <p>O seu registo no <strong>CPC — Connecting People & Companies</strong> foi efetuado com sucesso.</p>
-       <p>O próximo passo é completar a sua triagem inicial, que nos ajuda a recomendar o melhor apoio.</p>
+       <p>O próximo passo é completar a sua Situação Inicial, que nos ajuda a recomendar o melhor apoio.</p>
        <p><a href="${APP_BASE_URL}/dashboard/migrante">Aceder ao meu dashboard</a></p>
        <p style="color:#666;font-size:12px;">Se não foi você quem se registou, ignore este email.</p>`, v),
         text: plain('Olá, {name}!\n\nO seu registo no CPC foi efetuado com sucesso.\nAceda em ' +
-            `${APP_BASE_URL}/dashboard/migrante para completar a triagem inicial.`, v),
+            `${APP_BASE_URL}/dashboard/migrante para completar a Situação Inicial.`, v),
     }),
     en: (v) => ({
         subject: plain('Welcome to CPC, {name}!', v),
