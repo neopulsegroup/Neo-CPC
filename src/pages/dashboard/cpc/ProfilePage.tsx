@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
 import { normalizeCpcTeamRole } from '@/lib/cpcRoles';
+import { Building2, Camera, Loader2, Save, UserCog } from 'lucide-react';
 
 type ProfileDoc = {
   id: string;

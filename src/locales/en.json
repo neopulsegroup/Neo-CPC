@@ -2158,6 +2158,7 @@
         "email_placeholder": "email@domain.com",
         "password_placeholder": "Minimum 6 characters"
       },
+      "view_only": "View only. Only Super Admin and Admin can manage users.",
       "errors": {
         "required_fields": "Fill in name, email and password.",
         "name_required": "Name is required.",
@@ -2165,7 +2166,8 @@
         "create_failed": "Error creating user.",
         "update_failed": "Error updating user.",
         "update_state_failed": "Error updating user status.",
-        "no_permission": "No permission to manage users. Super Admin only."
+        "no_permission": "No permission to manage users. Super Admin and Admin only.",
+        "cannot_assign_super_admin": "Only Super Admin can assign the Super Admin role."
       }
     },
     "migrantsAdmin": {
@@ -2209,7 +2211,7 @@
         "set_success": "{name}: {profile}.",
         "cleared_success": "Classification removed for {name}.",
         "no_permission_title": "No permission",
-        "no_permission": "Only the management team (super admin, admin, consultant, coordinator) can classify profiles."
+        "no_permission": "Only the management team (super admin, admin, consultant, coordinator) can classify profiles.",
         "error_title": "Classification error",
         "error": "Could not update the classification.",
         "page_description": "Internal classification for the management team. Profile A: eligible under the project (Algarve resident). Profile B: not eligible. Not visible to the migrant."

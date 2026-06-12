@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_SCHEMAS } from '@/features/cms/pageSchemas';
-import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { registerUser } from '@/integrations/firebase/auth';
 import {
   Building2,
@@ -56,7 +56,14 @@ import {
   computeMigrantProfileCompletenessPercent,
   type MigrantProfileFieldsForCompleteness,
 } from '@/lib/migrantProfileCompleteness';
-import { CPC_TEAM_ROLES, normalizeCpcTeamRole, type CpcTeamRole } from '@/lib/cpcRoles';
+import {
+  canAssignTeamRole,
+  canManageTeamMembers,
+  getAssignableTeamRoles,
+  getVisibleTeamListRoles,
+  normalizeCpcTeamRole,
+  type CpcTeamRole,
+} from '@/lib/cpcRoles';
 
 type RecentMigrantProfileDoc = MigrantProfileFieldsForCompleteness & {
   email?: string | null;
@@ -279,8 +286,10 @@ export default function CPCDashboard() {
     const [editRole, setEditRole] = useState<CpcTeamRole>('mediator');
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
     const [formError, setFormError] = useState('');
-    const isAdmin = profile?.role === 'admin';
-    const hasLoggedUnauthorizedAccess = useRef(false);
+    const actorRole = profile?.role ?? null;
+    const canManageTeam = canManageTeamMembers(actorRole);
+    const assignableRoles = useMemo(() => getAssignableTeamRoles(actorRole), [actorRole]);
+    const visibleTeamRoles = useMemo(() => getVisibleTeamListRoles(), []);
 
     async function logUnauthorizedAttempt(context: string, targetId?: string) {
       const actorId = user?.uid;
@@ -320,6 +329,7 @@ export default function CPCDashboard() {
             };
           })
           .filter((row): row is { id: string; name: string; email: string; role: CpcTeamRole; active: boolean } => row !== null)
+          .filter((row) => row.role !== 'admin')
           .sort((a, b) => a.name.localeCompare(b.name));
         setRows(filtered);
       } catch (error: unknown) {
@@ -335,18 +345,14 @@ export default function CPCDashboard() {
       loadTeam();
     }, []);
 
-    useEffect(() => {
-      if (isAdmin) return;
-      if (!user?.uid) return;
-      if (hasLoggedUnauthorizedAccess.current) return;
-      hasLoggedUnauthorizedAccess.current = true;
-      logUnauthorizedAttempt('cpc.team.page_access');
-    }, [isAdmin, user?.uid]);
-
     async function handleCreateUser() {
-      if (!isAdmin) {
+      if (!canManageTeam) {
         await logUnauthorizedAttempt('cpc.team.create');
         setFormError(t.get('cpc.team.errors.no_permission'));
+        return;
+      }
+      if (!canAssignTeamRole(actorRole, role)) {
+        setFormError(t.get('cpc.team.errors.cannot_assign_super_admin'));
         return;
       }
       if (!name.trim() || !email.trim() || !password.trim()) {
@@ -372,7 +378,7 @@ export default function CPCDashboard() {
     }
 
     function openEdit(user: { id: string; name: string; role: CpcTeamRole }) {
-      if (!isAdmin) {
+      if (!canManageTeam) {
         logUnauthorizedAttempt('cpc.team.edit.open', user.id);
         setFormError(t.get('cpc.team.errors.no_permission'));
         return;
@@ -385,9 +391,13 @@ export default function CPCDashboard() {
 
     async function handleSaveEdit() {
       if (!editTarget) return;
-      if (!isAdmin) {
+      if (!canManageTeam) {
         await logUnauthorizedAttempt('cpc.team.edit.save', editTarget.id);
         setFormError(t.get('cpc.team.errors.no_permission'));
+        return;
+      }
+      if (!canAssignTeamRole(actorRole, editRole)) {
+        setFormError(t.get('cpc.team.errors.cannot_assign_super_admin'));
         return;
       }
       if (!editName.trim()) {
@@ -397,11 +407,20 @@ export default function CPCDashboard() {
       setSaving(true);
       setFormError('');
       try {
+        const teamUser = rows.find((r) => r.id === editTarget.id);
         await updateDocument('users', editTarget.id, {
           name: editName.trim(),
           role: editRole,
         });
-        await updateDocument('profiles', editTarget.id, { name: editName.trim() });
+        const profilePayload: Record<string, unknown> = {
+          name: editName.trim(),
+          role: editRole,
+          updatedAt: serverTimestamp(),
+        };
+        if (teamUser?.email && teamUser.email !== '—') {
+          profilePayload.email = teamUser.email;
+        }
+        await setDocument('profiles', editTarget.id, profilePayload, true);
         setEditOpen(false);
         setEditTarget(null);
         await loadTeam();
@@ -414,7 +433,7 @@ export default function CPCDashboard() {
     }
 
     async function toggleActive(teamUser: { id: string; active: boolean }) {
-      if (!isAdmin) {
+      if (!canManageTeam) {
         await logUnauthorizedAttempt('cpc.team.toggle_active', teamUser.id);
         setFormError(t.get('cpc.team.errors.no_permission'));
         return;
@@ -470,11 +489,11 @@ export default function CPCDashboard() {
                 <UserCog className="h-7 w-7 text-primary" /> {t.get('cpc.team.title')}
             </h1>
               <p className="text-muted-foreground mt-1">{t.get('cpc.team.subtitle')}</p>
-              {!isAdmin ? (
-                <p className="text-sm mt-2 text-amber-700">{t.get('cpc.team.errors.no_permission')}</p>
+              {!canManageTeam ? (
+                <p className="text-sm mt-2 text-muted-foreground">{t.get('cpc.team.view_only')}</p>
               ) : null}
           </div>
-          {isAdmin ? (
+          {canManageTeam ? (
             <Button onClick={() => setOpen(true)} className="inline-flex items-center gap-2">
               <Plus className="h-4 w-4" />
               {t.get('cpc.team.actions.add')}
@@ -501,7 +520,7 @@ export default function CPCDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">{t.get('cpc.team.role.all')}</SelectItem>
-                  {CPC_TEAM_ROLES.map((item) => (
+                  {visibleTeamRoles.map((item) => (
                     <SelectItem key={item} value={item}>
                         {getRoleLabel(item)}
                     </SelectItem>
@@ -588,7 +607,7 @@ export default function CPCDashboard() {
                   </div>
 
                   <div className="flex flex-col items-stretch gap-2 w-full lg:w-56">
-                    {isAdmin ? (
+                    {canManageTeam ? (
                       <>
                         <Button
                           variant="outline"
@@ -618,10 +637,13 @@ export default function CPCDashboard() {
         <Dialog
           open={open}
           onOpenChange={(next) => {
-            if (next && !isAdmin) {
+            if (next && !canManageTeam) {
               logUnauthorizedAttempt('cpc.team.create.open');
               setFormError(t.get('cpc.team.errors.no_permission'));
               return;
+            }
+            if (next && assignableRoles.length > 0 && !assignableRoles.includes(role)) {
+              setRole(assignableRoles[0]);
             }
             setOpen(next);
           }}
@@ -650,7 +672,7 @@ export default function CPCDashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[10050]" position="popper">
-                    {CPC_TEAM_ROLES.map((item) => (
+                    {assignableRoles.map((item) => (
                       <SelectItem key={item} value={item}>
                         {getRoleLabel(item)}
                       </SelectItem>
@@ -669,7 +691,7 @@ export default function CPCDashboard() {
         <Dialog
           open={editOpen}
           onOpenChange={(next) => {
-            if (next && !isAdmin) {
+            if (next && !canManageTeam) {
               logUnauthorizedAttempt('cpc.team.edit.open');
               setFormError(t.get('cpc.team.errors.no_permission'));
               return;
@@ -693,7 +715,7 @@ export default function CPCDashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[10050]" position="popper">
-                    {CPC_TEAM_ROLES.map((item) => (
+                    {assignableRoles.map((item) => (
                       <SelectItem key={item} value={item}>
                         {getRoleLabel(item)}
                       </SelectItem>

@@ -46,3 +46,27 @@ export function normalizeCpcTeamRole(value: string | null | undefined): CpcTeamR
   if (isCpcTeamRole(normalized)) return normalized;
   return CPC_ROLE_ALIASES[normalized] ?? null;
 }
+
+export function isSuperAdminRole(value: string | null | undefined): boolean {
+  return value === 'admin';
+}
+
+/** Super Admin ou Admin (perfil `manager`) — gestão da equipa CPC. */
+export function canManageTeamMembers(value: string | null | undefined): boolean {
+  return value === 'admin' || value === 'manager';
+}
+
+/** Perfis visíveis na listagem da Equipa (Super Admin fica oculto). */
+export function getVisibleTeamListRoles(): CpcTeamRole[] {
+  return CPC_TEAM_ROLES.filter((role) => role !== 'admin');
+}
+
+export function canAssignTeamRole(actorRole: string | null | undefined, targetRole: CpcTeamRole): boolean {
+  if (!canManageTeamMembers(actorRole)) return false;
+  if (targetRole === 'admin') return isSuperAdminRole(actorRole);
+  return true;
+}
+
+export function getAssignableTeamRoles(actorRole: string | null | undefined): CpcTeamRole[] {
+  return CPC_TEAM_ROLES.filter((role) => canAssignTeamRole(actorRole, role));
+}
