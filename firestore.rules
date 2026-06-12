@@ -110,6 +110,24 @@ service cloud.firestore {
       return isAccountEnabled() && userRole() in ['admin', 'manager', 'consultant', 'coordinator'];
     }
 
+    function canManageTeamUsers() {
+      return isAccountEnabled() && userRole() in ['admin', 'manager'];
+    }
+
+    function managerCanManageTeamUser() {
+      return hasRole('manager')
+        && resource.data.role != 'admin'
+        && request.resource.data.role != 'admin';
+    }
+
+    function profileRoleNotAdmin() {
+      return !('role' in resource.data) || resource.data.role != 'admin';
+    }
+
+    function profileRoleNotBeingSetToAdmin() {
+      return !('role' in request.resource.data) || request.resource.data.role != 'admin';
+    }
+
     function isCompany() {
       return isAccountEnabled() && userRole() == 'company';
     }
@@ -293,6 +311,8 @@ service cloud.firestore {
       allow read: if (isAuthenticated() && isOwner(userId)) || isCpcStaff();
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if (isAccountEnabled() && hasRole('admin')) || (
+        isAccountEnabled() && managerCanManageTeamUser()
+      ) || (
         isAccountEnabled() && isOwner(userId) &&
         request.resource.data.role == resource.data.role &&
         request.resource.data.active == resource.data.active &&
@@ -309,9 +329,12 @@ service cloud.firestore {
       allow read: if isOwner(userId) ||
         (isAccountEnabled() && isCpcStaff()) ||
         (employerPublisher() && resource.data.availableForWork == true);
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if (isAuthenticated() && request.auth.uid == userId)
+        || (isAccountEnabled() && hasRole('admin'))
+        || (isAccountEnabled() && hasRole('manager') && profileRoleNotBeingSetToAdmin());
       allow update: if isOwner(userId) ||
         (isAccountEnabled() && hasRole('admin')) ||
+        (isAccountEnabled() && hasRole('manager') && profileRoleNotAdmin() && profileRoleNotBeingSetToAdmin()) ||
         (isCpcStaff() && isEditingOtherProfile(userId) && isValidMigrantPersonalInfoForCpc());
       allow delete: if isAccountEnabled() && hasRole('admin');
     }

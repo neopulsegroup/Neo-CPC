@@ -2158,6 +2158,7 @@
         "email_placeholder": "email@domaine.com",
         "password_placeholder": "Minimum 6 caractères"
       },
+      "view_only": "Consultation uniquement. Seuls Super Admin et Admin peuvent gérer les utilisateurs.",
       "errors": {
         "required_fields": "Remplissez votre nom, email et mot de passe.",
         "name_required": "Le nom est obligatoire.",
@@ -2165,7 +2166,8 @@
         "create_failed": "Erreur lors de la création de l'utilisateur.",
         "update_failed": "Erreur lors de la mise à jour de l'utilisateur.",
         "update_state_failed": "Erreur lors de la mise à jour du statut de l'utilisateur.",
-        "no_permission": "Aucune autorisation pour gérer les utilisateurs. Super Admin uniquement."
+        "no_permission": "Aucune autorisation pour gérer les utilisateurs. Super Admin et Admin uniquement.",
+        "cannot_assign_super_admin": "Seul Super Admin peut attribuer le profil Super Admin."
       }
     },
     "migrantsAdmin": {
