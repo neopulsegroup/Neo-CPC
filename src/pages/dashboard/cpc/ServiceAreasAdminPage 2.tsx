@@ -75,7 +75,7 @@ export default function ServiceAreasAdminPage() {
         <div className="cpc-container py-10">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
             <p className="text-sm font-semibold text-rose-600">{t.get('common.error')}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Apenas super administradores podem gerir as áreas de serviço.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Apenas administradores podem gerir as áreas de serviço.</p>
           </div>
         </div>
       </Layout>

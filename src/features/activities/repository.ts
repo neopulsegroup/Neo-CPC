@@ -1,4 +1,5 @@
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 import type { ActivityDoc, ActivityStatus, ActivityType, ActivityUpsertInput } from './model';
 import { buildSearchTokens, computeDurationMinutes, toStartAt } from './model';
 
@@ -19,7 +20,7 @@ function normalizeRole(value?: string | null): string {
 
 export async function listConsultants(): Promise<ConsultantOption[]> {
   const users = await queryDocuments<UserDoc>('users', []);
-  const allowed = new Set(['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer']);
+  const allowed = new Set<string>([...CPC_TEAM_ROLES]);
   return users
     .filter((u) => u.active !== false)
     .map((u) => ({ id: u.id, name: u.name || u.email || '—', role: normalizeRole(u.role) }))

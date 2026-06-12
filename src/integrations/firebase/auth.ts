@@ -15,7 +15,7 @@ const env = import.meta.env as unknown as Record<string, string | boolean | unde
 export interface UserProfile {
     email: string;
     name: string;
-    role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'coordinator' | 'trainer';
+    role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'consultant' | 'coordinator' | 'trainer';
     nif?: string;
     active?: boolean | null;
     disabledAt?: unknown | null;
@@ -29,7 +29,7 @@ export interface UserProfile {
 function normalizeRole(role: unknown): UserProfile['role'] {
     if (typeof role !== 'string') return role as UserProfile['role'];
     const v = role.toLowerCase();
-    const allowed: Array<UserProfile['role']> = ['migrant', 'company', 'admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+    const allowed: Array<UserProfile['role']> = ['migrant', 'company', 'admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'consultant', 'coordinator', 'trainer'];
     return (allowed.includes(v as UserProfile['role']) ? v : role) as UserProfile['role'];
 }
 
@@ -191,7 +191,7 @@ export async function registerUser(
     email: string,
     password: string,
     name: string,
-    role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'coordinator' | 'trainer' = 'migrant',
+    role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'consultant' | 'coordinator' | 'trainer' = 'migrant',
     additionalData?: { nif?: string; activityArea?: string }
 ) {
     try {

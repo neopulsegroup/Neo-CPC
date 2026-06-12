@@ -2096,8 +2096,9 @@
       "subtitle": "Gestão da equipo com filtros, perfis e estado de acesso",
       "user_fallback": "Usuario",
       "roles": {
-        "admin": "Admin",
-        "manager": "Gestor",
+        "admin": "Super Admin",
+        "manager": "Admin",
+        "consultant": "Consultor",
         "coordinator": "Coordenador",
         "mediator": "Mediador",
         "lawyer": "Jurista",
@@ -2164,7 +2165,7 @@
         "create_failed": "Error ao crear usuario.",
         "update_failed": "Error ao atualizar usuario.",
         "update_state_failed": "Error ao atualizar estado do usuario.",
-        "no_permission": "Sin permissão para gerir utilizadores. Apenas Admin."
+        "no_permission": "Sin permiso para gestionar usuarios. Solo Super Admin."
       }
     },
     "migrantsAdmin": {
@@ -2208,7 +2209,7 @@
         "set_success": "{name}: {profile}.",
         "cleared_success": "Clasificación de {name} eliminada.",
         "no_permission_title": "Sin permiso",
-        "no_permission": "Solo el equipo de gestión (admin, gestor, coordinador) puede clasificar perfiles.",
+        "no_permission": "Solo el equipo de gestión (super admin, admin, consultor, coordinador) puede clasificar perfiles.",
         "error_title": "Error al clasificar",
         "error": "No se pudo actualizar la clasificación.",
         "page_description": "Clasificación interna del equipo de gestión. Perfil A: elegible en el ámbito del proyecto (residente en el Algarve). Perfil B: no elegible. No visible para el migrante."
@@ -2402,6 +2403,20 @@
         "title": "Estadísticas",
         "subtitle": "Indicadores e informes con filtros temporales y regionales.",
         "loading": "Cargando datos…",
+        "filters": {
+          "year": "Año",
+          "period": "Período",
+          "periodYear": "Año completo",
+          "periodQ1": "1.er trimestre",
+          "periodQ2": "2.º trimestre",
+          "periodQ3": "3.er trimestre",
+          "periodQ4": "4.º trimestre",
+          "dateFrom": "Fecha inicial",
+          "dateTo": "Fecha final",
+          "region": "Región",
+          "regionAll": "Todas las regiones",
+          "clear": "Limpiar filtros"
+        },
         "migrantList": {
           "title": "Listado de migrantes",
           "count": "{count} migrante(s) en el período y filtros seleccionados",
@@ -2448,7 +2463,7 @@
       "contentEditor": {
         "title": "Editor de contenido",
         "subtitle": "Seleccione una página en el menú lateral y edite los textos visibles en el sitio público.",
-        "noPermission": "Solo los administradores pueden editar el contenido público.",
+        "noPermission": "Solo los super administradores pueden editar el contenido público.",
         "activePage": "Página activa",
         "route": "Ruta"
       },
@@ -2462,7 +2477,7 @@
         "title": "Registro de eventos",
         "subtitle": "Historial de acciones y eventos registrados en la plataforma.",
         "loginRequired": "Inicie sesión para acceder.",
-        "noPermission": "No tiene permiso para acceder a esta sección. Solo Admin.",
+        "noPermission": "No tiene permiso para acceder a esta sección. Solo Super Admin.",
         "loadError": "No se pudo cargar el registro de eventos.",
         "empty": "Sin eventos registrados.",
         "searchPlaceholder": "Buscar por acción, usuario, contexto u objetivo...",

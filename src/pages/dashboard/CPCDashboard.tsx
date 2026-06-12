@@ -56,6 +56,7 @@ import {
   computeMigrantProfileCompletenessPercent,
   type MigrantProfileFieldsForCompleteness,
 } from '@/lib/migrantProfileCompleteness';
+import { CPC_TEAM_ROLES, normalizeCpcTeamRole, type CpcTeamRole } from '@/lib/cpcRoles';
 
 type RecentMigrantProfileDoc = MigrantProfileFieldsForCompleteness & {
   email?: string | null;
@@ -68,7 +69,6 @@ type FirebaseUserDoc = {
   createdAt?: unknown;
 };
 
-type CpcTeamRole = 'admin' | 'manager' | 'coordinator' | 'mediator' | 'lawyer' | 'psychologist' | 'trainer';
 type CpcTeamUserDoc = {
   id: string;
   name?: string | null;
@@ -76,8 +76,6 @@ type CpcTeamUserDoc = {
   role?: string | null;
   active?: boolean | null;
 };
-
-const CPC_TEAM_ROLES: CpcTeamRole[] = ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'];
 
 function normalizeText(value?: string | null): string {
   if (!value) return '';
@@ -310,14 +308,18 @@ export default function CPCDashboard() {
       try {
         const users = await queryDocuments<CpcTeamUserDoc>('users', []);
         const filtered = users
-          .filter((u): u is CpcTeamUserDoc & { role: CpcTeamRole } => CPC_TEAM_ROLES.includes(normalizeText(u.role) as CpcTeamRole))
-          .map((u) => ({
-            id: u.id,
-            name: u.name || u.email || t.get('cpc.team.user_fallback'),
-            email: u.email || '—',
-            role: normalizeText(u.role) as CpcTeamRole,
-            active: u.active !== false,
-          }))
+          .map((u) => {
+            const role = normalizeCpcTeamRole(u.role);
+            if (!role) return null;
+            return {
+              id: u.id,
+              name: u.name || u.email || t.get('cpc.team.user_fallback'),
+              email: u.email || '—',
+              role,
+              active: u.active !== false,
+            };
+          })
+          .filter((row): row is { id: string; name: string; email: string; role: CpcTeamRole; active: boolean } => row !== null)
           .sort((a, b) => a.name.localeCompare(b.name));
         setRows(filtered);
       } catch (error: unknown) {
@@ -1314,7 +1316,6 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/trilhas', label: t.get('cpc.menu.trails'), icon: BookOpen },
     { to: '/dashboard/cpc/equipa', label: t.get('cpc.menu.team'), icon: UserCog },
     { to: '/dashboard/cpc/estatisticas', label: t.get('cpc.menu.statistics'), icon: TrendingUp },
-    ...(isCpcAdmin ? [{ to: '/dashboard/cpc/conteudo', label: 'Editor de Conteúdo', icon: FileText }] : []),
     ...(isCpcAdmin ? [{ to: '/dashboard/cpc/areas-servico', label: t.get('serviceAreas.title'), icon: UserCog }] : []),
     { to: '/dashboard/cpc/traducoes', label: t.get('cpcTranslations.title'), icon: Languages },
   ];

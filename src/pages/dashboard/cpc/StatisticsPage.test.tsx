@@ -44,6 +44,15 @@ vi.mock('@/contexts/LanguageContext', () => ({
           'cpc.pages.statistics.export.button': 'Exportar',
           'cpc.migrantsAdmin.region.norte': 'Norte',
           'cpc.migrantsAdmin.region.lisboa': 'Lisboa',
+          'cpc.migrantsAdmin.filters.eligibility.all': 'Todos',
+          'cpc.migrantsAdmin.filters.eligibility.a': 'Perfil A',
+          'cpc.migrantsAdmin.filters.eligibility.b': 'Perfil B',
+          'cpc.migrantsAdmin.filters.eligibility.unset': 'Sem perfil',
+          'cpc.pages.statistics.filters.dateFrom': 'Data inicial',
+          'cpc.pages.statistics.filters.dateTo': 'Data final',
+          'cpc.pages.statistics.filters.region': 'Região',
+          'cpc.pages.statistics.filters.regionAll': 'Todas as regiões',
+          'cpc.pages.statistics.filters.clear': 'Limpar filtros',
           'cpc.migrantsAdmin.fallback_migrant': 'Migrante',
           'common.yes': 'Sim',
           'common.no': 'Não',
@@ -83,6 +92,12 @@ function setupMocks() {
       ];
     }
     if (collectionName === 'user_trail_progress') return [];
+    if (collectionName === 'migrant_classifications') {
+      return [
+        { id: 'u1', eligibility_profile: 'A' },
+        { id: 'u2', eligibility_profile: 'B' },
+      ];
+    }
     return [];
   });
 
@@ -138,6 +153,22 @@ describe('StatisticsPage (dashboard/cpc/estatisticas)', () => {
     const regionTrigger = screen.getAllByRole('combobox')[2];
     await user.click(regionTrigger);
     await user.click(await screen.findByRole('option', { name: 'Norte' }));
+
+    expect(screen.getByText('Ana Norte')).toBeInTheDocument();
+    expect(screen.queryByText('Bruno Lisboa')).not.toBeInTheDocument();
+    expect(screen.getByText('1 migrante(s)')).toBeInTheDocument();
+  });
+
+  it('filtra a listagem de migrantes por perfil (A/B)', async () => {
+    const user = userEvent.setup();
+    render(<StatisticsPage />);
+
+    await screen.findByText('Ana Norte');
+    await screen.findByText('Bruno Lisboa');
+
+    const eligibilityTrigger = screen.getAllByRole('combobox')[3];
+    await user.click(eligibilityTrigger);
+    await user.click(await screen.findByRole('option', { name: 'Perfil A' }));
 
     expect(screen.getByText('Ana Norte')).toBeInTheDocument();
     expect(screen.queryByText('Bruno Lisboa')).not.toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { isCpcTeamRole, normalizeCpcTeamRole } from '@/lib/cpcRoles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ function normalizeRole(value?: string | null): string {
 }
 
 function isCpcRole(role: string): boolean {
-  return ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'].includes(role);
+  return isCpcTeamRole(role) || normalizeCpcTeamRole(role) !== null;
 }
 
 function isCompanyAllowedRecipient(role: string): boolean {

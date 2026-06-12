@@ -37,6 +37,7 @@ import {
   saveMigrantEligibilityClassification,
   type EligibilityProfile,
 } from '@/lib/migrantEligibility';
+import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 
 function readProfileExtrasFromStorage(userKey: string): Partial<MigrantProfileDoc> | null {
   const extrasRaw =
@@ -260,7 +261,7 @@ export default function ProfilePage() {
     return (
       isViewingOtherUser &&
       typeof role === 'string' &&
-      ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'].includes(role)
+      (CPC_TEAM_ROLES as readonly string[]).includes(role)
     );
   }, [authProfile?.role, isViewingOtherUser]);
   const canClassifyEligibility = isViewingOtherUser && canManageMigrantEligibility(authProfile?.role);

@@ -26,6 +26,8 @@ import Privacy from "./pages/Privacy";
 import HelpCenter from "./pages/HelpCenter";
 import ComingSoon from "./pages/ComingSoon";
 
+import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
+
 const queryClient = new QueryClient();
 
 // Loading component
@@ -42,7 +44,7 @@ function getDashboardPath(role: string): string {
   if (role === 'migrant') return '/dashboard/migrante';
   if (role === 'company') return '/dashboard/empresa';
   // CPC roles
-  if (['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'].includes(role)) {
+  if ((CPC_TEAM_ROLES as readonly string[]).includes(role)) {
     return '/dashboard/cpc';
   }
   return '/';
@@ -156,7 +158,7 @@ function AppRoutes() {
       <Route
         path="/dashboard/cpc/*"
         element={
-          <ProtectedRoute allowedRoles={['mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'admin', 'trainer']}>
+          <ProtectedRoute allowedRoles={[...CPC_TEAM_ROLES]}>
             <CPCDashboard />
           </ProtectedRoute>
         }

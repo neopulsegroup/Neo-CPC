@@ -1,4 +1,5 @@
 import { addDocument, deleteDocument, getDocument, serverTimestamp, setDocument } from '@/integrations/firebase/firestore';
+import { isCpcManagementRole } from '@/lib/cpcRoles';
 
 /**
  * Classificação interna de migrantes (uso exclusivo da equipa de gestão CPC).
@@ -28,8 +29,6 @@ export function isEligibilityProfile(value: unknown): value is EligibilityProfil
 export function normalizeEligibilityProfile(value: unknown): EligibilityProfile | null {
   return isEligibilityProfile(value) ? value : null;
 }
-
-import { isCpcManagementRole } from '@/lib/cpcRoles';
 
 export function canManageMigrantEligibility(role: string | undefined | null): boolean {
   return isCpcManagementRole(role ?? null);

@@ -13,6 +13,7 @@ type RegisterRole =
   | 'lawyer'
   | 'psychologist'
   | 'manager'
+  | 'consultant'
   | 'coordinator'
   | 'trainer';
 
@@ -39,6 +40,7 @@ const ALLOWED_ROLES: RegisterRole[] = [
   'lawyer',
   'psychologist',
   'manager',
+  'consultant',
   'coordinator',
   'trainer',
 ];

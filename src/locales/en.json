@@ -2096,8 +2096,9 @@
       "subtitle": "Team management with filters, roles and access status",
       "user_fallback": "User",
       "roles": {
-        "admin": "Admin",
-        "manager": "Manager",
+        "admin": "Super Admin",
+        "manager": "Admin",
+        "consultant": "Consultant",
         "coordinator": "Coordinator",
         "mediator": "Mediator",
         "lawyer": "Lawyer",
@@ -2164,7 +2165,7 @@
         "create_failed": "Error creating user.",
         "update_failed": "Error updating user.",
         "update_state_failed": "Error updating user status.",
-        "no_permission": "No permission to manage users. Admin only."
+        "no_permission": "No permission to manage users. Super Admin only."
       }
     },
     "migrantsAdmin": {
@@ -2208,7 +2209,7 @@
         "set_success": "{name}: {profile}.",
         "cleared_success": "Classification removed for {name}.",
         "no_permission_title": "No permission",
-        "no_permission": "Only the management team (admin, manager, coordinator) can classify profiles.",
+        "no_permission": "Only the management team (super admin, admin, consultant, coordinator) can classify profiles."
         "error_title": "Classification error",
         "error": "Could not update the classification.",
         "page_description": "Internal classification for the management team. Profile A: eligible under the project (Algarve resident). Profile B: not eligible. Not visible to the migrant."
@@ -2402,6 +2403,20 @@
         "title": "Statistics",
         "subtitle": "Indicators and reports with time and regional filters.",
         "loading": "Loading data…",
+        "filters": {
+          "year": "Year",
+          "period": "Period",
+          "periodYear": "Full year",
+          "periodQ1": "Q1",
+          "periodQ2": "Q2",
+          "periodQ3": "Q3",
+          "periodQ4": "Q4",
+          "dateFrom": "Start date",
+          "dateTo": "End date",
+          "region": "Region",
+          "regionAll": "All regions",
+          "clear": "Clear filters"
+        },
         "migrantList": {
           "title": "Migrant listing",
           "count": "{count} migrant(s) for the selected period and filters",
@@ -2448,7 +2463,7 @@
       "contentEditor": {
         "title": "Content editor",
         "subtitle": "Select a page in the sidebar menu and edit the text shown on the public website.",
-        "noPermission": "Only administrators can edit public content.",
+        "noPermission": "Only super administrators can edit public content.",
         "activePage": "Active page",
         "route": "Route"
       },
@@ -2462,7 +2477,7 @@
         "title": "Event Log",
         "subtitle": "History of actions and events recorded on the platform.",
         "loginRequired": "Sign in to access this page.",
-        "noPermission": "You do not have permission to access this section. Admin only.",
+        "noPermission": "You do not have permission to access this section. Super Admin only.",
         "loadError": "Could not load the event log.",
         "empty": "No events recorded.",
         "searchPlaceholder": "Search by action, user, context or target...",
