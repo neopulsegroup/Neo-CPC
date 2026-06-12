@@ -49,6 +49,7 @@ service cloud.firestore {
       return rawRole in ['admin', 'administrador'] ? 'admin'
         : rawRole in ['cpc', 'staff', 'equipa', 'team'] ? 'admin'
         : rawRole in ['manager', 'gestor'] ? 'manager'
+        : rawRole in ['consultant', 'consultor'] ? 'consultant'
         : rawRole in ['coordinator', 'coordenador'] ? 'coordinator'
         : rawRole in ['mediator', 'mediador'] ? 'mediator'
         : rawRole in ['lawyer', 'jurista'] ? 'lawyer'
@@ -64,7 +65,7 @@ service cloud.firestore {
     }
 
     function isCpcStaff() {
-      return isAccountEnabled() && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+      return isAccountEnabled() && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'consultant', 'coordinator', 'trainer'];
     }
 
     function isEditingOtherProfile(userId) {
@@ -106,7 +107,7 @@ service cloud.firestore {
     }
 
     function canManageCpcTeam() {
-      return isAccountEnabled() && userRole() in ['admin', 'manager', 'coordinator'];
+      return isAccountEnabled() && userRole() in ['admin', 'manager', 'consultant', 'coordinator'];
     }
 
     function isCompany() {
@@ -122,7 +123,7 @@ service cloud.firestore {
     }
 
     function isCpcRoleName(role) {
-      return role in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+      return role in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'consultant', 'coordinator', 'trainer'];
     }
 
     function roleByUserId(uid) {
@@ -144,6 +145,7 @@ service cloud.firestore {
       return rawRole in ['admin', 'administrador'] ? 'admin'
         : rawRole in ['cpc', 'staff', 'equipa', 'team'] ? 'admin'
         : rawRole in ['manager', 'gestor'] ? 'manager'
+        : rawRole in ['consultant', 'consultor'] ? 'consultant'
         : rawRole in ['coordinator', 'coordenador'] ? 'coordinator'
         : rawRole in ['mediator', 'mediador'] ? 'mediator'
         : rawRole in ['lawyer', 'jurista'] ? 'lawyer'
@@ -236,7 +238,7 @@ service cloud.firestore {
     function cpcStaffProfileFallbackWhenNoUserDoc() {
       return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
-        && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'trainer'];
+        && userRole() in ['admin', 'mediator', 'lawyer', 'psychologist', 'manager', 'consultant', 'coordinator', 'trainer'];
     }
     function canEditCmsContent() {
       return isAccountEnabled() && userRole() == 'admin';

@@ -60,6 +60,7 @@ import {
   type EligibilityFilter,
   type EligibilityProfile,
 } from '@/lib/migrantEligibility';
+import { CPC_MANAGEMENT_ROLES, CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 
 type TriageAnswers = Record<string, unknown>;
 
@@ -340,7 +341,7 @@ export default function MigrantsAdminPage() {
   }
 
   async function handleExport(format: 'csv' | 'xlsx' | 'pdf') {
-    if (!profile || !['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'].includes(profile.role)) {
+    if (!profile || !(CPC_TEAM_ROLES as readonly string[]).includes(profile.role)) {
       toast({
         title: t.get('cpc.migrantsAdmin.export.no_permission.title'),
         description: t.get('cpc.migrantsAdmin.export.no_permission.description'),
@@ -743,7 +744,7 @@ export default function MigrantsAdminPage() {
     if (!deleteTarget) return;
     const uid = deleteTarget.user_id;
     const name = deleteTarget.name || t.get('cpc.migrantsAdmin.fallback_migrant');
-    const allowedRoles: Array<string> = ['admin', 'manager', 'coordinator'];
+    const allowedRoles: Array<string> = [...CPC_MANAGEMENT_ROLES];
     if (!profile || !allowedRoles.includes(profile.role)) {
       toast({
         title: t.get('cpc.migrantsAdmin.delete.no_permission.title'),
@@ -892,8 +893,8 @@ export default function MigrantsAdminPage() {
       </div>
 
       <div className="cpc-card p-6 mb-6 overflow-x-auto">
-        <div className="grid w-full min-w-[68rem] grid-cols-8 gap-4">
-          <div className="min-w-0">
+        <div className="grid w-full min-w-[60rem] grid-cols-6 gap-4">
+          <div className="col-span-2 min-w-0">
             <Label className="line-clamp-2">{t.get('cpc.migrantsAdmin.filters.search.label')}</Label>
             <Input
               value={query}
@@ -952,7 +953,10 @@ export default function MigrantsAdminPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="min-w-0">
+        </div>
+
+        <div className="mt-4 grid w-full min-w-[60rem] grid-cols-6 gap-4">
+          <div className="col-start-4 min-w-0">
             <Label className="line-clamp-2">{t.get('cpc.migrantsAdmin.filters.triage.label')}</Label>
             <Select value={triageFilter} onValueChange={(v) => setTriageFilter(v as typeof triageFilter)}>
               <SelectTrigger className="mt-1 h-11 text-base">
@@ -1144,16 +1148,19 @@ export default function MigrantsAdminPage() {
       )}
 
       <Dialog open={!!selectedTriage} onOpenChange={(open) => { if (!open) setSelectedTriage(null); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{t.get('cpc.migrantsAdmin.triageDialog.title', { name: selectedTriage?.name || t.get('cpc.migrantsAdmin.fallback_migrant') })}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto pr-1">
             {(selectedTriage?.triage_answers && Object.keys(selectedTriage.triage_answers).length > 0) ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {Object.entries(selectedTriage.triage_answers).map(([key, value]) => (
-                  <div key={key} className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">{answerLabel(key)}</p>
+                  <div
+                    key={key}
+                    className="rounded-lg border p-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 items-start"
+                  >
+                    <p className="text-sm text-muted-foreground">{answerLabel(key)}</p>
                     <p className="text-sm font-medium break-words">{answerValue(key, value)}</p>
                   </div>
                 ))}

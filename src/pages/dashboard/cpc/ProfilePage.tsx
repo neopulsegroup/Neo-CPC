@@ -16,7 +16,7 @@ import { getDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
-import { Building2, Camera, Loader2, Save, UserCog } from 'lucide-react';
+import { normalizeCpcTeamRole } from '@/lib/cpcRoles';
 
 type ProfileDoc = {
   id: string;
@@ -50,7 +50,11 @@ export default function CPCProfilePage() {
   const [edit, setEdit] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
 
   const displayEmail = profile?.email || user?.email || '';
-  const displayRole = profile?.role ? String(profile.role).toUpperCase() : '—';
+  const displayRole = useMemo(() => {
+    const role = normalizeCpcTeamRole(profile?.role);
+    if (!role) return profile?.role ? String(profile.role) : '—';
+    return t.get(`cpc.team.roles.${role}` as never);
+  }, [profile?.role, t]);
 
   const avatarFallback = useMemo(() => {
     const name = edit.name || profile?.name || '';

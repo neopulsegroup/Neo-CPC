@@ -9,6 +9,7 @@ import { addDocument, queryDocuments, serverTimestamp, subscribeQuery, updateDoc
 import { useToast } from '@/hooks/use-toast';
 import { CirclePlus, Download, EllipsisVertical, FileSpreadsheet, FileText, Loader2, MessagesSquare, Paperclip, Phone, Plus, Send, Smile, Video } from 'lucide-react';
 import { buildCpcMessagesDocx, buildCpcMessagesPrintHtml, buildCpcMessagesXlsx, formatMessageExportDate } from './messagesExport';
+import { isCpcTeamRole, normalizeCpcTeamRole } from '@/lib/cpcRoles';
 
 type UserRow = { id: string; name?: string | null; email?: string | null; role?: string | null };
 type ConversationDoc = {
@@ -39,7 +40,7 @@ function normalizeRole(value?: string | null): string {
 }
 
 function isCpcRole(role: string): boolean {
-  return ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer'].includes(role);
+  return isCpcTeamRole(role) || normalizeCpcTeamRole(role) !== null || role === 'cpc';
 }
 
 function roleLabel(role: string): string {

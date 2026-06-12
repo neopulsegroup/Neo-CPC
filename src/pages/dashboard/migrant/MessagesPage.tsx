@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { isCpcTeamRole, normalizeCpcTeamRole } from '@/lib/cpcRoles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -73,13 +73,13 @@ function normalizeRole(value?: string | null): string {
 }
 
 function isCpcRole(role: string): boolean {
-  return ['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer', 'cpc'].includes(role);
+  return isCpcTeamRole(role) || normalizeCpcTeamRole(role) !== null || role === 'cpc';
 }
 
 function inferConversationRole(conversation: ConversationDoc): 'company' | 'cpc' | 'other' {
   const fromRole = normalizeRole(conversation.recipient_role);
   if (fromRole === 'company' || fromRole === 'empresa') return 'company';
-  if (['admin', 'manager', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer', 'cpc'].includes(fromRole)) return 'cpc';
+  if (isCpcRole(fromRole)) return 'cpc';
   const subtitle = normalizeRole(conversation.subtitle);
   if (subtitle.includes('empresa')) return 'company';
   if (subtitle.includes('cpc') || subtitle.includes('equipa')) return 'cpc';

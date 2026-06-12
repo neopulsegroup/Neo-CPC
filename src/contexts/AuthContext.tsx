@@ -12,7 +12,7 @@ import {
 } from '@/integrations/firebase/auth';
 import { getDocument, setDocument } from '@/integrations/firebase/firestore';
 
-export type UserRole = 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'coordinator' | 'trainer';
+export type UserRole = 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'consultant' | 'coordinator' | 'trainer';
 
 export interface Profile {
   name: string;

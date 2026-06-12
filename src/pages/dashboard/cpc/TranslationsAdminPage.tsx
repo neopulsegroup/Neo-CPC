@@ -16,7 +16,9 @@ type I18nOverrideDoc = { id: string; pt?: string; en?: string; es?: string; fr?:
 
 type DraftRow = { pt: string; en: string; es: string; fr: string };
 
-const ALLOWED_ROLES = new Set(['admin', 'manager', 'coordinator']);
+import { CPC_MANAGEMENT_ROLES } from '@/lib/cpcRoles';
+
+const ALLOWED_ROLES = new Set<string>(CPC_MANAGEMENT_ROLES);
 
 function normalizeKeyQuery(value: string): string {
   return value.trim().toLowerCase();

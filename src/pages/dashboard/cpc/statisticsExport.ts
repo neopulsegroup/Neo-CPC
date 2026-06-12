@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
+import type { EligibilityFilter } from '@/lib/migrantEligibility';
 import type { BrandingSettings } from '@/lib/documentBranding';
 import { defaultBranding, fetchDocumentBranding } from '@/lib/documentBranding';
 import {
@@ -58,6 +59,7 @@ export type StatisticsReport = {
   year: number;
   period: StatisticsPeriod;
   regionFilter: StatisticsRegionFilter;
+  eligibilityFilter?: EligibilityFilter;
   dateRange: { startISO: string; endISO: string };
   totals: { totalMigrants: number; filteredMigrants: number };
   kpis: StatisticsKpis;
@@ -73,6 +75,7 @@ export function buildStatisticsReport(input: {
   year: number;
   period: StatisticsPeriod;
   regionFilter: StatisticsRegionFilter;
+  eligibilityFilter?: EligibilityFilter;
   dateRange: { start: Date; end: Date };
   users: { id: string; createdAt?: unknown }[];
   filteredUsers: { id: string; createdAt?: unknown }[];
@@ -153,6 +156,7 @@ export function buildStatisticsReport(input: {
     year: input.year,
     period: input.period,
     regionFilter: input.regionFilter,
+    eligibilityFilter: input.eligibilityFilter,
     dateRange: { startISO: input.dateRange.start.toISOString(), endISO: input.dateRange.end.toISOString() },
     totals: { totalMigrants: input.users.length, filteredMigrants: input.filteredUsers.length },
     kpis: input.kpis,
@@ -295,6 +299,11 @@ export async function exportStatisticsPdf(
   drawKeyValue('Período', report.period.toUpperCase());
   drawKeyValue('Intervalo', `${report.dateRange.startISO.slice(0, 10)} a ${report.dateRange.endISO.slice(0, 10)}`);
   drawKeyValue('Região', report.regionFilter === 'all' ? 'Todas' : report.regionFilter);
+  if (report.eligibilityFilter && report.eligibilityFilter !== 'all') {
+    const profileLabel =
+      report.eligibilityFilter === 'A' ? 'Perfil A' : report.eligibilityFilter === 'B' ? 'Perfil B' : 'Sem perfil';
+    drawKeyValue('Perfil (A/B)', profileLabel);
+  }
   drawKeyValue('Migrantes (total)', String(report.totals.totalMigrants));
   drawKeyValue('Migrantes (filtrados)', String(report.totals.filteredMigrants));
 

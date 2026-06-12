@@ -2,15 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { mapProfileToRegion, type MigrantRegion } from '@/lib/migrantRegion';
+import {
+  MIGRANT_CLASSIFICATIONS_COLLECTION,
+  normalizeEligibilityProfile,
+  type EligibilityFilter,
+  type EligibilityProfile,
+} from '@/lib/migrantEligibility';
 import { queryDocuments, getDocument } from '@/integrations/firebase/firestore';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, BarChart3, PieChart, Download, FileText, FileSpreadsheet, Users, CheckCircle, TrendingUp, Eye } from 'lucide-react';
+import { Loader2, BarChart3, PieChart, Download, FileText, FileSpreadsheet, Users, CheckCircle, TrendingUp, Eye, X } from 'lucide-react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -76,18 +84,36 @@ function startEndForPeriod(year: number, period: 'year' | 'q1' | 'q2' | 'q3' | '
   return { start: new Date(year, 0, 1, 0, 0, 0), end: new Date(year, 11, 31, 23, 59, 59, 999) };
 }
 
+function parseInputDateStart(value: string): Date | null {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseInputDateEnd(value: string): Date | null {
+  if (!value) return null;
+  const d = new Date(`${value}T23:59:59.999`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+type ClassificationDoc = { id: string; eligibility_profile?: string | null };
+
 export default function StatisticsPage() {
   const { language, t } = useLanguage();
   const { toast } = useToast();
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [period, setPeriod] = useState<'year' | 'q1' | 'q2' | 'q3' | 'q4'>('year');
   const [regionFilter, setRegionFilter] = useState<'all' | 'Lisboa' | 'Norte' | 'Centro' | 'Alentejo' | 'Algarve' | 'Desconhecida'>('all');
+  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [progressByUser, setProgressByUser] = useState<Map<string, ProgressDoc[]>>(new Map());
   const [regionByUser, setRegionByUser] = useState<Map<string, MigrantRegion>>(new Map());
   const [profileByUser, setProfileByUser] = useState<Map<string, { name: string; email: string }>>(new Map());
   const [registrationYearByUser, setRegistrationYearByUser] = useState<Map<string, number | null>>(new Map());
+  const [eligibilityByUser, setEligibilityByUser] = useState<Map<string, EligibilityProfile | null>>(new Map());
   const [trailTitleById, setTrailTitleById] = useState<Map<string, string>>(new Map());
   const [exporting, setExporting] = useState<{ format: 'xlsx' | 'pdf' | 'docx'; progress: number; message: string } | null>(null);
   const xlsxModuleRef = useRef<typeof import('xlsx') | null>(null);
@@ -126,7 +152,36 @@ export default function StatisticsPage() {
     return labels;
   }, [locale]);
 
-  const dateRange = useMemo(() => startEndForPeriod(year, period), [year, period]);
+  const dateRange = useMemo(() => {
+    const base = startEndForPeriod(year, period);
+    const from = parseInputDateStart(dateFrom);
+    const to = parseInputDateEnd(dateTo);
+    return {
+      start: from ?? base.start,
+      end: to ?? base.end,
+    };
+  }, [dateFrom, dateTo, period, year]);
+
+  const hasActiveFilters = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return (
+      year !== currentYear ||
+      period !== 'year' ||
+      regionFilter !== 'all' ||
+      dateFrom !== '' ||
+      dateTo !== '' ||
+      eligibilityFilter !== 'all'
+    );
+  }, [dateFrom, dateTo, eligibilityFilter, period, regionFilter, year]);
+
+  function clearFilters() {
+    setYear(new Date().getFullYear());
+    setPeriod('year');
+    setRegionFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setEligibilityFilter('all');
+  }
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -134,9 +189,16 @@ export default function StatisticsPage() {
       if (!d) return false;
       if (d < dateRange.start || d > dateRange.end) return false;
       if (regionFilter !== 'all' && regionByUser.get(u.id) !== regionFilter) return false;
+      const profile = eligibilityByUser.get(u.id) ?? null;
+      if (
+        eligibilityFilter !== 'all' &&
+        (eligibilityFilter === 'unset' ? profile !== null : profile !== eligibilityFilter)
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [dateRange.end, dateRange.start, regionByUser, regionFilter, users]);
+  }, [dateRange.end, dateRange.start, eligibilityByUser, eligibilityFilter, regionByUser, regionFilter, users]);
 
   const kpis = useMemo(() => {
     const total = filteredUsers.length;
@@ -333,6 +395,17 @@ export default function StatisticsPage() {
         setRegionByUser(regionMap);
         setProfileByUser(profileMap);
         setRegistrationYearByUser(yearMap);
+
+        const classificationDocs = await queryDocuments<ClassificationDoc>(MIGRANT_CLASSIFICATIONS_COLLECTION, []).catch((error) => {
+          console.error('Error loading migrant classifications:', error);
+          return [] as ClassificationDoc[];
+        });
+        if (ignore) return;
+        const eligibilityMap = new Map<string, EligibilityProfile | null>();
+        classificationDocs.forEach((doc) => {
+          eligibilityMap.set(doc.id, normalizeEligibilityProfile(doc.eligibility_profile));
+        });
+        setEligibilityByUser(eligibilityMap);
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -415,6 +488,7 @@ export default function StatisticsPage() {
       year,
       period,
       regionFilter,
+      eligibilityFilter,
       dateRange,
       users,
       filteredUsers,
@@ -427,7 +501,7 @@ export default function StatisticsPage() {
       registrationYearByUser,
       parseUnknownDate,
     });
-  }, [dateRange, filteredUsers, kpis, monthly, period, progressByUser, regionByUser, regionFilter, regionStats, registrationYearByUser, trailPerf, users, year]);
+  }, [dateRange, eligibilityFilter, filteredUsers, kpis, monthly, period, progressByUser, regionByUser, regionFilter, regionStats, registrationYearByUser, trailPerf, users, year]);
 
   const registrationYearExportLabels = useMemo(() => ({
     title: t.get('cpc.pages.statistics.export.registrationYear.title'),
@@ -520,55 +594,18 @@ export default function StatisticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-            <TrendingUp className="h-7 w-7 text-primary shrink-0" aria-hidden />
-            {t.get('cpc.pages.statistics.title')}
-          </h1>
-          <p className="text-muted-foreground mt-1">{t.get('cpc.pages.statistics.subtitle')}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 6 }).map((_, i) => {
-                const y = new Date().getFullYear() + 1 - i;
-                return <SelectItem key={y} value={String(y)}>{y}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-          <Select value={period} onValueChange={(v) => setPeriod(v as 'year' | 'q1' | 'q2' | 'q3' | 'q4')}>
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="year">Ano completo</SelectItem>
-              <SelectItem value="q1">1º trimestre</SelectItem>
-              <SelectItem value="q2">2º trimestre</SelectItem>
-              <SelectItem value="q3">3º trimestre</SelectItem>
-              <SelectItem value="q4">4º trimestre</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={regionFilter} onValueChange={(v) => setRegionFilter(v as typeof regionFilter)}>
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Região" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as regiões</SelectItem>
-              <SelectItem value="Lisboa">Lisboa</SelectItem>
-              <SelectItem value="Norte">Norte</SelectItem>
-              <SelectItem value="Centro">Centro</SelectItem>
-              <SelectItem value="Alentejo">Alentejo</SelectItem>
-              <SelectItem value="Algarve">Algarve</SelectItem>
-              <SelectItem value="Desconhecida">Desconhecida</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+              <TrendingUp className="h-7 w-7 text-primary shrink-0" aria-hidden />
+              {t.get('cpc.pages.statistics.title')}
+            </h1>
+            <p className="text-muted-foreground mt-1">{t.get('cpc.pages.statistics.subtitle')}</p>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="gap-2" disabled={exporting !== null}>
+              <Button className="gap-2 h-10 shrink-0" disabled={exporting !== null}>
                 {exporting !== null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 {t.get('cpc.pages.statistics.export.button')}
               </Button>
@@ -588,6 +625,113 @@ export default function StatisticsPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="grid w-full min-w-[60rem] grid-cols-6 gap-4">
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-year" className="text-xs text-muted-foreground">
+                {t.get('cpc.pages.statistics.filters.year')}
+              </Label>
+              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger id="statistics-filter-year" className="h-10 w-full min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const y = new Date().getFullYear() + 1 - i;
+                    return <SelectItem key={y} value={String(y)}>{y}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-period" className="text-xs text-muted-foreground">
+                {t.get('cpc.pages.statistics.filters.period')}
+              </Label>
+              <Select value={period} onValueChange={(v) => setPeriod(v as 'year' | 'q1' | 'q2' | 'q3' | 'q4')}>
+                <SelectTrigger id="statistics-filter-period" className="h-10 w-full min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="year">{t.get('cpc.pages.statistics.filters.periodYear')}</SelectItem>
+                  <SelectItem value="q1">{t.get('cpc.pages.statistics.filters.periodQ1')}</SelectItem>
+                  <SelectItem value="q2">{t.get('cpc.pages.statistics.filters.periodQ2')}</SelectItem>
+                  <SelectItem value="q3">{t.get('cpc.pages.statistics.filters.periodQ3')}</SelectItem>
+                  <SelectItem value="q4">{t.get('cpc.pages.statistics.filters.periodQ4')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-region" className="text-xs text-muted-foreground">
+                {t.get('cpc.pages.statistics.filters.region')}
+              </Label>
+              <Select value={regionFilter} onValueChange={(v) => setRegionFilter(v as typeof regionFilter)}>
+                <SelectTrigger id="statistics-filter-region" className="h-10 w-full min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t.get('cpc.pages.statistics.filters.regionAll')}</SelectItem>
+                  <SelectItem value="Lisboa">Lisboa</SelectItem>
+                  <SelectItem value="Norte">Norte</SelectItem>
+                  <SelectItem value="Centro">Centro</SelectItem>
+                  <SelectItem value="Alentejo">Alentejo</SelectItem>
+                  <SelectItem value="Algarve">Algarve</SelectItem>
+                  <SelectItem value="Desconhecida">{t.get('cpc.migrantsAdmin.region.unknown')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-date-from" className="text-xs text-muted-foreground">
+                {t.get('cpc.pages.statistics.filters.dateFrom')}
+              </Label>
+              <Input
+                id="statistics-filter-date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-10 w-full min-w-0"
+              />
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-date-to" className="text-xs text-muted-foreground">
+                {t.get('cpc.pages.statistics.filters.dateTo')}
+              </Label>
+              <Input
+                id="statistics-filter-date-to"
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-10 w-full min-w-0"
+              />
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="statistics-filter-eligibility" className="text-xs text-muted-foreground">
+                {t.get('cpc.migrantsAdmin.filters.eligibility.label')}
+              </Label>
+              <Select value={eligibilityFilter} onValueChange={(v) => setEligibilityFilter(v as EligibilityFilter)}>
+                <SelectTrigger id="statistics-filter-eligibility" className="h-10 w-full min-w-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t.get('cpc.migrantsAdmin.filters.eligibility.all')}</SelectItem>
+                  <SelectItem value="A">{t.get('cpc.migrantsAdmin.filters.eligibility.a')}</SelectItem>
+                  <SelectItem value="B">{t.get('cpc.migrantsAdmin.filters.eligibility.b')}</SelectItem>
+                  <SelectItem value="unset">{t.get('cpc.migrantsAdmin.filters.eligibility.unset')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full gap-2"
+                disabled={!hasActiveFilters}
+                onClick={clearFilters}
+              >
+                <X className="h-4 w-4 shrink-0" />
+                {t.get('cpc.pages.statistics.filters.clear')}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
