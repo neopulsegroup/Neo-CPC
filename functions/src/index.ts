@@ -6,7 +6,8 @@ import { loadSmtpSettings } from './mailProcessor';
 import { createTransport } from './smtp';
 import { processMailDocument } from './mailProcessor';
 import { registerUserSecure } from './registerUserSecure';
-import { submitContactForm } from './contactResend';
+import { submitContactForm } from './contactForm';
+import { requestPasswordReset } from './sendPasswordReset';
 
 // TASK-08 — Triggers de notificação automática por email.
 // Cada trigger enfileira em `mail/{id}` e é consumido por `onMailCreated`.
@@ -50,7 +51,7 @@ export const testSmtpConnection = onCall(async (request) => {
   }
 });
 
-export { registerUserSecure, submitContactForm };
+export { registerUserSecure, submitContactForm, requestPasswordReset };
 
 // TASK-08 — exports dos 5 triggers de notificação.
 export {

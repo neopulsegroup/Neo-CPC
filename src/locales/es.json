@@ -2199,6 +2199,20 @@
         "psychological": "Psicológico",
         "housing": "Habitacional"
       },
+      "eligibility": {
+        "label": "Perfil de elegibilidad",
+        "profileA": "Perfil A",
+        "profileB": "Perfil B",
+        "unset": "Sin perfil",
+        "set_success_title": "Clasificación actualizada",
+        "set_success": "{name}: {profile}.",
+        "cleared_success": "Clasificación de {name} eliminada.",
+        "no_permission_title": "Sin permiso",
+        "no_permission": "Solo el equipo de gestión (admin, gestor, coordinador) puede clasificar perfiles.",
+        "error_title": "Error al clasificar",
+        "error": "No se pudo actualizar la clasificación.",
+        "page_description": "Clasificación interna del equipo de gestión. Perfil A: elegible en el ámbito del proyecto (residente en el Algarve). Perfil B: no elegible. No visible para el migrante."
+      },
       "filters": {
         "search": {
           "label": "Búsqueda",
@@ -2234,6 +2248,13 @@
         "registrationYear": {
           "label": "Año de Registro",
           "all": "Todos los años"
+        },
+        "eligibility": {
+          "label": "Perfil (A/B)",
+          "all": "Todos",
+          "a": "Perfil A (elegible)",
+          "b": "Perfil B (no elegible)",
+          "unset": "Sin perfil definido"
         }
       },
       "list": {
