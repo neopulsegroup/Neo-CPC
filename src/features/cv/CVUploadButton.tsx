@@ -12,13 +12,19 @@ import {
 } from './uploadCvFile';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+const FILE_INPUT_ACCEPT = [...ALLOWED_MIME_TYPES, ...ALLOWED_EXTENSIONS].join(',');
 
 interface CVUploadButtonProps {
   contextId: string;
   contextType: CvContextType;
   uploaderUid: string;
   currentUrl?: string | null;
-  onUploadComplete: (url: string, fileName: string) => void;
+  onUploadComplete: (url: string, fileName: string) => void | Promise<void>;
   onRemove?: () => void;
   disabled?: boolean;
 }
@@ -66,7 +72,7 @@ export function CVUploadButton({
     setUploading(true);
     try {
       const { url, fileName } = await uploadCvFile({ file, contextId, contextType, uploaderUid });
-      onUploadComplete(url, fileName);
+      await onUploadComplete(url, fileName);
       toast({ title: t.get('cvUpload.success') });
     } catch (err) {
       console.error('[CVUploadButton] falha:', err);
@@ -106,7 +112,7 @@ export function CVUploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept={ALLOWED_EXTENSIONS.join(',')}
+        accept={FILE_INPUT_ACCEPT}
         onChange={handleChange}
         className="hidden"
       />

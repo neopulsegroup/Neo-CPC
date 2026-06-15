@@ -15,12 +15,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { Calendar, Loader2, Plus, X } from 'lucide-react';
-import type { ActivityDoc, ActivityFormat, ActivityStatus, ActivityType, ActivityUpsertInput } from '@/features/activities/model';
-import { ACTIVITY_FORMATS, ACTIVITY_STATUSES, ACTIVITY_TYPES, computeDurationMinutes, formatDuration, normalizeText, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
+import type { ActivityDoc, ActivityFormat, ActivityScheduleSlot, ActivityStatus, ActivityType, ActivityUpsertInput } from '@/features/activities/model';
+import { ACTIVITY_FORMATS, ACTIVITY_STATUSES, ACTIVITY_TYPES, computeDurationMinutes, computeScheduleSlotsDurationMinutes, formatDuration, formatScheduleSlotsPreview, normalizeText, resolveScheduleSlots, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
 import { loadActivityForEdit, loadActivityOptions, saveActivity } from '@/features/activities/controller';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
 
 type FormValues = ActivityUpsertInput;
+
+const scheduleSlotSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+});
 
 const formSchema = z
   .object({
@@ -28,9 +34,7 @@ const formSchema = z
     activityType: z.enum(ACTIVITY_TYPES).or(z.literal('')),
     format: z.enum(ACTIVITY_FORMATS).or(z.literal('')),
     status: z.enum(ACTIVITY_STATUSES).or(z.literal('')),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-    endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    scheduleSlots: z.array(scheduleSlotSchema).min(1),
     location: z.string().min(3).max(160),
     topics: z.array(z.string().min(2)).min(1),
     consultantIds: z.array(z.string().min(1)).min(1),
@@ -40,9 +44,18 @@ const formSchema = z
     participantConsultantIds: z.array(z.string()),
   })
   .superRefine((data, ctx) => {
-    const duration = computeDurationMinutes(data.startTime, data.endTime);
-    if (!duration) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A hora de fim deve ser posterior à hora de início.', path: ['endTime'] });
+    data.scheduleSlots.forEach((slot, index) => {
+      const duration = computeDurationMinutes(slot.startTime, slot.endTime);
+      if (!duration) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'A hora de fim deve ser posterior à hora de início.',
+          path: ['scheduleSlots', index, 'endTime'],
+        });
+      }
+    });
+    if (!computeScheduleSlotsDurationMinutes(data.scheduleSlots)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Verifique os intervalos de horário.', path: ['scheduleSlots'] });
     }
     const totalParticipants = data.participantMigrantIds.length + data.participantCompanyIds.length + data.participantConsultantIds.length;
     if (totalParticipants === 0) {
@@ -50,15 +63,18 @@ const formSchema = z
     }
   });
 
+function defaultScheduleSlot(): ActivityScheduleSlot {
+  return { date: todayIsoAppCalendar(), startTime: '09:00', endTime: '10:00' };
+}
+
 function toDefaults(activity?: ActivityDoc | null): FormValues {
+  const scheduleSlots = resolveScheduleSlots(activity ?? {});
   return {
     title: activity?.title ?? '',
     activityType: (activity?.activityType ?? '') as ActivityType | '',
     format: (activity?.format ?? '') as ActivityFormat | '',
     status: (activity?.status ?? 'rascunho') as ActivityStatus | '',
-    date: activity?.date ?? todayIsoAppCalendar(),
-    startTime: activity?.startTime ?? '09:00',
-    endTime: activity?.endTime ?? '10:00',
+    scheduleSlots: scheduleSlots.length > 0 ? scheduleSlots : [defaultScheduleSlot()],
     location: activity?.location ?? '',
     topics: activity?.topics ?? [],
     consultantIds: activity?.consultantIds ?? [],
@@ -103,8 +119,15 @@ export default function ActivityEditorPage() {
   });
 
   const values = form.watch();
-  const durationMinutes = useMemo(() => computeDurationMinutes(values.startTime, values.endTime), [values.endTime, values.startTime]);
+  const durationMinutes = useMemo(
+    () => computeScheduleSlotsDurationMinutes(values.scheduleSlots ?? []),
+    [values.scheduleSlots]
+  );
   const durationLabel = useMemo(() => formatDuration(durationMinutes), [durationMinutes]);
+  const schedulePreview = useMemo(
+    () => formatScheduleSlotsPreview(values.scheduleSlots ?? []),
+    [values.scheduleSlots]
+  );
 
   const filteredMigrants = useMemo(() => {
     const q = normalizeText(migrantQuery);
@@ -173,6 +196,32 @@ export default function ActivityEditorPage() {
       currentParticipants.filter((x) => x !== id),
       { shouldValidate: true, shouldDirty: true }
     );
+  }
+
+  function addScheduleSlot() {
+    const current = form.getValues('scheduleSlots');
+    const last = current[current.length - 1];
+    form.setValue(
+      'scheduleSlots',
+      [...current, { date: last?.date ?? todayIsoAppCalendar(), startTime: '09:00', endTime: '10:00' }],
+      { shouldValidate: true, shouldDirty: true }
+    );
+  }
+
+  function removeScheduleSlot(index: number) {
+    const current = form.getValues('scheduleSlots');
+    if (current.length <= 1) return;
+    form.setValue(
+      'scheduleSlots',
+      current.filter((_, i) => i !== index),
+      { shouldValidate: true, shouldDirty: true }
+    );
+  }
+
+  function updateScheduleSlot(index: number, patch: Partial<ActivityScheduleSlot>) {
+    const current = [...form.getValues('scheduleSlots')];
+    current[index] = { ...current[index], ...patch };
+    form.setValue('scheduleSlots', current, { shouldValidate: true, shouldDirty: true });
   }
 
   function addTopic(topic: string) {
@@ -409,55 +458,89 @@ export default function ActivityEditorPage() {
           </Card>
 
           <Card className="rounded-3xl">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
               <CardTitle className="text-base">{t.get('cpc.activities.editor.sections.schedule')}</CardTitle>
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addScheduleSlot}>
+                <Plus className="h-4 w-4" />
+                {t.get('cpc.activities.editor.add_interval')}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <Label>{t.get('cpc.activities.fields.date')}</Label>
-                  <div className="relative mt-1">
-                    <Calendar className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                    <Input
-                      type="date"
-                      value={values.date}
-                      onChange={(e) => form.setValue('date', e.target.value, { shouldValidate: true, shouldDirty: true })}
-                      className="pl-9"
-                    />
+              {values.scheduleSlots.map((slot, index) => (
+                <div key={index} className="rounded-2xl border border-dashed p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold tracking-widest text-muted-foreground">
+                      {t.get('cpc.activities.editor.interval_label', { index: index + 1 })}
+                    </p>
+                    {values.scheduleSlots.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeScheduleSlot(index)}
+                      >
+                        <X className="h-4 w-4" />
+                        {t.get('cpc.activities.editor.remove_interval')}
+                      </Button>
+                    ) : null}
                   </div>
-                  {form.formState.errors.date ? (
-                    <p className="text-sm font-medium text-destructive mt-2">{String(form.formState.errors.date.message)}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <Label>{t.get('cpc.activities.fields.date')}</Label>
+                      <div className="relative mt-1">
+                        <Calendar className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Input
+                          type="date"
+                          value={slot.date}
+                          onChange={(e) => updateScheduleSlot(index, { date: e.target.value })}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>{t.get('cpc.activities.fields.start_time')}</Label>
+                      <Input
+                        type="time"
+                        value={slot.startTime}
+                        onChange={(e) => updateScheduleSlot(index, { startTime: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.get('cpc.activities.fields.end_time')}</Label>
+                      <Input
+                        type="time"
+                        value={slot.endTime}
+                        onChange={(e) => updateScheduleSlot(index, { endTime: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  {form.formState.errors.scheduleSlots?.[index]?.endTime ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {String(form.formState.errors.scheduleSlots[index]?.endTime?.message)}
+                    </p>
+                  ) : null}
+                  {slot.startTime && slot.endTime ? (
+                    <p className="text-xs text-muted-foreground">
+                      {formatDuration(computeDurationMinutes(slot.startTime, slot.endTime))}
+                    </p>
                   ) : null}
                 </div>
-                <div>
-                  <Label>{t.get('cpc.activities.fields.start_time')}</Label>
-                  <Input
-                    type="time"
-                    value={values.startTime}
-                    onChange={(e) => form.setValue('startTime', e.target.value, { shouldValidate: true, shouldDirty: true })}
-                    className="mt-1"
-                  />
-                  {form.formState.errors.startTime ? (
-                    <p className="text-sm font-medium text-destructive mt-2">{String(form.formState.errors.startTime.message)}</p>
-                  ) : null}
-                </div>
-                <div>
-                  <Label>{t.get('cpc.activities.fields.end_time')}</Label>
-                  <Input
-                    type="time"
-                    value={values.endTime}
-                    onChange={(e) => form.setValue('endTime', e.target.value, { shouldValidate: true, shouldDirty: true })}
-                    className="mt-1"
-                  />
-                  {form.formState.errors.endTime ? (
-                    <p className="text-sm font-medium text-destructive mt-2">{String(form.formState.errors.endTime.message)}</p>
-                  ) : null}
-                </div>
-              </div>
+              ))}
+              {form.formState.errors.scheduleSlots && !Array.isArray(form.formState.errors.scheduleSlots) ? (
+                <p className="text-sm font-medium text-destructive">{String(form.formState.errors.scheduleSlots.message)}</p>
+              ) : null}
               <div className="rounded-2xl bg-muted/40 p-4 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.duration')}</p>
                   <p className="font-semibold mt-1">{durationLabel}</p>
+                  {values.scheduleSlots.length > 1 ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t.get('cpc.activities.editor.intervals_total', { count: values.scheduleSlots.length })}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-xs text-muted-foreground">{t.get('cpc.activities.fields.duration_hint')}</div>
               </div>
@@ -596,7 +679,7 @@ export default function ActivityEditorPage() {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-primary-foreground/80">{t.get('cpc.activities.fields.preview')}</span>
-                <span className="font-semibold">{values.date ? `${values.date} • ${values.startTime}-${values.endTime}` : '—'}</span>
+                <span className="font-semibold">{schedulePreview}</span>
               </div>
 
               <div className="border-t border-primary-foreground/15 pt-4">

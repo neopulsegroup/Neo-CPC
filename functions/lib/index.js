@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.onMailCreated = void 0;
+exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.uploadCvSecure = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.onMailCreated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("./permissions");
@@ -13,6 +13,8 @@ const contactForm_1 = require("./contactForm");
 Object.defineProperty(exports, "submitContactForm", { enumerable: true, get: function () { return contactForm_1.submitContactForm; } });
 const sendPasswordReset_1 = require("./sendPasswordReset");
 Object.defineProperty(exports, "requestPasswordReset", { enumerable: true, get: function () { return sendPasswordReset_1.requestPasswordReset; } });
+const uploadCvSecure_1 = require("./uploadCvSecure");
+Object.defineProperty(exports, "uploadCvSecure", { enumerable: true, get: function () { return uploadCvSecure_1.uploadCvSecure; } });
 // TASK-08 — Triggers de notificação automática por email.
 // Cada trigger enfileira em `mail/{id}` e é consumido por `onMailCreated`.
 // Falha de envio não bloqueia operação principal; apenas log estruturado.

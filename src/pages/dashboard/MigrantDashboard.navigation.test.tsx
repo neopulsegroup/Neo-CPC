@@ -270,6 +270,7 @@ describe('MigrantDashboard - navegação', () => {
           skills: 'Atendimento, Organização',
           languagesList: 'Português, Inglês',
           mainNeeds: 'Apoio na integração',
+          authorizeEmployersProfessionalProfile: true,
         });
         return () => {};
       }

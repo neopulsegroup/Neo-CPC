@@ -24,7 +24,6 @@ import {
   Clock,
   CalendarX,
   FileText,
-  Filter,
   CheckCircle,
   Ban,
   Mail,
@@ -505,12 +504,12 @@ export default function CPCDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
                 <Label>{t.get('cpc.team.search.label')}</Label>
-              <div className="flex items-center gap-2 mt-1">
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.get('cpc.team.search.placeholder')} />
-                <Button variant="outline" className="gap-2">
-                    <Filter className="h-4 w-4" /> {t.get('cpc.team.actions.filter')}
-                </Button>
-              </div>
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t.get('cpc.team.search.placeholder')}
+                  className="mt-1"
+                />
             </div>
             <div>
                 <Label>{t.get('cpc.team.role.label')}</Label>

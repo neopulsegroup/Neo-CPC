@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { PhoneInput, formatPhoneValueForDisplay } from '@/components/ui/phone-input';
 import { fetchMigrantProfile, type MigrantProfileDoc, type MigrantProfileResponse } from '@/api/migrantProfile';
@@ -38,6 +39,10 @@ import {
   type EligibilityProfile,
 } from '@/lib/migrantEligibility';
 import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
+import {
+  getMissingProfessionalFieldsForJobs,
+  MIGRANT_JOBS_ACCESS_PROFILE_HASH,
+} from '@/lib/migrantJobsAccess';
 
 function readProfileExtrasFromStorage(userKey: string): Partial<MigrantProfileDoc> | null {
   const extrasRaw =
@@ -174,6 +179,7 @@ function buildEditStateFromMergedProfile(res: MigrantProfileResponse, merged: Mi
 export default function ProfilePage() {
   const { user, profile: authProfile, refreshProfile } = useAuth();
   const { migrantId } = useParams<{ migrantId?: string }>();
+  const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -187,6 +193,8 @@ export default function ProfilePage() {
   const [exportingTriagem, setExportingTriagem] = useState(false);
   const [updatingAvailability, setUpdatingAvailability] = useState(false);
   const [availableForWork, setAvailableForWork] = useState(false);
+  const [authorizeEmployersProfessionalProfile, setAuthorizeEmployersProfessionalProfile] = useState(false);
+  const [updatingEmployerAuthorization, setUpdatingEmployerAuthorization] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
   const PHOTO_ALLOWED_MIME = useMemo(() => new Set(['image/jpeg', 'image/png', 'image/gif']), []);
@@ -466,6 +474,10 @@ export default function ProfilePage() {
   }, [data?.progress]);
 
   const profileDoc: MigrantProfileDoc | null = data?.profile || null;
+  const missingJobsProfessionalFields = useMemo(
+    () => getMissingProfessionalFieldsForJobs(profileDoc),
+    [profileDoc]
+  );
   const triage = data?.triage || null;
   const needsProfile = useMemo(() => inferNeedsProfile(triage), [triage]);
   const triageAnswers = useMemo(() => {
@@ -590,6 +602,17 @@ export default function ProfilePage() {
     const next = profileDoc?.availableForWork === true;
     setAvailableForWork(next);
   }, [profileDoc?.availableForWork]);
+
+  useEffect(() => {
+    setAuthorizeEmployersProfessionalProfile(profileDoc?.authorizeEmployersProfessionalProfile === true);
+  }, [profileDoc?.authorizeEmployersProfessionalProfile]);
+
+  useEffect(() => {
+    if (location.hash !== `#${MIGRANT_JOBS_ACCESS_PROFILE_HASH}`) return;
+    const el = document.getElementById(MIGRANT_JOBS_ACCESS_PROFILE_HASH);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash, loading]);
 
   const normalizeCepInput = useCallback((raw: string) => {
     return raw.replace(/[^\d-]/g, '').slice(0, 14);
@@ -838,6 +861,44 @@ export default function ProfilePage() {
       });
     } finally {
       setUpdatingAvailability(false);
+    }
+  }
+
+  async function handleToggleEmployerAuthorization(nextChecked: boolean) {
+    if (!targetUserId || isViewingOtherUser || updatingEmployerAuthorization) return;
+    const previous = authorizeEmployersProfessionalProfile;
+    setAuthorizeEmployersProfessionalProfile(nextChecked);
+    setUpdatingEmployerAuthorization(true);
+    try {
+      await updateDocument('profiles', targetUserId, { authorizeEmployersProfessionalProfile: nextChecked });
+      setData((prev) => {
+        if (!prev?.profile) return prev;
+        return {
+          ...prev,
+          profile: {
+            ...prev.profile,
+            authorizeEmployersProfessionalProfile: nextChecked,
+          },
+        };
+      });
+      toast({
+        title: nextChecked
+          ? t.get('migrant.profile.employerAuthorization.enabledTitle')
+          : t.get('migrant.profile.employerAuthorization.disabledTitle'),
+        description: nextChecked
+          ? t.get('migrant.profile.employerAuthorization.enabledDescription')
+          : t.get('migrant.profile.employerAuthorization.disabledDescription'),
+      });
+      if (targetUserId === user?.uid) void refreshProfile();
+    } catch {
+      setAuthorizeEmployersProfessionalProfile(previous);
+      toast({
+        title: t.get('migrant.profile.employerAuthorization.errorTitle'),
+        description: t.get('migrant.profile.employerAuthorization.errorDescription'),
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingEmployerAuthorization(false);
     }
   }
 
@@ -2227,6 +2288,30 @@ export default function ProfilePage() {
           </div>
         ) : null}
       </div>
+
+      {!isViewingOtherUser ? (
+        <div
+          id={MIGRANT_JOBS_ACCESS_PROFILE_HASH}
+          className="cpc-card scroll-mt-24 border border-amber-200/80 bg-amber-50/40 p-6"
+        >
+          <h2 className="text-lg font-semibold">{t.get('migrant.profile.employerAuthorization.title')}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t.get('migrant.profile.employerAuthorization.description')}</p>
+          {missingJobsProfessionalFields.length > 0 ? (
+            <p className="mt-3 text-sm text-amber-800">{t.get('migrant.profile.employerAuthorization.missingFieldsHint')}</p>
+          ) : null}
+          <label className="mt-4 flex items-start gap-3 rounded-xl border bg-background/80 p-4 cursor-pointer">
+            <Checkbox
+              checked={authorizeEmployersProfessionalProfile}
+              disabled={updatingEmployerAuthorization || missingJobsProfessionalFields.length > 0}
+              onCheckedChange={(checked) => {
+                void handleToggleEmployerAuthorization(checked === true);
+              }}
+              className="mt-0.5"
+            />
+            <span className="text-sm leading-relaxed">{t.get('migrant.profile.employerAuthorization.label')}</span>
+          </label>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="cpc-card p-6 lg:col-span-2">

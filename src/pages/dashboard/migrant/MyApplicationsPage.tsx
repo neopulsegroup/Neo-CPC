@@ -361,8 +361,8 @@ export default function MyApplicationsPage() {
                         contextType="application"
                         uploaderUid={user?.uid ?? ''}
                         currentUrl={app.migrant_attached_cv_url ?? undefined}
-                        onUploadComplete={(url, fileName) => void updateMigrantCv(app.id, url, fileName)}
-                        onRemove={() => void updateMigrantCv(app.id, null, null)}
+                        onUploadComplete={(url, fileName) => updateMigrantCv(app.id, url, fileName)}
+                        onRemove={() => updateMigrantCv(app.id, null, null)}
                         disabled={!user?.uid}
                       />
                     ) : app.migrant_attached_cv_url ? (

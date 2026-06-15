@@ -482,6 +482,12 @@
     "duration": "Durée par défaut",
     "duration30": "30 minutes",
     "duration60": "60 minutes",
+    "sessionInterval": "Intervalle entre les séances",
+    "minutesValue": "{count} minutes",
+    "durationManualHint": "En minutes (entre {min} et {max}). Ex. : 45",
+    "intervalManualHint": "En minutes (entre {min} et {max}). Ex. : 15",
+    "invalidDuration": "Indiquez une durée entre {min} et {max} minutes.",
+    "invalidInterval": "Indiquez un intervalle entre {min} et {max} minutes.",
     "responsibles": "Responsables",
     "active": "Active",
     "inactive": "Inactive",
@@ -875,7 +881,11 @@
       "time_days_ago": "jours",
       "time_weeks_ago": "il y a quelques semaines",
       "time_months_ago": "il y a des mois",
-      "preview_empty": "Aucune ouverture active à afficher."
+      "preview_empty": "Aucune ouverture active à afficher.",
+      "access_alert_title": "Accès Emploi en attente",
+      "access_alert_body": "Complétez le profil professionnel et accordez l'autorisation aux entreprises pour voir les offres dans le menu Emploi.",
+      "access_alert_missing_profile": "Renseignez le profil professionnel (titre, expérience, compétences et langues).",
+      "access_alert_missing_authorization": "Accordez l'autorisation aux entreprises de consulter votre profil professionnel."
     }
   },
   "sidebar": {
@@ -1011,6 +1021,18 @@
     "profile": {
       "documents": {
         "viewCvLink": "voir le curriculum vitae"
+      },
+      "employerAuthorization": {
+        "title": "Autorisation aux entreprises",
+        "description": "Pour accéder au menu Emploi et postuler aux offres, vous devez autoriser les entreprises auxquelles vous postulez à consulter votre profil professionnel sur la plateforme CPC.",
+        "label": "J'autorise les entreprises auxquelles je postule à consulter mon profil professionnel.",
+        "missingFieldsHint": "Complétez d'abord le Profil professionnel ci-dessous (titre, expérience, compétences et langues) pour activer cette autorisation.",
+        "enabledTitle": "Autorisation accordée",
+        "enabledDescription": "Vous pouvez maintenant accéder au menu Emploi et postuler aux offres.",
+        "disabledTitle": "Autorisation révoquée",
+        "disabledDescription": "L'accès au menu Emploi sera bloqué jusqu'à ce que vous accordiez à nouveau l'autorisation.",
+        "errorTitle": "Mise à jour impossible",
+        "errorDescription": "Veuillez réessayer dans quelques secondes."
       }
     },
     "curriculum": {
@@ -1786,7 +1808,7 @@
         "start_time": "Commencer",
         "end_time": "Fin",
         "duration": "Durée",
-        "duration_hint": "Calculé automatiquement",
+        "duration_hint": "Somme automatique de tous les intervalles",
         "location": "Localisation / Lien",
         "location_placeholder": "Ex. : CPC Faro ou https://…",
         "consultants": "Consultants",
@@ -1827,6 +1849,10 @@
         "migrants_empty": "Aucun migrant trouvé.",
         "topics_placeholder": "Add topic…",
         "topics_add": "Pour ajouter",
+        "add_interval": "Ajouter un intervalle",
+        "remove_interval": "Supprimer",
+        "interval_label": "Intervalle {index}",
+        "intervals_total": "Somme de {count} intervalles",
         "checklist": "Liste de contrôle",
         "checklist_title": "Titre valide",
         "checklist_time": "Heure valide",

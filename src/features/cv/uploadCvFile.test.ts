@@ -1,22 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('firebase/storage', () => ({
-  ref: vi.fn(() => ({ _ref: true })),
-  uploadBytes: vi.fn(async () => ({})),
-  getDownloadURL: vi.fn(async () => 'https://storage.example.com/cv.pdf'),
+const mockCallable = vi.fn();
+
+vi.mock('firebase/functions', () => ({
+  httpsCallable: () => mockCallable,
 }));
 
-vi.mock('@/integrations/firebase/client', () => ({
-  storage: { _storage: true },
-}));
-
-vi.mock('@/integrations/firebase/firestore', () => ({
-  setDocument: vi.fn(async () => undefined),
+vi.mock('@/integrations/firebase/functionsClient', () => ({
+  functions: { _functions: true },
 }));
 
 import { uploadCvFile, validateCvFile, CvValidationError } from './uploadCvFile';
-import { uploadBytes, getDownloadURL } from 'firebase/storage';
-import { setDocument } from '@/integrations/firebase/firestore';
 
 function makeFile(opts: { name?: string; type?: string; sizeBytes?: number }): File {
   const { name = 'cv.pdf', type = 'application/pdf', sizeBytes = 1024 } = opts;
@@ -48,14 +42,25 @@ describe('validateCvFile', () => {
   it('aceita PDF válido dentro do limite', () => {
     expect(() => validateCvFile(makeFile({}))).not.toThrow();
   });
+
+  it('aceita PDF quando o browser não preenche file.type mas a extensão é .pdf', () => {
+    expect(() => validateCvFile(makeFile({ type: '', name: 'curriculo.pdf' }))).not.toThrow();
+  });
 });
 
 describe('uploadCvFile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCallable.mockResolvedValue({
+      data: {
+        url: 'https://storage.example.com/cv.pdf',
+        fileName: 'cv.pdf',
+        storagePath: 'cv_uploads/application/app1/1_cv.pdf',
+      },
+    });
   });
 
-  it('tipo inválido não chega a fazer upload', async () => {
+  it('tipo inválido não chega a chamar a função', async () => {
     await expect(
       uploadCvFile({
         file: makeFile({ type: 'image/png', name: 'x.png' }),
@@ -64,38 +69,26 @@ describe('uploadCvFile', () => {
         uploaderUid: 'u1',
       })
     ).rejects.toBeInstanceOf(CvValidationError);
-    expect(uploadBytes).not.toHaveBeenCalled();
+    expect(mockCallable).not.toHaveBeenCalled();
   });
 
-  it('upload com sucesso devolve url e fileName, e cria audit', async () => {
+  it('upload com sucesso devolve url e fileName via Cloud Function', async () => {
     const result = await uploadCvFile({
       file: makeFile({ name: 'João CV final.pdf' }),
       contextId: 'app1',
       contextType: 'application',
-      uploaderUid: 'company-uid',
-    });
-    expect(result.url).toBe('https://storage.example.com/cv.pdf');
-    expect(result.fileName).toBe('Jo_o_CV_final.pdf'); // sanitizado
-    expect(uploadBytes).toHaveBeenCalledTimes(1);
-    expect(getDownloadURL).toHaveBeenCalledTimes(1);
-    expect(setDocument).toHaveBeenCalledTimes(1);
-    const [collection, , payload] = (setDocument as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
-    expect(collection).toBe('cv_uploads_audit');
-    expect((payload as { uploaderUid: string }).uploaderUid).toBe('company-uid');
-    expect((payload as { downloadUrl: string }).downloadUrl).toBe('https://storage.example.com/cv.pdf');
-  });
-
-  it('upload pelo migrante (application) grava audit com o uploaderUid do migrante', async () => {
-    await uploadCvFile({
-      file: makeFile({ name: 'meu_cv.pdf' }),
-      contextId: 'app-42',
-      contextType: 'application',
       uploaderUid: 'migrant-uid',
     });
-    const [collection, , payload] = (setDocument as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
-    expect(collection).toBe('cv_uploads_audit');
-    expect((payload as { uploaderUid: string }).uploaderUid).toBe('migrant-uid');
-    expect((payload as { contextType: string }).contextType).toBe('application');
-    expect((payload as { contextId: string }).contextId).toBe('app-42');
+    expect(result.url).toBe('https://storage.example.com/cv.pdf');
+    expect(result.fileName).toBe('cv.pdf');
+    expect(mockCallable).toHaveBeenCalledTimes(1);
+    expect(mockCallable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'João CV final.pdf',
+        mimeType: 'application/pdf',
+        contextId: 'app1',
+        contextType: 'application',
+      })
+    );
   });
 });

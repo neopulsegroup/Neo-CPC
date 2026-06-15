@@ -39,6 +39,7 @@ function legalArea(overrides: Partial<ServiceArea> = {}): ServiceArea {
     responsible_uids: ['u-legal'],
     responsible_names: ['Dr. Legal'],
     default_duration_minutes: 30,
+    session_interval_minutes: 15,
     is_active: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

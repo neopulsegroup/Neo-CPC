@@ -482,6 +482,12 @@
     "duration": "Default duration",
     "duration30": "30 minutes",
     "duration60": "60 minutes",
+    "sessionInterval": "Interval between sessions",
+    "minutesValue": "{count} minutes",
+    "durationManualHint": "In minutes (between {min} and {max}). E.g. 45",
+    "intervalManualHint": "In minutes (between {min} and {max}). E.g. 15",
+    "invalidDuration": "Enter a duration between {min} and {max} minutes.",
+    "invalidInterval": "Enter an interval between {min} and {max} minutes.",
     "responsibles": "Responsibles",
     "active": "Active",
     "inactive": "Inactive",
@@ -875,7 +881,11 @@
       "time_days_ago": "{count} days ago",
       "time_weeks_ago": "{count} weeks ago",
       "time_months_ago": "{count} months ago",
-      "preview_empty": "No active openings to show."
+      "preview_empty": "No active openings to show.",
+      "access_alert_title": "Jobs access pending",
+      "access_alert_body": "Complete your professional profile and grant employer authorization to view vacancies in the Jobs menu.",
+      "access_alert_missing_profile": "Fill in your professional profile (title, experience, skills and languages).",
+      "access_alert_missing_authorization": "Grant authorization for companies to view your professional profile."
     }
   },
   "sidebar": {
@@ -1011,6 +1021,18 @@
     "profile": {
       "documents": {
         "viewCvLink": "view résumé"
+      },
+      "employerAuthorization": {
+        "title": "Employer authorization",
+        "description": "To access the Jobs menu and apply to vacancies, you must authorize the companies you apply to view your professional profile on the CPC platform.",
+        "label": "I authorize the companies I apply to view my professional profile.",
+        "missingFieldsHint": "Complete the Professional Profile below (title, experience, skills and languages) before enabling this authorization.",
+        "enabledTitle": "Authorization granted",
+        "enabledDescription": "You can now access the Jobs menu and apply to vacancies.",
+        "disabledTitle": "Authorization revoked",
+        "disabledDescription": "Jobs menu access will be blocked until you grant authorization again.",
+        "errorTitle": "Could not update",
+        "errorDescription": "Please try again in a few seconds."
       }
     },
     "curriculum": {
@@ -1786,7 +1808,7 @@
         "start_time": "Start",
         "end_time": "End",
         "duration": "Duration",
-        "duration_hint": "Calculated automatically",
+        "duration_hint": "Sum of all intervals",
         "location": "Location / Link",
         "location_placeholder": "e.g. CPC Faro or https://…",
         "consultants": "Consultants",
@@ -1827,6 +1849,10 @@
         "migrants_empty": "No migrants found.",
         "topics_placeholder": "Add topic…",
         "topics_add": "Add",
+        "add_interval": "Add interval",
+        "remove_interval": "Remove",
+        "interval_label": "Interval {index}",
+        "intervals_total": "Sum of {count} intervals",
         "checklist": "Checklist",
         "checklist_title": "Valid title",
         "checklist_time": "Valid time range",

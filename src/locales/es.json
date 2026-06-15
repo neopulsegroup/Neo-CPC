@@ -482,6 +482,12 @@
     "duration": "Duración predeterminada",
     "duration30": "30 minutos",
     "duration60": "60 minutos",
+    "sessionInterval": "Intervalo entre sesiones",
+    "minutesValue": "{count} minutos",
+    "durationManualHint": "En minutos (entre {min} y {max}). Ej.: 45",
+    "intervalManualHint": "En minutos (entre {min} y {max}). Ej.: 15",
+    "invalidDuration": "Indique una duración entre {min} y {max} minutos.",
+    "invalidInterval": "Indique un intervalo entre {min} y {max} minutos.",
     "responsibles": "Responsables",
     "active": "Activa",
     "inactive": "Inactiva",
@@ -875,7 +881,11 @@
       "time_days_ago": "Hace {count} días",
       "time_weeks_ago": "Hace {count} semanas",
       "time_months_ago": "Hace {count} meses",
-      "preview_empty": "No hay ofertas activas para mostrar."
+      "preview_empty": "No hay ofertas activas para mostrar.",
+      "access_alert_title": "Acceso a Empleo pendiente",
+      "access_alert_body": "Complete el perfil profesional y conceda autorización a las empresas para ver vacantes en el menú Empleo.",
+      "access_alert_missing_profile": "Rellene el perfil profesional (título, experiencia, competencias e idiomas).",
+      "access_alert_missing_authorization": "Conceda autorización para que las empresas consulten su perfil profesional."
     }
   },
   "sidebar": {
@@ -1011,6 +1021,18 @@
     "profile": {
       "documents": {
         "viewCvLink": "ver currículum"
+      },
+      "employerAuthorization": {
+        "title": "Autorización a empresas",
+        "description": "Para acceder al menú Empleo y candidatarse a vacantes, debe autorizar a las empresas a las que se candidata a consultar su perfil profesional en la plataforma CPC.",
+        "label": "Autorizo a las empresas a las que me candidato a consultar mi perfil profesional.",
+        "missingFieldsHint": "Complete primero el Perfil Profesional abajo (título, experiencia, competencias e idiomas) para activar esta autorización.",
+        "enabledTitle": "Autorización concedida",
+        "enabledDescription": "Ya puede acceder al menú Empleo y candidatarse a vacantes.",
+        "disabledTitle": "Autorización revocada",
+        "disabledDescription": "El acceso al menú Empleo quedará bloqueado hasta volver a conceder autorización.",
+        "errorTitle": "No se pudo actualizar",
+        "errorDescription": "Inténtelo de nuevo en unos segundos."
       }
     },
     "curriculum": {
@@ -1786,7 +1808,7 @@
         "start_time": "Inicio",
         "end_time": "Fin",
         "duration": "Duración",
-        "duration_hint": "Calculada automáticamente",
+        "duration_hint": "Suma automática de todos los intervalos",
         "location": "Lugar / Enlace",
         "location_placeholder": "Ej.: CPC Faro o https://…",
         "consultants": "Consultores",
@@ -1827,6 +1849,10 @@
         "migrants_empty": "No se encontraron migrantes.",
         "topics_placeholder": "Añadir temática…",
         "topics_add": "Añadir",
+        "add_interval": "Añadir intervalo",
+        "remove_interval": "Eliminar",
+        "interval_label": "Intervalo {index}",
+        "intervals_total": "Suma de {count} intervalos",
         "checklist": "Checklist",
         "checklist_title": "Título válido",
         "checklist_time": "Horario válido",

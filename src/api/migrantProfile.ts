@@ -59,6 +59,7 @@ export type MigrantProfileDoc = {
   mainNeeds?: string | null;
   contactPreference?: 'email' | 'phone' | null;
   availableForWork?: boolean | null;
+  authorizeEmployersProfessionalProfile?: boolean | null;
 };
 
 export type MigrantTriageDoc = {
@@ -139,6 +140,10 @@ export async function fetchMigrantProfile(uid: string): Promise<MigrantProfileRe
       mainNeeds: profileFs?.mainNeeds ?? null,
       contactPreference: profileFs?.contactPreference ?? null,
       availableForWork: typeof profileFs?.availableForWork === 'boolean' ? profileFs.availableForWork : null,
+      authorizeEmployersProfessionalProfile:
+        typeof profileFs?.authorizeEmployersProfessionalProfile === 'boolean'
+          ? profileFs.authorizeEmployersProfessionalProfile
+          : null,
     };
   })();
 

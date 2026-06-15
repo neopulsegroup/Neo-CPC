@@ -1,7 +1,7 @@
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
 import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 import type { ActivityDoc, ActivityStatus, ActivityType, ActivityUpsertInput } from './model';
-import { buildSearchTokens, computeDurationMinutes, toStartAt } from './model';
+import { buildSearchTokens, computeScheduleSlotsDurationMinutes, deriveScheduleBounds, resolveScheduleSlots } from './model';
 
 type UserDoc = {
   id: string;
@@ -232,10 +232,10 @@ function normalizeParticipantIdToken(id: string): string {
 }
 
 function toPersistedDoc(input: ActivityUpsertInput): Omit<ActivityDoc, 'id'> {
-  const duration = computeDurationMinutes(input.startTime, input.endTime);
+  const scheduleSlots = resolveScheduleSlots({ scheduleSlots: input.scheduleSlots });
+  const duration = computeScheduleSlotsDurationMinutes(scheduleSlots);
   if (!duration) throw new Error('Intervalo de horário inválido.');
-  const startAt = toStartAt(input.date, input.startTime);
-  const endAt = toStartAt(input.date, input.endTime);
+  const bounds = deriveScheduleBounds(scheduleSlots);
   const consultantNames = input.consultantNames.map((n) => n.trim()).filter(Boolean);
   const topics = input.topics.map((t) => t.trim()).filter(Boolean);
   return {
@@ -243,11 +243,12 @@ function toPersistedDoc(input: ActivityUpsertInput): Omit<ActivityDoc, 'id'> {
     activityType: input.activityType as ActivityDoc['activityType'],
     format: input.format as ActivityDoc['format'],
     status: input.status as ActivityDoc['status'],
-    date: input.date,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    startAt,
-    endAt,
+    date: bounds.date,
+    startTime: bounds.startTime,
+    endTime: bounds.endTime,
+    scheduleSlots,
+    startAt: bounds.startAt,
+    endAt: bounds.endAt,
     durationMinutes: duration,
     location: input.location.trim(),
     topics,
@@ -274,6 +275,7 @@ function compactActivityForAudit(doc: Omit<ActivityDoc, 'id'> | ActivityDoc) {
     date: doc.date,
     startTime: doc.startTime,
     endTime: doc.endTime,
+    scheduleSlots: doc.scheduleSlots,
     durationMinutes: doc.durationMinutes,
     location: doc.location,
     topics: doc.topics,

@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Loader2, Pencil, Trash2 } from 'lucide-react';
 import type { ActivityDoc } from '@/features/activities/model';
-import { formatDuration, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
+import { computeDurationMinutes, formatDuration, resolveScheduleSlots, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
 import { loadActivityForEdit, removeActivity } from '@/features/activities/controller';
 
 function badgeVariant(status: ActivityDoc['status']): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -53,6 +53,8 @@ export default function ActivityDetailsPage() {
     const companies = row.participantCompanyIds?.length ?? 0;
     return { migrants, consultants, companies, total: migrants + consultants + companies };
   }, [row]);
+
+  const scheduleSlots = useMemo(() => (row ? resolveScheduleSlots(row) : []), [row]);
 
   async function confirmDelete() {
     if (!row) return;
@@ -132,18 +134,22 @@ export default function ActivityDetailsPage() {
               <CardTitle className="text-base">{t.get('cpc.activities.details.sections.general')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-muted/40 p-4">
-                  <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.date')}</p>
-                  <p className="font-semibold mt-1">{row.date}</p>
+              <div className="rounded-2xl bg-muted/40 p-4">
+                <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.editor.sections.schedule')}</p>
+                <div className="mt-3 space-y-2">
+                  {scheduleSlots.map((slot, index) => (
+                    <div key={`${slot.date}-${slot.startTime}-${index}`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="font-semibold">{slot.date}</span>
+                      <span className="text-muted-foreground">
+                        {slot.startTime} - {slot.endTime}
+                      </span>
+                      <span className="text-muted-foreground">{formatDuration(computeDurationMinutes(slot.startTime, slot.endTime))}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-2xl bg-muted/40 p-4">
-                  <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.time')}</p>
-                  <p className="font-semibold mt-1">
-                    {row.startTime} - {row.endTime}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{formatDuration(row.durationMinutes)}</p>
-                </div>
+                <p className="text-sm font-semibold mt-3 pt-3 border-t border-muted">
+                  {t.get('cpc.activities.fields.duration')}: {formatDuration(row.durationMinutes)}
+                </p>
               </div>
               <div className="rounded-2xl bg-muted/40 p-4">
                 <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.location')}</p>

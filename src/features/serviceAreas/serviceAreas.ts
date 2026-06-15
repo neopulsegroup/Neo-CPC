@@ -7,14 +7,19 @@ import { getCollection, setDocument, updateDocument } from '@/integrations/fireb
  */
 export type ServiceAreaId = 'legal' | 'psychology' | 'mediation';
 
-export type ServiceAreaDuration = 30 | 60;
+export const MIN_SERVICE_DURATION_MINUTES = 5;
+export const MAX_SERVICE_DURATION_MINUTES = 480;
+export const MIN_SESSION_INTERVAL_MINUTES = 0;
+export const MAX_SESSION_INTERVAL_MINUTES = 120;
+export const DEFAULT_SESSION_INTERVAL_MINUTES = 15;
 
 export interface ServiceArea {
   id: ServiceAreaId;
   name_key: string;
   responsible_uids: string[];
   responsible_names: string[];
-  default_duration_minutes: ServiceAreaDuration;
+  default_duration_minutes: number;
+  session_interval_minutes: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -24,18 +29,45 @@ export interface ServiceArea {
 interface ServiceAreaSeed {
   id: ServiceAreaId;
   name_key: string;
-  default_duration_minutes: ServiceAreaDuration;
+  default_duration_minutes: number;
+  session_interval_minutes: number;
 }
 
 export const SERVICE_AREA_SEEDS: ServiceAreaSeed[] = [
-  { id: 'legal', name_key: 'serviceAreas.legal', default_duration_minutes: 30 },
-  { id: 'psychology', name_key: 'serviceAreas.psychological', default_duration_minutes: 60 },
-  { id: 'mediation', name_key: 'serviceAreas.mediation', default_duration_minutes: 30 },
+  { id: 'legal', name_key: 'serviceAreas.legal', default_duration_minutes: 30, session_interval_minutes: DEFAULT_SESSION_INTERVAL_MINUTES },
+  { id: 'psychology', name_key: 'serviceAreas.psychological', default_duration_minutes: 60, session_interval_minutes: DEFAULT_SESSION_INTERVAL_MINUTES },
+  { id: 'mediation', name_key: 'serviceAreas.mediation', default_duration_minutes: 30, session_interval_minutes: DEFAULT_SESSION_INTERVAL_MINUTES },
 ];
 
 export const SERVICE_AREA_ORDER: ServiceAreaId[] = ['legal', 'psychology', 'mediation'];
 
 const COLLECTION = 'service_areas';
+
+function clampMinutes(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+export function normalizeServiceDurationMinutes(value: unknown, fallback = 30): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return clampMinutes(parsed, MIN_SERVICE_DURATION_MINUTES, MAX_SERVICE_DURATION_MINUTES);
+}
+
+export function normalizeSessionIntervalMinutes(value: unknown, fallback = DEFAULT_SESSION_INTERVAL_MINUTES): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return clampMinutes(parsed, MIN_SESSION_INTERVAL_MINUTES, MAX_SESSION_INTERVAL_MINUTES);
+}
+
+export function resolveServiceAreaTiming(area: Partial<ServiceArea>): {
+  default_duration_minutes: number;
+  session_interval_minutes: number;
+} {
+  return {
+    default_duration_minutes: normalizeServiceDurationMinutes(area.default_duration_minutes),
+    session_interval_minutes: normalizeSessionIntervalMinutes(area.session_interval_minutes),
+  };
+}
 
 function sortByOrder(areas: ServiceArea[]): ServiceArea[] {
   return [...areas].sort((a, b) => SERVICE_AREA_ORDER.indexOf(a.id) - SERVICE_AREA_ORDER.indexOf(b.id));
@@ -64,6 +96,7 @@ export async function ensureServiceAreasSeeded(updatedBy: string): Promise<Servi
         responsible_uids: [],
         responsible_names: [],
         default_duration_minutes: seed.default_duration_minutes,
+        session_interval_minutes: seed.session_interval_minutes,
         is_active: true,
         created_at: now,
         updated_at: now,
@@ -77,7 +110,8 @@ export async function ensureServiceAreasSeeded(updatedBy: string): Promise<Servi
 export interface ServiceAreaPatch {
   responsible_uids?: string[];
   responsible_names?: string[];
-  default_duration_minutes?: ServiceAreaDuration;
+  default_duration_minutes?: number;
+  session_interval_minutes?: number;
   is_active?: boolean;
 }
 

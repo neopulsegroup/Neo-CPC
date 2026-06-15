@@ -437,7 +437,12 @@ service cloud.firestore {
       allow update: if isAccountEnabled()
         && resource.data.applicant_id == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['migrant_attached_cv_url', 'migrant_attached_cv_name', 'migrant_attached_cv_uploaded_at']);
+             .hasOnly([
+               'migrant_attached_cv_url',
+               'migrant_attached_cv_name',
+               'migrant_attached_cv_uploaded_at',
+               'updatedAt'
+             ]);
       allow delete: if isCpcStaff();
     }
 
