@@ -15,7 +15,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const firebase_functions_1 = require("firebase-functions");
 const admin_1 = require("./admin");
 const notificationHelpers_1 = require("./notificationHelpers");
-exports.onJobOfferCreated = (0, firestore_1.onDocumentCreated)('job_offers/{offerId}', async (event) => {
+exports.onJobOfferCreated = (0, firestore_1.onDocumentCreated)({ document: 'job_offers/{offerId}', secrets: [notificationHelpers_1.RESEND_API_KEY] }, async (event) => {
     const offerId = event.params.offerId;
     const offer = event.data?.data();
     if (!offer)

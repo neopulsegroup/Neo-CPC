@@ -351,6 +351,12 @@
           "other": "Other"
         }
       }
+    },
+    "consent": {
+      "before": "I have read and accept the ",
+      "linkText": "Privacy Policy",
+      "after": " and the processing of my data.",
+      "required": "You must accept the Privacy Policy to continue."
     }
   },
   "jobApply": {
@@ -965,9 +971,38 @@
       "errorGeneric": "Could not complete the export."
     }
   },
+  "emailVerification": {
+    "title": "Verify your email",
+    "message": "We've sent a verification link to {email}. Open your inbox and click the link to activate your account.",
+    "checkSpam": "If you don't find it, check the spam or promotions folder.",
+    "resend": "Resend email",
+    "resent": "Email resent.",
+    "resendError": "Couldn't resend. Try again in a moment.",
+    "cooldown": "Wait {seconds}s before resending",
+    "checkButton": "I've verified",
+    "notYet": "Email not verified yet. Click the link and try again.",
+    "logout": "Sign out"
+  },
   "migrant": {
     "menu": {
       "title": "Migrant Menu"
+    },
+    "deleteAccount": {
+      "title": "Delete my account",
+      "button": "Delete my account",
+      "warning": "This action is permanent. All your data (profile, applications, sessions, messages, notifications, conversations) will be deleted immediately and cannot be recovered.",
+      "confirmLabel": "Type DELETE to confirm",
+      "confirmWord": "DELETE",
+      "confirmButton": "Delete permanently",
+      "cancel": "Cancel",
+      "success": {
+        "title": "Account deleted",
+        "description": "Your account has been deleted. Goodbye."
+      },
+      "error": {
+        "title": "Failed to delete account",
+        "description": "We couldn't delete your account. Please try again or contact support."
+      }
     },
     "applications": {
       "title": "My Applications",
@@ -1456,12 +1491,12 @@
           ]
         },
         "retention": {
-          "title": "8. Período de conservação dos dados",
-          "p1": "Os dados pessoais são conservados apenas pelo período necessário para cumprir as finalidades para as quais foram recolhidos. Em geral:",
+          "title": "8. Data retention period",
+          "p1": "Personal data is kept only for as long as necessary to fulfil the purposes for which it was collected. In general:",
           "list": [
-            "dados de contas de utilizador são mantidos enquanto a conta estiver ativa",
-            "dados relacionados com o projeto podem ser mantidos pelo período exigido por normas de auditoria de financiamento europeu",
-            "após esse período, os dados serão eliminados ou anonimizados."
+            "user account data is kept while the account is active. After 24 months of no activity (no login), the account is considered inactive: we will send an email warning 30 days before, and if there is no reactivation, the account and associated data will be permanently deleted",
+            "project-related data may be retained for the period required by European funding audit rules",
+            "after that period, the data will be deleted or anonymised."
           ]
         },
         "security": {

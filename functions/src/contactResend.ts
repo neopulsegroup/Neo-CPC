@@ -1,12 +1,9 @@
 import admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
-import { Resend } from 'resend';
 
 import { getFirestore } from './admin';
-
-const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+import { sendEmail, RESEND_API_KEY } from './email/sendEmail';
 
 const CONTACT_CORS_ORIGINS: Array<string | RegExp> = [
   'https://www.portalcpc.com',
@@ -75,17 +72,13 @@ export const submitContactForm = onCall(
     }
 
     const db = getFirestore();
-    const [contactSnap, smtpSnap] = await Promise.all([
-      db.doc('system_settings/contact').get(),
-      db.doc('system_settings/smtp').get(),
-    ]);
+    // system_settings/smtp foi descontinuado (migração para RESEND unificado).
+    // Mantém-se apenas a leitura do destinatário de notificação em system_settings/contact.
+    const contactSnap = await db.doc('system_settings/contact').get();
 
     const contactData = contactSnap.exists ? contactSnap.data() : null;
-    const smtpData = smtpSnap.exists ? smtpSnap.data() : null;
     const toEmail = normalizeEmail(contactData?.notificationEmail) || 'geral@portalcpc.com';
-    const fromEmail = normalizeEmail(process.env.RESEND_FROM_EMAIL || smtpData?.fromEmail) || 'onboarding@resend.dev';
 
-    const resend = new Resend(RESEND_API_KEY.value());
     const createdAtIso = new Date().toISOString();
     const subject = `Novo contacto — ${name}`;
 
@@ -106,17 +99,17 @@ export const submitContactForm = onCall(
       </div>
     `.trim();
 
-    const response = await resend.emails.send({
-      from: fromEmail,
-      to: [toEmail],
-      replyTo: email,
-      subject,
-      text,
-      html,
-    });
-
-    if (response.error) {
-      logger.error('submitContactForm resend error', response.error);
+    let sendResult: { id: string };
+    try {
+      sendResult = await sendEmail({
+        to: [toEmail],
+        replyTo: email,
+        subject,
+        text,
+        html,
+      });
+    } catch (err) {
+      logger.error('submitContactForm resend error', { error: String(err) });
       throw new HttpsError('internal', 'Não foi possível enviar a mensagem neste momento.');
     }
 
@@ -126,7 +119,7 @@ export const submitContactForm = onCall(
       message,
       source: '/contacto',
       provider: 'resend',
-      providerId: response.data?.id || null,
+      providerId: sendResult.id || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

@@ -60,6 +60,12 @@ interface RegisterData {
    * Opcional aqui para não quebrar callers de outros roles.
    */
   activityArea?: string;
+  /**
+   * T-09 (LGPD): consentimento explícito da Política de Privacidade.
+   * Tem de ser `true` para o registo prosseguir — o servidor rejeita caso contrário.
+   */
+  privacyConsent: true;
+  privacyConsentVersion: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -288,6 +294,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await registerUser(data.email, data.password, data.name, data.role, {
         nif: data.nif,
         activityArea: data.activityArea,
+        privacyConsent: data.privacyConsent,
+        privacyConsentVersion: data.privacyConsentVersion,
       });
       // onAuthStateChanged will handle the rest
     } catch (error: unknown) {

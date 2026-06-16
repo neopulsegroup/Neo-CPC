@@ -1,5 +1,6 @@
 import {
     createUserWithEmailAndPassword,
+    sendEmailVerification,
     signInWithEmailAndPassword,
     signOut,
     sendPasswordResetEmail,
@@ -110,10 +111,29 @@ async function registerUserWithClientFallback(
     password: string,
     name: string,
     role: UserProfile['role'],
-    additionalData?: { nif?: string; activityArea?: string }
+    additionalData?: {
+        nif?: string;
+        activityArea?: string;
+        privacyConsent?: boolean;
+        privacyConsentVersion?: string;
+    }
 ) {
+    // T-09 (LGPD): consentimento explícito é obrigatório também no fallback.
+    if (additionalData?.privacyConsent !== true) {
+        throw new Error('PRIVACY_CONSENT_REQUIRED');
+    }
+
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
+    // T-01 (Bloco 4): envia email de verificação após registo fallback client.
+    try {
+        await sendEmailVerification(userCredential.user, {
+            url: `${window.location.origin}/entrar`,
+            handleCodeInApp: false,
+        });
+    } catch (verifyError) {
+        console.warn('sendEmailVerification falhou após registo (fallback)', verifyError);
+    }
 
     const now = serverTimestamp();
     const userProfile: UserProfile = {
@@ -129,9 +149,14 @@ async function registerUserWithClientFallback(
         updatedAt: now,
         ...(additionalData?.nif && { nif: additionalData.nif }),
     };
+    const consentFields = {
+        privacy_consent: true,
+        privacy_consent_at: now,
+        privacy_consent_version: additionalData?.privacyConsentVersion ?? '1.0',
+    };
 
     try {
-        await setDoc(doc(db, 'users', uid), userProfile);
+        await setDoc(doc(db, 'users', uid), { ...userProfile, ...consentFields });
         await setDoc(
             doc(db, 'profiles', uid),
             {
@@ -181,7 +206,13 @@ async function registerUserWithClientFallback(
     return { user: userCredential.user, profile: userProfile };
 }
 
-function useSecureRegisterFunction(): boolean {
+/**
+ * Decide se o fluxo de registo deve usar a Cloud Function `registerUserSecure`.
+ * Renomeada de `useSecureRegisterFunction` para `shouldUseSecureRegister`
+ * (T-44, Bloco 6): o prefixo `use` confundia o ESLint react-hooks porque é
+ * reservado para React hooks/custom hooks.
+ */
+function shouldUseSecureRegister(): boolean {
     return String(env.VITE_USE_SECURE_REGISTER_FUNCTION ?? 'false').toLowerCase() === 'true';
 }
 
@@ -193,9 +224,20 @@ export async function registerUser(
     password: string,
     name: string,
     role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'coordinator' | 'trainer' = 'migrant',
-    additionalData?: { nif?: string; activityArea?: string }
+    additionalData?: {
+        nif?: string;
+        activityArea?: string;
+        privacyConsent?: boolean;
+        privacyConsentVersion?: string;
+    }
 ) {
     try {
+        // T-09 (LGPD): consent obrigatório também no client antes de tocar no servidor.
+        if (additionalData?.privacyConsent !== true) {
+            throw new Error('PRIVACY_CONSENT_REQUIRED');
+        }
+        const consentVersion = additionalData?.privacyConsentVersion ?? '1.0';
+
         const callRegister = httpsCallable<
             {
                 email: string;
@@ -205,11 +247,13 @@ export async function registerUser(
                 nif?: string;
                 activityArea?: string;
                 captchaToken?: string;
+                privacyConsent: true;
+                privacyConsentVersion: string;
             },
             { ok: boolean; requestId?: string }
         >(functions, 'registerUserSecure');
 
-        if (!useSecureRegisterFunction()) {
+        if (!shouldUseSecureRegister()) {
             return await registerUserWithClientFallback(email, password, name, role, additionalData);
         }
 
@@ -224,6 +268,8 @@ export async function registerUser(
                 ...(captchaToken ? { captchaToken } : {}),
                 ...(additionalData?.nif ? { nif: additionalData.nif } : {}),
                 ...(additionalData?.activityArea ? { activityArea: additionalData.activityArea } : {}),
+                privacyConsent: true,
+                privacyConsentVersion: consentVersion,
             });
         } catch (functionError) {
             if (!isFunctionFallbackEligible(functionError)) {
@@ -235,6 +281,16 @@ export async function registerUser(
 
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+        // T-01 (Bloco 4): envia email de verificação após registo via callable.
+        // Falhas aqui não bloqueiam o fluxo — o utilizador pode reenviar a partir da página de verificação.
+        try {
+            await sendEmailVerification(user, {
+                url: `${window.location.origin}/entrar`,
+                handleCodeInApp: false,
+            });
+        } catch (verifyError) {
+            console.warn('sendEmailVerification falhou após registo (callable)', verifyError);
+        }
         const profile = await getUserProfile(user.uid);
         const userProfile: UserProfile = profile ?? {
             email,
@@ -262,6 +318,21 @@ export async function registerUser(
 export async function loginUser(email: string, password: string) {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // T-10 (LGPD retention): grava last_login para o cron de retenção poder identificar contas inativas.
+        // Falhas aqui não bloqueiam o login — best-effort.
+        try {
+            await setDoc(
+                doc(db, 'users', userCredential.user.uid),
+                {
+                    last_login: serverTimestamp(),
+                    // Limpa flag de aviso caso o user reactive a conta.
+                    retention_warning_sent_at: null,
+                },
+                { merge: true }
+            );
+        } catch (writeError) {
+            console.warn('last_login_update_failed', writeError);
+        }
         return userCredential.user;
     } catch (error: unknown) {
         console.error('Error logging in:', error);

@@ -14,7 +14,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const firebase_functions_1 = require("firebase-functions");
 const admin_1 = require("./admin");
 const notificationHelpers_1 = require("./notificationHelpers");
-exports.onApplicationCreated = (0, firestore_1.onDocumentCreated)('job_applications/{appId}', async (event) => {
+exports.onApplicationCreated = (0, firestore_1.onDocumentCreated)({ document: 'job_applications/{appId}', secrets: [notificationHelpers_1.RESEND_API_KEY] }, async (event) => {
     const appId = event.params.appId;
     const app = event.data?.data();
     if (!app)

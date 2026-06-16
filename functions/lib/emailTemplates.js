@@ -57,11 +57,11 @@ const welcomeMigrant = {
         subject: plain('Bem-vindo(a) ao CPC, {name}!', v),
         html: html(`<h1>Olá, {name}!</h1>
        <p>O seu registo no <strong>CPC — Connecting People & Companies</strong> foi efetuado com sucesso.</p>
-       <p>O próximo passo é completar a sua triagem inicial, que nos ajuda a recomendar o melhor apoio.</p>
+       <p>O próximo passo é completar a sua Situação Inicial, que nos ajuda a recomendar o melhor apoio.</p>
        <p><a href="${APP_BASE_URL}/dashboard/migrante">Aceder ao meu dashboard</a></p>
        <p style="color:#666;font-size:12px;">Se não foi você quem se registou, ignore este email.</p>`, v),
         text: plain('Olá, {name}!\n\nO seu registo no CPC foi efetuado com sucesso.\nAceda em ' +
-            `${APP_BASE_URL}/dashboard/migrante para completar a triagem inicial.`, v),
+            `${APP_BASE_URL}/dashboard/migrante para completar a Situação Inicial.`, v),
     }),
     en: (v) => ({
         subject: plain('Welcome to CPC, {name}!', v),
@@ -409,6 +409,31 @@ const sessionReminder1h = {
         text: plain(`Séance {sessionType} dans 1h.\n{userName}, prévue pour {sessionDateTime}.\nOuvrir : ${APP_BASE_URL}/dashboard/migrante/sessoes`, v),
     }),
 };
+/* ------------------------------------------------------------------ */
+/* T-10 — Retention warning                                            */
+/* ------------------------------------------------------------------ */
+const retentionWarning = {
+    pt: (v) => ({
+        subject: 'A tua conta CPC ficará inativa em breve',
+        html: html(`<h1>Olá {userName},</h1><p>Detectámos que a tua conta no Portal CPC não tem atividade há cerca de 23 meses. Em conformidade com a nossa política de retenção (LGPD/RGPD), <strong>contas inativas há mais de 24 meses são eliminadas de forma permanente</strong>, em conjunto com todos os dados associados.</p><p>A tua conta será eliminada em <strong>{deletionDate}</strong> se não houver reativação.</p><p>Para manteres a conta ativa, basta iniciares sessão antes dessa data: <a href="${APP_BASE_URL}/entrar">${APP_BASE_URL}/entrar</a></p><p>Se preferires eliminar agora, podes fazê-lo no teu perfil de migrante.</p><p>Obrigado por fazeres parte do CPC.</p>`, v),
+        text: plain(`Olá {userName},\nA tua conta no Portal CPC está inativa há cerca de 23 meses. Será eliminada em {deletionDate} se não houver reativação.\nInicia sessão para a manter ativa: ${APP_BASE_URL}/entrar`, v),
+    }),
+    en: (v) => ({
+        subject: 'Your CPC account will be inactive soon',
+        html: html(`<h1>Hi {userName},</h1><p>We've noticed your CPC account has been inactive for about 23 months. In line with our retention policy (LGPD/GDPR), <strong>accounts inactive for more than 24 months are permanently deleted</strong>, along with all associated data.</p><p>Your account will be deleted on <strong>{deletionDate}</strong> if not reactivated.</p><p>To keep it active, just log in before that date: <a href="${APP_BASE_URL}/entrar">${APP_BASE_URL}/entrar</a></p><p>If you prefer to delete it now, you can do so from your migrant profile.</p><p>Thank you for being part of CPC.</p>`, v),
+        text: plain(`Hi {userName},\nYour CPC account has been inactive for about 23 months. It will be deleted on {deletionDate} unless reactivated.\nLog in to keep it active: ${APP_BASE_URL}/entrar`, v),
+    }),
+    es: (v) => ({
+        subject: 'Tu cuenta CPC quedará inactiva pronto',
+        html: html(`<h1>Hola {userName},</h1><p>Hemos detectado que tu cuenta en el Portal CPC lleva inactiva unos 23 meses. De acuerdo con nuestra política de retención (LGPD/RGPD), <strong>las cuentas inactivas durante más de 24 meses se eliminan de forma permanente</strong>, junto con todos los datos asociados.</p><p>Tu cuenta se eliminará el <strong>{deletionDate}</strong> si no hay reactivación.</p><p>Para mantenerla activa, basta con iniciar sesión antes de esa fecha: <a href="${APP_BASE_URL}/entrar">${APP_BASE_URL}/entrar</a></p><p>Si prefieres eliminarla ahora, puedes hacerlo desde tu perfil de migrante.</p><p>Gracias por formar parte de CPC.</p>`, v),
+        text: plain(`Hola {userName},\nTu cuenta en el Portal CPC lleva inactiva unos 23 meses. Se eliminará el {deletionDate} si no hay reactivación.\nInicia sesión para mantenerla activa: ${APP_BASE_URL}/entrar`, v),
+    }),
+    fr: (v) => ({
+        subject: 'Ton compte CPC sera bientôt inactif',
+        html: html(`<h1>Bonjour {userName},</h1><p>Nous avons remarqué que ton compte sur le Portail CPC est inactif depuis environ 23 mois. Conformément à notre politique de conservation (LGPD/RGPD), <strong>les comptes inactifs depuis plus de 24 mois sont supprimés définitivement</strong>, ainsi que toutes les données associées.</p><p>Ton compte sera supprimé le <strong>{deletionDate}</strong> en l'absence de réactivation.</p><p>Pour le maintenir actif, il suffit de te connecter avant cette date : <a href="${APP_BASE_URL}/entrar">${APP_BASE_URL}/entrar</a></p><p>Si tu préfères le supprimer maintenant, tu peux le faire depuis ton profil migrant.</p><p>Merci de faire partie du CPC.</p>`, v),
+        text: plain(`Bonjour {userName},\nTon compte sur le Portail CPC est inactif depuis environ 23 mois. Il sera supprimé le {deletionDate} sans réactivation.\nConnecte-toi pour le maintenir actif : ${APP_BASE_URL}/entrar`, v),
+    }),
+};
 const TEMPLATES = {
     welcomeMigrant,
     welcomeCompany,
@@ -420,6 +445,7 @@ const TEMPLATES = {
     sessionConfirmationStaff,
     sessionReminder24h,
     sessionReminder1h,
+    retentionWarning,
 };
 /**
  * Resolve um template para a locale pedida; faz fallback para 'pt' se a

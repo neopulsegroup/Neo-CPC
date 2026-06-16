@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildContactNotificationMail, buildSmtpTestMail, isValidEmail } from './settingsUtils';
+import { buildContactNotificationMail, isValidEmail } from './settingsUtils';
 
 describe('settingsUtils', () => {
   it('valida email', () => {
@@ -28,14 +28,5 @@ describe('settingsUtils', () => {
     expect(mail.message.from).toBe('noreply@cpc.pt');
   });
 
-  it('gera payload de email de teste SMTP', () => {
-    const mail = buildSmtpTestMail({
-      to: 'admin@cpc.pt',
-      from: 'no-reply@cpc.pt',
-      summary: 'Servidor: smtp.example.com',
-    });
-    expect(mail.to).toBe('admin@cpc.pt');
-    expect(mail.message.from).toBe('no-reply@cpc.pt');
-    expect(mail.message.subject).toContain('Teste SMTP');
-  });
+  // TASK consolidate-resend: teste `buildSmtpTestMail` removido (SMTP eliminado).
 });

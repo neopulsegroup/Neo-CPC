@@ -1,15 +1,15 @@
-export type SmtpSecurity = 'tls' | 'ssl';
+/**
+ * Utilitários para a página CPC Settings.
+ *
+ * NOTA (consolidate-resend): toda a infraestrutura SMTP foi removida.
+ * As funções `sanitizeHost`, `sanitizeUsername`, `parsePort`, `buildSmtpTestMail`
+ * e o tipo `SmtpSecurity` deixaram de existir. O tipo `CpcSystemSettings` tem
+ * agora apenas `contactNotificationEmail` (email destinatário das notificações
+ * do formulário de contacto).
+ */
 
 export type CpcSystemSettings = {
   contactNotificationEmail: string;
-  smtp: {
-    host: string;
-    port: number;
-    security: SmtpSecurity;
-    username: string;
-    passwordSet: boolean;
-    fromEmail: string;
-  };
   updatedBy?: string | null;
   updatedAt?: unknown;
 };
@@ -23,22 +23,6 @@ export function isValidEmail(value: string): boolean {
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
-}
-
-export function sanitizeHost(value: string): string {
-  return value.trim();
-}
-
-export function sanitizeUsername(value: string): string {
-  return value.trim();
-}
-
-export function parsePort(value: string): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  const i = Math.floor(n);
-  if (i < 1 || i > 65535) return 0;
-  return i;
 }
 
 export function buildContactNotificationMail(args: {
@@ -81,39 +65,10 @@ export function buildContactNotificationMail(args: {
   return mail;
 }
 
-export function buildSmtpTestMail(args: { to: string; from: string; summary: string }): {
-  to: string;
-  message: { subject: string; text: string; html: string; from: string };
-} {
-  const to = normalizeEmail(args.to);
-  const from = normalizeEmail(args.from);
-  const summary = args.summary.trim();
-  const subject = 'Teste SMTP — CPC';
-  const text = `Teste SMTP.\n\n${summary}\n`;
-  const html = `
-    <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #0a0a0a;">
-      <h2 style="margin: 0 0 12px;">Teste SMTP</h2>
-      <p style="margin: 0 0 12px;">${escapeHtml(summary)}</p>
-    </div>
-  `.trim();
-
-  return { to, message: { subject, text, html, from } };
-}
-
 export function redactSettingsForAudit(input: Partial<CpcSystemSettings> | null | undefined) {
   if (!input) return null;
   return {
     ...input,
-    smtp: input.smtp
-      ? {
-          host: input.smtp.host,
-          port: input.smtp.port,
-          security: input.smtp.security,
-          username: input.smtp.username,
-          passwordSet: input.smtp.passwordSet,
-          fromEmail: input.smtp.fromEmail,
-        }
-      : undefined,
   };
 }
 
@@ -125,4 +80,3 @@ function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
-

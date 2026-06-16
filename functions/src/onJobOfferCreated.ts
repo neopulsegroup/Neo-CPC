@@ -13,9 +13,11 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
 import { getFirestore } from './admin';
-import { enqueueEmail, listCpcModerators } from './notificationHelpers';
+import { enqueueEmail, listCpcModerators, RESEND_API_KEY } from './notificationHelpers';
 
-export const onJobOfferCreated = onDocumentCreated('job_offers/{offerId}', async (event) => {
+export const onJobOfferCreated = onDocumentCreated(
+  { document: 'job_offers/{offerId}', secrets: [RESEND_API_KEY] },
+  async (event) => {
   const offerId = event.params.offerId as string;
   const offer = event.data?.data();
   if (!offer) return;
@@ -61,4 +63,5 @@ export const onJobOfferCreated = onDocumentCreated('job_offers/{offerId}', async
       })
     )
   );
-});
+  }
+);

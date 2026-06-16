@@ -11,9 +11,11 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
-import { asEmailLocale, enqueueEmail } from './notificationHelpers';
+import { asEmailLocale, enqueueEmail, RESEND_API_KEY } from './notificationHelpers';
 
-export const onMigrantCreated = onDocumentCreated('profiles/{uid}', async (event) => {
+export const onMigrantCreated = onDocumentCreated(
+  { document: 'profiles/{uid}', secrets: [RESEND_API_KEY] },
+  async (event) => {
   const uid = event.params.uid as string;
   const data = event.data?.data();
   if (!data) return;
@@ -46,4 +48,5 @@ export const onMigrantCreated = onDocumentCreated('profiles/{uid}', async (event
     tag: 'welcome-migrant',
     contextId: uid,
   });
-});
+  }
+);

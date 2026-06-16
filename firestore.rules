@@ -287,6 +287,13 @@ service cloud.firestore {
     }
 
     // Users collection
+    //
+    // T-09/T-10 (LGPD): os campos `privacy_consent`, `privacy_consent_at`,
+    // `privacy_consent_version`, `last_login` e `retention_warning_sent_at`
+    // são permitidos via a regra default do owner update (não estão na lista
+    // de campos protegidos abaixo). `last_login` é escrito pelo cliente em
+    // cada login; os outros são geridos por Cloud Functions (admin SDK,
+    // bypass às rules).
     match /users/{userId} {
       allow read: if (isAuthenticated() && isOwner(userId)) || isCpcStaff();
       allow create: if isAuthenticated() && request.auth.uid == userId;
@@ -299,6 +306,8 @@ service cloud.firestore {
         request.resource.data.blockedBy == resource.data.blockedBy &&
         request.resource.data.disabledAt == resource.data.disabledAt
       );
+      // T-08 (LGPD): self-delete passa via Cloud Function `deleteOwnAccount`
+      // (admin SDK, bypass às rules). Esta regra permanece como admin-only.
       allow delete: if isAccountEnabled() && hasRole('admin') && resource.data.role == 'migrant';
     }
     
@@ -594,32 +603,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // TASK consolidate-resend: a fila `mail/` foi descontinuada. O trigger
+    // `onMailCreated` e o processor SMTP foram removidos; todos os emails
+    // agora saem direto via RESEND HTTP API (functions/src/email/sendEmail.ts).
+    // Mantém-se a regra admin-only para read/write em caso de docs históricos
+    // residuais. Não há produtores legítimos novos.
     match /mail/{mailId} {
       allow read: if isAccountEnabled() && hasRole('admin');
-
-      function contactNotificationEmail() {
-        return exists(/databases/$(database)/documents/system_settings/contact)
-          && (get(/databases/$(database)/documents/system_settings/contact).data.notificationEmail is string)
-          ? get(/databases/$(database)/documents/system_settings/contact).data.notificationEmail
-          : null;
-      }
-
-      function isValidContactMail() {
-        let to = contactNotificationEmail();
-        return to != null
-          && request.resource.data.keys().hasAll(['to', 'message', 'createdAt', 'tag'])
-          && request.resource.data.keys().hasOnly(['to', 'message', 'createdAt', 'tag'])
-          && request.resource.data.tag == 'contact'
-          && (request.resource.data.to is string) && request.resource.data.to == to
-          && (request.resource.data.message is map)
-          && request.resource.data.message.keys().hasAll(['subject', 'text', 'html'])
-          && (request.resource.data.message.subject is string) && request.resource.data.message.subject.size() <= 200
-          && (request.resource.data.message.text is string) && request.resource.data.message.text.size() <= 6000
-          && (request.resource.data.message.html is string) && request.resource.data.message.html.size() <= 12000;
-      }
-
-      allow create: if isValidContactMail() || (isAccountEnabled() && hasRole('admin'));
-      allow update, delete: if false;
+      allow create, update, delete: if isAccountEnabled() && hasRole('admin');
     }
     
     // CV uploads audit trail (empresa anexa CV externo a uma candidatura).

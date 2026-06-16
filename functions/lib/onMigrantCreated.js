@@ -13,7 +13,7 @@ exports.onMigrantCreated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const firebase_functions_1 = require("firebase-functions");
 const notificationHelpers_1 = require("./notificationHelpers");
-exports.onMigrantCreated = (0, firestore_1.onDocumentCreated)('profiles/{uid}', async (event) => {
+exports.onMigrantCreated = (0, firestore_1.onDocumentCreated)({ document: 'profiles/{uid}', secrets: [notificationHelpers_1.RESEND_API_KEY] }, async (event) => {
     const uid = event.params.uid;
     const data = event.data?.data();
     if (!data)

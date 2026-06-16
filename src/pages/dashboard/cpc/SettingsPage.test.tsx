@@ -45,14 +45,6 @@ vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: (...args: unknown[]) => mockToast(...args) }),
 }));
 
-vi.mock('@/integrations/firebase/functionsClient', () => ({
-  functions: {},
-}));
-
-vi.mock('firebase/functions', () => ({
-  httpsCallable: () => mockCallable,
-}));
-
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: stableUser,
@@ -65,24 +57,23 @@ describe('CPCSettingsPage (dashboard/cpc/configuracoes)', () => {
     vi.clearAllMocks();
     mockGetDocument.mockImplementation(async (collectionName: string, docId: string) => {
       if (collectionName === 'system_settings' && docId === 'contact') return { id: 'contact', notificationEmail: 'notificacoes@cpc.pt' };
-      if (collectionName === 'system_settings' && docId === 'smtp')
-        return { id: 'smtp', host: 'smtp.exemplo.com', port: 587, security: 'tls', username: 'user', passwordSet: true, fromEmail: 'no-reply@cpc.pt' };
       return null;
     });
   });
 
-  it('permite enfileirar teste SMTP e regista auditoria', async () => {
-    const user = userEvent.setup();
-    mockCallable.mockResolvedValueOnce({ data: { ok: true } });
+  // TASK consolidate-resend: a página deixou de ter UI SMTP. O smoke test agora
+  // valida que o heading existe e que o botão "Testar SMTP" foi removido.
+  it('renderiza heading e NÃO mostra mais botão "Testar SMTP" após consolidação RESEND', async () => {
     render(<CPCSettingsPage />);
-
     await screen.findByRole('heading', { name: 'Configurações' });
 
-    await user.click(screen.getByRole('button', { name: 'Testar SMTP' }));
-
     await waitFor(() => {
-      expect(mockCallable).toHaveBeenCalled();
-      expect(mockAddDocument).toHaveBeenCalledWith('audit_logs', expect.objectContaining({ action: 'smtp_test_ok' }));
+      expect(screen.queryByRole('button', { name: /Testar SMTP/i })).toBeNull();
     });
+    // O texto explicativo do novo card "Email transacional" deve aparecer.
+    expect(screen.getByText(/RESEND_API_KEY/)).toBeInTheDocument();
+    // Sem regressão de auditoria: clique do utilizador não despoletou httpsCallable.
+    expect(mockCallable).not.toHaveBeenCalled();
+    void userEvent; // evita lint warning de import não usado em CI estrito.
   });
 });

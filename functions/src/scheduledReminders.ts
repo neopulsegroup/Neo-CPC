@@ -25,6 +25,7 @@ import {
   enqueueAppNotification,
   enqueueEmail,
   resolveRecipient,
+  RESEND_API_KEY,
 } from './notificationHelpers';
 import type { EmailLocale } from './emailTemplates';
 import { formatSessionDateForEmail, sessionLisbonTimestampMs } from './sessionDateHelpers';
@@ -119,6 +120,7 @@ export const scheduledReminders = onSchedule(
   {
     schedule: 'every 15 minutes',
     timeZone: 'Europe/Lisbon',
+    secrets: [RESEND_API_KEY],
   },
   async () => {
     const db = getFirestore();

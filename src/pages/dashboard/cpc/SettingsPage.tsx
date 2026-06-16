@@ -12,26 +12,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { addDocument, getDocument, setDocument, serverTimestamp } from '@/integrations/firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/integrations/firebase/functionsClient';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
 import { Settings } from 'lucide-react';
 
 import { COMMUNICATION_DEFAULTS } from '@/lib/communicationDefaults';
-import { isValidEmail, normalizeEmail, parsePort, redactSettingsForAudit, sanitizeHost, sanitizeUsername, type CpcSystemSettings, type SmtpSecurity } from './settingsUtils';
+import { isValidEmail, normalizeEmail, redactSettingsForAudit, type CpcSystemSettings } from './settingsUtils';
 
 type ContactSettingsDoc = { id: string; notificationEmail?: string | null };
-type SmtpSettingsDoc = {
-  id: string;
-  host?: string | null;
-  port?: number | null;
-  security?: SmtpSecurity | null;
-  username?: string | null;
-  password?: string | null;
-  passwordSet?: boolean | null;
-  fromEmail?: string | null;
-};
 
 type BrandingSection = 'left' | 'center' | 'right';
 type BrandingContentType = 'image' | 'pagination' | 'title';
@@ -57,12 +45,6 @@ type BrandingSettingsDoc = {
 type Draft = {
   notificationEmail: string;
   notificationEmailConfirm: string;
-  smtpHost: string;
-  smtpPort: string;
-  smtpSecurity: SmtpSecurity;
-  smtpUsername: string;
-  smtpPassword: string;
-  smtpFromEmail: string;
 };
 
 const BRANDING_SECTIONS: BrandingSection[] = ['left', 'center', 'right'];
@@ -183,12 +165,6 @@ export default function CPCSettingsPage() {
   const [draft, setDraft] = useState<Draft>({
     notificationEmail: '',
     notificationEmailConfirm: '',
-    smtpHost: '',
-    smtpPort: '587',
-    smtpSecurity: 'tls',
-    smtpUsername: '',
-    smtpPassword: '',
-    smtpFromEmail: '',
   });
   const [loaded, setLoaded] = useState<CpcSystemSettings | null>(null);
 
@@ -211,45 +187,22 @@ export default function CPCSettingsPage() {
     if (!emailConfirm) errors.notificationEmailConfirm = 'Confirme o email.';
     else if (normalizeEmail(emailConfirm) !== normalizeEmail(email)) errors.notificationEmailConfirm = 'Os emails não coincidem.';
 
-    const host = sanitizeHost(draft.smtpHost);
-    if (!host) errors.smtpHost = 'O servidor SMTP é obrigatório.';
-
-    const port = parsePort(draft.smtpPort);
-    if (!port) errors.smtpPort = 'Indique uma porta válida (1–65535).';
-
-    const username = sanitizeUsername(draft.smtpUsername);
-    if (!username) errors.smtpUsername = 'O nome de utilizador SMTP é obrigatório.';
-
-    const fromEmail = draft.smtpFromEmail.trim();
-    if (!fromEmail) errors.smtpFromEmail = 'O email de remetente é obrigatório.';
-    else if (!isValidEmail(fromEmail)) errors.smtpFromEmail = 'Indique um email de remetente válido.';
-
     return { ok: Object.keys(errors).length === 0, errors };
-  }, [draft.notificationEmail, draft.notificationEmailConfirm, draft.smtpFromEmail, draft.smtpHost, draft.smtpPort, draft.smtpUsername]);
+  }, [draft.notificationEmail, draft.notificationEmailConfirm]);
 
   const desiredSettings = useMemo<CpcSystemSettings>(() => {
-    const port = parsePort(draft.smtpPort);
     return {
       contactNotificationEmail: normalizeEmail(draft.notificationEmail),
-      smtp: {
-        host: sanitizeHost(draft.smtpHost),
-        port: port || 0,
-        security: draft.smtpSecurity,
-        username: sanitizeUsername(draft.smtpUsername),
-        passwordSet: loaded?.smtp.passwordSet === true || draft.smtpPassword.trim().length > 0,
-        fromEmail: normalizeEmail(draft.smtpFromEmail),
-      },
     };
-  }, [draft.notificationEmail, draft.smtpFromEmail, draft.smtpHost, draft.smtpPassword, draft.smtpPort, draft.smtpSecurity, draft.smtpUsername, loaded?.smtp.passwordSet]);
+  }, [draft.notificationEmail]);
 
   const hasChanges = useMemo(() => {
     if (!loaded) return true;
     const base = JSON.stringify({ ...loaded, updatedAt: undefined, updatedBy: undefined });
     const next = JSON.stringify({ ...desiredSettings, updatedAt: undefined, updatedBy: undefined });
     const brandingChanged = JSON.stringify(loadedBranding) !== JSON.stringify(branding);
-    const passwordChanged = draft.smtpPassword.trim().length > 0;
-    return base !== next || passwordChanged || brandingChanged;
-  }, [branding, desiredSettings, draft.smtpPassword, loaded, loadedBranding]);
+    return base !== next || brandingChanged;
+  }, [branding, desiredSettings, loaded, loadedBranding]);
 
   const canAutosave = isAdmin && !loading && validation.ok && hasChanges && emailChangePending === null;
 
@@ -258,9 +211,8 @@ export default function CPCSettingsPage() {
     async function load() {
       setLoading(true);
       try {
-        const [contactDoc, smtpDoc, brandingDoc] = await Promise.all([
+        const [contactDoc, brandingDoc] = await Promise.all([
           getDocument<ContactSettingsDoc>('system_settings', 'contact'),
-          getDocument<SmtpSettingsDoc>('system_settings', 'smtp'),
           getDocument<BrandingSettingsDoc>('system_settings', 'document_branding'),
         ]);
         if (ignore) return;
@@ -269,50 +221,15 @@ export default function CPCSettingsPage() {
           typeof contactDoc?.notificationEmail === 'string' && contactDoc.notificationEmail.trim()
             ? contactDoc.notificationEmail
             : COMMUNICATION_DEFAULTS.notificationEmail;
-        const smtpHost =
-          typeof smtpDoc?.host === 'string' && smtpDoc.host.trim()
-            ? smtpDoc.host
-            : COMMUNICATION_DEFAULTS.smtp.host;
-        const smtpPort =
-          typeof smtpDoc?.port === 'number' && smtpDoc.port > 0
-            ? String(smtpDoc.port)
-            : String(COMMUNICATION_DEFAULTS.smtp.port);
-        const smtpSecurity: SmtpSecurity =
-          smtpDoc?.security === 'ssl' || smtpDoc?.security === 'tls'
-            ? smtpDoc.security
-            : COMMUNICATION_DEFAULTS.smtp.security;
-        const smtpUsername =
-          typeof smtpDoc?.username === 'string' && smtpDoc.username.trim()
-            ? smtpDoc.username
-            : COMMUNICATION_DEFAULTS.smtp.username;
-        const smtpFromEmail =
-          typeof smtpDoc?.fromEmail === 'string' && smtpDoc.fromEmail.trim()
-            ? smtpDoc.fromEmail
-            : COMMUNICATION_DEFAULTS.smtp.fromEmail;
-        const passwordSet = smtpDoc?.passwordSet === true || typeof smtpDoc?.password === 'string';
 
         const merged: CpcSystemSettings = {
           contactNotificationEmail: notificationEmail || '',
-          smtp: {
-            host: smtpHost || '',
-            port: parsePort(smtpPort) || 0,
-            security: smtpSecurity,
-            username: smtpUsername || '',
-            passwordSet,
-            fromEmail: smtpFromEmail || '',
-          },
         };
 
         setLoaded(merged);
         setDraft({
           notificationEmail: merged.contactNotificationEmail || '',
           notificationEmailConfirm: merged.contactNotificationEmail || '',
-          smtpHost: merged.smtp.host || '',
-          smtpPort: merged.smtp.port ? String(merged.smtp.port) : '587',
-          smtpSecurity: merged.smtp.security,
-          smtpUsername: merged.smtp.username || '',
-          smtpPassword: '',
-          smtpFromEmail: merged.smtp.fromEmail || '',
         });
         const normalizedBranding = normalizeBranding(brandingDoc);
         setBranding(normalizedBranding);
@@ -339,7 +256,7 @@ export default function CPCSettingsPage() {
     return () => {
       if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
     };
-  }, [branding, canAutosave, desiredSettings, draft.smtpPassword, loaded]);
+  }, [branding, canAutosave, desiredSettings, loaded]);
 
   function updateBrandingMode(section: BrandingSection, mode: BrandingContentType) {
     setBranding((prev) => ({
@@ -411,21 +328,6 @@ export default function CPCSettingsPage() {
     const seq = (saveSeqRef.current += 1);
     setSaving({ open: true, progress: 10, message: 'A guardar configurações...' });
     try {
-      const nextPort = parsePort(draft.smtpPort);
-      const smtpUpdate: Record<string, unknown> = {
-        host: sanitizeHost(draft.smtpHost),
-        port: nextPort,
-        security: draft.smtpSecurity,
-        username: sanitizeUsername(draft.smtpUsername),
-        fromEmail: normalizeEmail(draft.smtpFromEmail),
-        passwordSet: (loaded?.smtp.passwordSet === true || draft.smtpPassword.trim().length > 0) ? true : false,
-        updatedBy: user.uid,
-        updatedAt: serverTimestamp(),
-      };
-      if (draft.smtpPassword.trim().length > 0) {
-        smtpUpdate.password = draft.smtpPassword;
-      }
-
       const brandingUpdate = {
         header: branding.header,
         footer: branding.footer,
@@ -435,7 +337,6 @@ export default function CPCSettingsPage() {
 
       await Promise.all([
         setDocument('system_settings', 'contact', { notificationEmail: nextEmail, updatedBy: user.uid, updatedAt: serverTimestamp() }, true),
-        setDocument('system_settings', 'smtp', smtpUpdate, true),
         setDocument('system_settings', 'document_branding', brandingUpdate, true),
       ]);
       if (seq !== saveSeqRef.current) return;
@@ -445,14 +346,6 @@ export default function CPCSettingsPage() {
       const before = redactSettingsForAudit(loaded);
       const after = redactSettingsForAudit({
         contactNotificationEmail: nextEmail,
-        smtp: {
-          host: smtpUpdate.host as string,
-          port: smtpUpdate.port as number,
-          security: smtpUpdate.security as SmtpSecurity,
-          username: smtpUpdate.username as string,
-          passwordSet: smtpUpdate.passwordSet as boolean,
-          fromEmail: smtpUpdate.fromEmail as string,
-        },
       });
       const beforeBranding = brandingSnapshot(loadedBranding);
       const afterBranding = brandingSnapshot(branding);
@@ -472,19 +365,10 @@ export default function CPCSettingsPage() {
 
       const nextLoaded: CpcSystemSettings = {
         contactNotificationEmail: nextEmail,
-        smtp: {
-          host: smtpUpdate.host as string,
-          port: smtpUpdate.port as number,
-          security: smtpUpdate.security as SmtpSecurity,
-          username: smtpUpdate.username as string,
-          passwordSet: smtpUpdate.passwordSet as boolean,
-          fromEmail: smtpUpdate.fromEmail as string,
-        },
       };
 
       setLoaded(nextLoaded);
       setLoadedBranding(branding);
-      setDraft((s) => ({ ...s, smtpPassword: '' }));
       setEmailChangePending(null);
       setSaving({ open: true, progress: 100, message: 'Configurações guardadas.' });
       window.setTimeout(() => setSaving(null), 500);
@@ -495,40 +379,7 @@ export default function CPCSettingsPage() {
     }
   }
 
-  async function handleTestSmtp() {
-    if (!user || !isAdmin) return;
-    if (!validation.ok) {
-      toast({ title: 'Teste SMTP', description: 'Corrija os campos obrigatórios antes de testar.', variant: 'destructive' });
-      return;
-    }
-    setSaving({ open: true, progress: 10, message: 'A testar ligação SMTP...' });
-    try {
-      const call = httpsCallable(functions, 'testSmtpConnection');
-      const result = await call();
-      const data = result.data as { ok?: boolean; message?: string } | null;
-      const ok = data?.ok === true;
-      if (ok) {
-        await addDocument('audit_logs', { action: 'smtp_test_ok', actor_id: user.uid, context: 'cpc_settings', createdAt: serverTimestamp() });
-        setSaving({ open: true, progress: 100, message: 'Ligação SMTP OK.' });
-        window.setTimeout(() => setSaving(null), 500);
-        toast({ title: 'Teste SMTP', description: 'Ligação SMTP estabelecida com sucesso.' });
-      } else {
-        await addDocument('audit_logs', { action: 'smtp_test_error', actor_id: user.uid, context: 'cpc_settings', createdAt: serverTimestamp() });
-        const message = typeof data?.message === 'string' && data.message ? data.message : 'Falha na ligação SMTP.';
-        setSaving(null);
-        toast({ title: 'Teste SMTP', description: message, variant: 'destructive' });
-      }
-    } catch (error: unknown) {
-      const raw = error instanceof Error ? error.message : String(error ?? '');
-      const tips =
-        raw.includes('Failed to fetch') || raw.includes('ERR_FAILED')
-          ? ' Serviço de Funções indisponível. Verifique se as Cloud Functions foram deployadas e se a região está correta (VITE_FUNCTIONS_REGION). Em desenvolvimento, pode ativar o emulador com VITE_FUNCTIONS_EMULATOR=true.'
-          : '';
-      const message = (error instanceof Error ? error.message : 'Não foi possível testar o SMTP.') + tips;
-      setSaving(null);
-      toast({ title: 'Teste SMTP', description: message, variant: 'destructive' });
-    }
-  }
+  // TASK consolidate-resend: handleTestSmtp removido com a eliminação do canal SMTP.
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -573,7 +424,7 @@ export default function CPCSettingsPage() {
     );
   }
 
-  const showPasswordHint = loaded?.smtp.passwordSet === true;
+  // TASK consolidate-resend: showPasswordHint removido (SMTP foi eliminado).
 
   return (
     <div className="space-y-6">
@@ -761,100 +612,15 @@ export default function CPCSettingsPage() {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-5">
-        <div>
-          <h2 className="text-lg font-semibold">Configuração SMTP</h2>
-          <p className="text-sm text-muted-foreground">Parâmetros completos para envio de emails do sistema.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="smtp-host">Servidor SMTP</Label>
-            <Input
-              id="smtp-host"
-              value={draft.smtpHost}
-              onChange={(e) => setDraft((s) => ({ ...s, smtpHost: e.target.value }))}
-              placeholder="smtp.exemplo.com"
-              disabled={loading}
-            />
-            {validation.errors.smtpHost ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpHost}</p> : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="smtp-port">Porta</Label>
-            <Input
-              id="smtp-port"
-              inputMode="numeric"
-              value={draft.smtpPort}
-              onChange={(e) => setDraft((s) => ({ ...s, smtpPort: e.target.value }))}
-              placeholder="587"
-              disabled={loading}
-            />
-            {validation.errors.smtpPort ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpPort}</p> : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Segurança</Label>
-            <Select value={draft.smtpSecurity} onValueChange={(v) => setDraft((s) => ({ ...s, smtpSecurity: v as SmtpSecurity }))} disabled={loading}>
-              <SelectTrigger>
-                <SelectValue placeholder="TLS/SSL" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tls">TLS</SelectItem>
-                <SelectItem value="ssl">SSL</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="smtp-username">Utilizador</Label>
-            <Input
-              id="smtp-username"
-              value={draft.smtpUsername}
-              onChange={(e) => setDraft((s) => ({ ...s, smtpUsername: e.target.value }))}
-              placeholder="utilizador@smtp"
-              disabled={loading}
-            />
-            {validation.errors.smtpUsername ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpUsername}</p> : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="smtp-password">Senha</Label>
-            <Input
-              id="smtp-password"
-              type="password"
-              value={draft.smtpPassword}
-              onChange={(e) => setDraft((s) => ({ ...s, smtpPassword: e.target.value }))}
-              placeholder={showPasswordHint ? '•••••••• (configurada)' : '••••••••'}
-              disabled={loading}
-            />
-            <p className="text-xs text-muted-foreground">A senha só é guardada se for alterada.</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="smtp-from-email">Email de remetente</Label>
-            <Input
-              id="smtp-from-email"
-              type="email"
-              value={draft.smtpFromEmail}
-              onChange={(e) => setDraft((s) => ({ ...s, smtpFromEmail: e.target.value }))}
-              placeholder="no-reply@cpc.pt"
-              disabled={loading}
-            />
-            {validation.errors.smtpFromEmail ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpFromEmail}</p> : null}
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={handleTestSmtp} disabled={loading || !validation.ok}>
-            Testar SMTP
-          </Button>
-        </div>
-      </Card>
+      {/* TASK consolidate-resend: secção "Configuração SMTP" e botão "Testar SMTP" removidos.
+          Email transacional é tratado pela RESEND API key (Firebase Functions secret). */}
 
       <Card className="p-6 space-y-2">
-        <h2 className="text-lg font-semibold">Outras configurações</h2>
-        <p className="text-sm text-muted-foreground">Secção reservada para futuras configurações do sistema.</p>
+        <h2 className="text-lg font-semibold">Email transacional</h2>
+        <p className="text-sm text-muted-foreground">
+          Envios são feitos via Resend. A API key e o domínio são configurados na infraestrutura
+          (secret <code>RESEND_API_KEY</code> nas Cloud Functions). Não há credenciais expostas aqui.
+        </p>
       </Card>
 
       <Dialog open={saving?.open === true}>

@@ -25,10 +25,13 @@ import {
   enqueueAppNotification,
   enqueueEmail,
   resolveRecipient,
+  RESEND_API_KEY,
 } from './notificationHelpers';
 import { formatSessionDateForEmail } from './sessionDateHelpers';
 
-export const onSessionCreated = onDocumentCreated('sessions/{sessionId}', async (event) => {
+export const onSessionCreated = onDocumentCreated(
+  { document: 'sessions/{sessionId}', secrets: [RESEND_API_KEY] },
+  async (event) => {
   const sessionId = event.params.sessionId as string;
   const session = event.data?.data();
   if (!session) return;

@@ -24,7 +24,7 @@ const firebase_functions_1 = require("firebase-functions");
 const admin_1 = require("./admin");
 const notificationHelpers_1 = require("./notificationHelpers");
 const sessionDateHelpers_1 = require("./sessionDateHelpers");
-exports.onSessionCreated = (0, firestore_1.onDocumentCreated)('sessions/{sessionId}', async (event) => {
+exports.onSessionCreated = (0, firestore_1.onDocumentCreated)({ document: 'sessions/{sessionId}', secrets: [notificationHelpers_1.RESEND_API_KEY] }, async (event) => {
     const sessionId = event.params.sessionId;
     const session = event.data?.data();
     if (!session)

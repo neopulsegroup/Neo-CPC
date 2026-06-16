@@ -12,9 +12,11 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
 import { getFirestore } from './admin';
-import { enqueueEmail, resolveRecipient } from './notificationHelpers';
+import { enqueueEmail, resolveRecipient, RESEND_API_KEY } from './notificationHelpers';
 
-export const onApplicationCreated = onDocumentCreated('job_applications/{appId}', async (event) => {
+export const onApplicationCreated = onDocumentCreated(
+  { document: 'job_applications/{appId}', secrets: [RESEND_API_KEY] },
+  async (event) => {
   const appId = event.params.appId as string;
   const app = event.data?.data();
   if (!app) return;
@@ -67,4 +69,5 @@ export const onApplicationCreated = onDocumentCreated('job_applications/{appId}'
     tag: 'new-application',
     contextId: appId,
   });
-});
+  }
+);

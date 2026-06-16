@@ -16,7 +16,7 @@ const firebase_functions_1 = require("firebase-functions");
 const admin_1 = require("./admin");
 const notificationHelpers_1 = require("./notificationHelpers");
 const NOTIFIABLE_STATUS_TRANSITIONS = new Set(['accepted', 'rejected']);
-exports.onApplicationStatusChanged = (0, firestore_1.onDocumentUpdated)('job_applications/{appId}', async (event) => {
+exports.onApplicationStatusChanged = (0, firestore_1.onDocumentUpdated)({ document: 'job_applications/{appId}', secrets: [notificationHelpers_1.RESEND_API_KEY] }, async (event) => {
     const appId = event.params.appId;
     const before = event.data?.before.data();
     const after = event.data?.after.data();

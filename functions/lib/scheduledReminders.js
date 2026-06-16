@@ -86,6 +86,7 @@ async function sendSessionReminder(args) {
 exports.scheduledReminders = (0, scheduler_1.onSchedule)({
     schedule: 'every 15 minutes',
     timeZone: 'Europe/Lisbon',
+    secrets: [notificationHelpers_1.RESEND_API_KEY],
 }, async () => {
     const db = (0, admin_1.getFirestore)();
     const nowMs = Date.now();

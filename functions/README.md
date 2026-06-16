@@ -12,13 +12,15 @@ functions/
 │   ├── index.ts                       # Exporta todas as CFs implantadas
 │   ├── admin.ts                       # Singleton firebase-admin + getFirestore()
 │   ├── permissions.ts                 # isAdminUser(uid)
-│   ├── smtp.ts                        # Wrapper SMTP (nodemailer)
-│   ├── mailProcessor.ts               # Consome fila `mail/` (onMailCreated)
 │   ├── registerUserSecure.ts          # Callable: registo seguro server-side
 │   ├── contactResend.ts               # Callable: formulário público de contactos
 │   │
-│   ├── emailTemplates.ts              # TASK-08: 6 templates × 4 idiomas
-│   ├── notificationHelpers.ts         # TASK-08: helpers partilhados
+│   ├── email/
+│   │   ├── sendEmail.ts               # ⭐ ÚNICO ponto de envio (RESEND HTTP)
+│   │   └── sendEmail.test.ts          # Cobertura: success / erro / from override
+│   │
+│   ├── emailTemplates.ts              # TASK-08+TASK-07: 10 templates × 4 idiomas
+│   ├── notificationHelpers.ts         # Helpers partilhados (enqueueEmail, etc.)
 │   ├── onMigrantCreated.ts            # TASK-08: trigger welcome migrante
 │   ├── onCompanyCreated.ts            # TASK-08: trigger welcome empresa
 │   ├── onApplicationCreated.ts        # TASK-08: notifica empresa
@@ -29,6 +31,10 @@ functions/
 │   └── scheduledReminders.ts          # TASK-07: cron 15min lembretes 24h/1h
 └── package.json
 ```
+
+> **Histórico:** O canal SMTP foi eliminado em `feature/consolidate-resend`
+> (Sprint 4). Os ficheiros `smtp.ts`, `mailProcessor.ts` e o trigger `onMailCreated`
+> deixaram de existir. Toda a infraestrutura passa por RESEND HTTP.
 
 ## Build + deploy
 
@@ -49,8 +55,11 @@ Padrão comum a todos os triggers de notificação:
 3. **Verificam opt-out** (`profile.email_notifications_enabled !== false`).
 4. **Resolvem destinatário** (`resolveRecipient(uid)`) → `{to, locale}`.
 5. **Resolvem template** (`renderTemplate(name, locale, vars)`).
-6. **Enfileiram em `mail/{auto-id}`** via `enqueueEmail()`.
-7. O `onMailCreated` (já existente) consome a fila e envia via SMTP.
+6. **Enviam via RESEND** (`enqueueEmail()` → chama `sendEmail()` direto;
+   não há mais fila `mail/`).
+
+Cada CF declara `{ secrets: [RESEND_API_KEY], ... }` nas suas options para
+que o secret seja injetado em runtime.
 
 Falhas de envio **não bloqueiam** a operação principal — `enqueueEmail()`
 captura erros e regista via `logger.error` com chaves estruturadas para

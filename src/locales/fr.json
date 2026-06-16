@@ -351,6 +351,12 @@
           "other": "Autre"
         }
       }
+    },
+    "consent": {
+      "before": "J'ai lu et j'accepte la ",
+      "linkText": "Politique de Confidentialité",
+      "after": " ainsi que le traitement de mes données.",
+      "required": "Tu dois accepter la Politique de Confidentialité pour continuer."
     }
   },
   "jobApply": {
@@ -965,9 +971,38 @@
       "errorGeneric": "Impossible de terminer l'exportation."
     }
   },
+  "emailVerification": {
+    "title": "Vérifie ton e-mail",
+    "message": "Nous avons envoyé un lien de vérification à {email}. Ouvre ta boîte de réception et clique sur le lien pour activer ton compte.",
+    "checkSpam": "Si tu ne le trouves pas, vérifie le dossier spam ou promotions.",
+    "resend": "Renvoyer l'e-mail",
+    "resent": "E-mail renvoyé.",
+    "resendError": "Impossible de renvoyer. Réessaie dans un instant.",
+    "cooldown": "Attends {seconds}s avant de renvoyer",
+    "checkButton": "J'ai vérifié",
+    "notYet": "E-mail pas encore vérifié. Clique sur le lien et réessaie.",
+    "logout": "Déconnexion"
+  },
   "migrant": {
     "menu": {
       "title": "Menu Migrant"
+    },
+    "deleteAccount": {
+      "title": "Supprimer mon compte",
+      "button": "Supprimer mon compte",
+      "warning": "Cette action est définitive. Toutes tes données (profil, candidatures, séances, messages, notifications, conversations) seront supprimées immédiatement et ne pourront pas être récupérées.",
+      "confirmLabel": "Écris SUPPRIMER pour confirmer",
+      "confirmWord": "SUPPRIMER",
+      "confirmButton": "Supprimer définitivement",
+      "cancel": "Annuler",
+      "success": {
+        "title": "Compte supprimé",
+        "description": "Ton compte a été supprimé. À bientôt."
+      },
+      "error": {
+        "title": "Échec de la suppression du compte",
+        "description": "Nous n'avons pas pu supprimer ton compte. Réessaie ou contacte le support."
+      }
     },
     "applications": {
       "title": "Mes candidatures",
@@ -1459,8 +1494,8 @@
           "title": "8. Durée de conservation des données",
           "p1": "Les données personnelles ne sont conservées que pendant la durée nécessaire à la réalisation des finalités pour lesquelles elles ont été collectées. En général:",
           "list": [
-            "Les données du compte utilisateur sont conservées tant que le compte est actif",
-            "Les données liées au projet peuvent être conservées pendant la durée requise par les normes européennes d'audit des financements.",
+            "les données du compte utilisateur sont conservées tant que le compte est actif. Après 24 mois sans aucune activité (sans connexion), le compte est considéré comme inactif : nous enverrons un avertissement par e-mail 30 jours avant et, en l'absence de réactivation, le compte et les données associées seront définitivement supprimés",
+            "les données liées au projet peuvent être conservées pendant la durée requise par les normes européennes d'audit des financements",
             "passé ce délai, les données seront supprimées ou anonymisées."
           ]
         },

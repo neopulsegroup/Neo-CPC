@@ -13,12 +13,12 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
 import { getFirestore } from './admin';
-import { enqueueEmail, resolveRecipient } from './notificationHelpers';
+import { enqueueEmail, resolveRecipient, RESEND_API_KEY } from './notificationHelpers';
 
 const NOTIFIABLE_STATUS_TRANSITIONS = new Set<string>(['accepted', 'rejected']);
 
 export const onApplicationStatusChanged = onDocumentUpdated(
-  'job_applications/{appId}',
+  { document: 'job_applications/{appId}', secrets: [RESEND_API_KEY] },
   async (event) => {
     const appId = event.params.appId as string;
     const before = event.data?.before.data();

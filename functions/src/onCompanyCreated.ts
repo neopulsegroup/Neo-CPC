@@ -11,9 +11,11 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
-import { enqueueEmail, resolveRecipient } from './notificationHelpers';
+import { enqueueEmail, resolveRecipient, RESEND_API_KEY } from './notificationHelpers';
 
-export const onCompanyCreated = onDocumentCreated('companies/{uid}', async (event) => {
+export const onCompanyCreated = onDocumentCreated(
+  { document: 'companies/{uid}', secrets: [RESEND_API_KEY] },
+  async (event) => {
   const uid = event.params.uid as string;
   const data = event.data?.data();
   if (!data) return;
@@ -42,4 +44,5 @@ export const onCompanyCreated = onDocumentCreated('companies/{uid}', async (even
     tag: 'welcome-company',
     contextId: uid,
   });
-});
+  }
+);

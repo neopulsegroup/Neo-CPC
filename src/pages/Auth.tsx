@@ -14,6 +14,9 @@ import logo from '@/assets/logo.png';
 
 type AuthMode = 'login' | 'register';
 
+/** T-09 (LGPD): versão atual da Política de Privacidade aceite pelo utilizador. */
+const PRIVACY_POLICY_VERSION = '1.0';
+
 /**
  * TASK-05: opções de Área de Atividade no registo de empresa.
  * TODO(D7): confirmar lista oficial com CIBEA (ver docs/CLIENT_DECISIONS.md).
@@ -81,6 +84,8 @@ export default function Auth() {
     activityArea: '',
     activityAreaOther: '',
   });
+  // T-09 (LGPD): consentimento explícito; só no modo registo.
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   const { t } = useLanguage();
   const { login, register, isAuthenticated, profile, triage, isLoading: authLoading, accessIssue, clearAccessIssue } = useAuth();
@@ -132,6 +137,12 @@ export default function Auth() {
           setIsLoading(false);
           return;
         }
+        // T-09 (LGPD): consent obrigatório antes de submeter.
+        if (!acceptedPrivacy) {
+          toast.error(t.get('auth.consent.required'));
+          setIsLoading(false);
+          return;
+        }
         // TASK-05: validar e resolver activity_area apenas para empresa.
         let activityAreaResolved: string | undefined;
         if (selectedRole === 'company') {
@@ -162,6 +173,9 @@ export default function Auth() {
           role: selectedRole,
           nif: selectedRole === 'company' ? formData.nif : undefined,
           activityArea: activityAreaResolved,
+          // T-09 (LGPD)
+          privacyConsent: true,
+          privacyConsentVersion: PRIVACY_POLICY_VERSION,
         });
       toast.success(t.auth.accountCreated);
       
@@ -408,7 +422,29 @@ export default function Auth() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              {/* T-09 (LGPD): consent obrigatório no registo. */}
+              {mode === 'register' && (
+                <div className="flex items-start gap-2 pt-1">
+                  <input
+                    id="privacyConsent"
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    required
+                    aria-required="true"
+                    className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
+                  />
+                  <Label htmlFor="privacyConsent" className="text-sm font-normal leading-snug cursor-pointer">
+                    {t.get('auth.consent.before')}{' '}
+                    <Link to="/privacidade" target="_blank" rel="noopener" className="text-primary hover:underline">
+                      {t.get('auth.consent.linkText')}
+                    </Link>
+                    {t.get('auth.consent.after')}
+                  </Label>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isLoading || (mode === 'register' && !acceptedPrivacy)}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

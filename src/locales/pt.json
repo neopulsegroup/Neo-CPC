@@ -351,6 +351,12 @@
           "other": "Outro"
         }
       }
+    },
+    "consent": {
+      "before": "Li e aceito a ",
+      "linkText": "Política de Privacidade",
+      "after": " e o tratamento dos meus dados.",
+      "required": "Tens de aceitar a Política de Privacidade para continuar."
     }
   },
   "jobApply": {
@@ -965,9 +971,38 @@
       "errorGeneric": "Não foi possível concluir a exportação."
     }
   },
+  "emailVerification": {
+    "title": "Verifica o teu email",
+    "message": "Enviámos um link de verificação para {email}. Abre a tua caixa de entrada e clica no link para activar a conta.",
+    "checkSpam": "Se não encontrares, verifica a pasta de spam ou promoções.",
+    "resend": "Reenviar email",
+    "resent": "Email reenviado.",
+    "resendError": "Não foi possível reenviar. Tenta de novo em instantes.",
+    "cooldown": "Aguarda {seconds}s antes de reenviar",
+    "checkButton": "Já verifiquei",
+    "notYet": "Email ainda não verificado. Clica no link e tenta de novo.",
+    "logout": "Sair"
+  },
   "migrant": {
     "menu": {
       "title": "Menu Migrante"
+    },
+    "deleteAccount": {
+      "title": "Eliminar a minha conta",
+      "button": "Eliminar a minha conta",
+      "warning": "Esta ação é permanente. Todos os teus dados (perfil, candidaturas, sessões, mensagens, notificações, conversas) serão eliminados imediatamente e não podem ser recuperados.",
+      "confirmLabel": "Escreve ELIMINAR para confirmar",
+      "confirmWord": "ELIMINAR",
+      "confirmButton": "Eliminar permanentemente",
+      "cancel": "Cancelar",
+      "success": {
+        "title": "Conta eliminada",
+        "description": "A tua conta foi eliminada. Até breve."
+      },
+      "error": {
+        "title": "Erro ao eliminar a conta",
+        "description": "Não foi possível eliminar a conta. Tenta novamente ou contacta o suporte."
+      }
     },
     "applications": {
       "title": "Minhas Candidaturas",
@@ -1459,7 +1494,7 @@
           "title": "8. Período de conservação dos dados",
           "p1": "Os dados pessoais são conservados apenas pelo período necessário para cumprir as finalidades para as quais foram recolhidos. Em geral:",
           "list": [
-            "dados de contas de utilizador são mantidos enquanto a conta estiver ativa",
+            "os dados das contas de utilizador são conservados enquanto a conta estiver ativa. Após 24 meses sem qualquer atividade (sem início de sessão), a conta é considerada inativa: enviaremos um aviso por e-mail 30 dias antes e, se não houver reativação, a conta e os dados associados serão eliminados de forma permanente",
             "dados relacionados com o projeto podem ser mantidos pelo período exigido por normas de auditoria de financiamento europeu",
             "após esse período, os dados serão eliminados ou anonimizados."
           ]

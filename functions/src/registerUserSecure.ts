@@ -29,6 +29,9 @@ type RegisterPayload = {
    */
   activityArea?: unknown;
   captchaToken?: unknown;
+  // T-09 (LGPD): consentimento explícito da política de privacidade.
+  privacyConsent?: unknown;
+  privacyConsentVersion?: unknown;
 };
 
 const ALLOWED_ROLES: RegisterRole[] = [
@@ -108,6 +111,14 @@ function normalizeActivityArea(value: unknown): string | null {
   if (trimmed.length === 0) return null;
   // Limita tamanho para evitar abuso (label de área não deve passar disso).
   return trimmed.slice(0, 120);
+}
+
+function normalizeConsentVersion(value: unknown): string {
+  if (typeof value !== 'string') return '1.0';
+  const trimmed = value.trim();
+  if (!trimmed) return '1.0';
+  // Limita a versões curtas (1.0, 2.0, 2.0-pt, etc.).
+  return trimmed.slice(0, 16);
 }
 
 async function assertRateLimit(ip: string, email: string, requestId: string) {
@@ -217,6 +228,8 @@ function validatePayload(payload: RegisterPayload, requestId: string) {
   const role = normalizeRole(payload.role);
   const nif = normalizeNif(payload.nif);
   const activityArea = normalizeActivityArea(payload.activityArea);
+  const privacyConsent = payload.privacyConsent === true;
+  const privacyConsentVersion = normalizeConsentVersion(payload.privacyConsentVersion);
 
   if (!email || !name || !password) {
     throw new HttpsError('invalid-argument', 'Não foi possível concluir o cadastro.', {
@@ -247,7 +260,15 @@ function validatePayload(payload: RegisterPayload, requestId: string) {
     });
   }
 
-  return { email, name, password, role, nif, activityArea };
+  // T-09 (LGPD): consent obrigatório e explícito; servidor rejeita sem ele.
+  if (!privacyConsent) {
+    throw new HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
+      error: 'PRIVACY_CONSENT_REQUIRED',
+      requestId,
+    });
+  }
+
+  return { email, name, password, role, nif, activityArea, privacyConsent, privacyConsentVersion };
 }
 
 export const registerUserSecure = onCall(
@@ -268,7 +289,7 @@ export const registerUserSecure = onCall(
     const ip = getClientIp(rawRequest);
 
     try {
-      const { email, name, password, role, nif, activityArea } = validatePayload(payload, requestId);
+      const { email, name, password, role, nif, activityArea, privacyConsentVersion } = validatePayload(payload, requestId);
       await assertRateLimit(ip, email, requestId);
       await verifyCaptchaIfConfigured(payload.captchaToken, requestId);
 
@@ -293,6 +314,10 @@ export const registerUserSecure = onCall(
         createdAt: now,
         updatedAt: now,
         ...(nif ? { nif } : {}),
+        // T-09 (LGPD): consentimento + carimbo + versão.
+        privacy_consent: true,
+        privacy_consent_at: now,
+        privacy_consent_version: privacyConsentVersion,
       };
       const profileDoc = {
         name,

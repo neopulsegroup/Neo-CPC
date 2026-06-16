@@ -81,6 +81,15 @@ function normalizeActivityArea(value) {
     // Limita tamanho para evitar abuso (label de área não deve passar disso).
     return trimmed.slice(0, 120);
 }
+function normalizeConsentVersion(value) {
+    if (typeof value !== 'string')
+        return '1.0';
+    const trimmed = value.trim();
+    if (!trimmed)
+        return '1.0';
+    // Limita a versões curtas (1.0, 2.0, 2.0-pt, etc.).
+    return trimmed.slice(0, 16);
+}
 async function assertRateLimit(ip, email, requestId) {
     const db = (0, admin_1.getFirestore)();
     const bucket = `reg:${hashValue(ip)}:${hashValue(email || 'unknown')}`;
@@ -168,6 +177,8 @@ function validatePayload(payload, requestId) {
     const role = normalizeRole(payload.role);
     const nif = normalizeNif(payload.nif);
     const activityArea = normalizeActivityArea(payload.activityArea);
+    const privacyConsent = payload.privacyConsent === true;
+    const privacyConsentVersion = normalizeConsentVersion(payload.privacyConsentVersion);
     if (!email || !name || !password) {
         throw new https_1.HttpsError('invalid-argument', 'Não foi possível concluir o cadastro.', {
             error: 'VALIDATION_FAILED',
@@ -193,7 +204,14 @@ function validatePayload(payload, requestId) {
             requestId,
         });
     }
-    return { email, name, password, role, nif, activityArea };
+    // T-09 (LGPD): consent obrigatório e explícito; servidor rejeita sem ele.
+    if (!privacyConsent) {
+        throw new https_1.HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
+            error: 'PRIVACY_CONSENT_REQUIRED',
+            requestId,
+        });
+    }
+    return { email, name, password, role, nif, activityArea, privacyConsent, privacyConsentVersion };
 }
 exports.registerUserSecure = (0, https_1.onCall)({
     region: 'us-central1',
@@ -210,7 +228,7 @@ exports.registerUserSecure = (0, https_1.onCall)({
     const payload = (request.data || {});
     const ip = getClientIp(rawRequest);
     try {
-        const { email, name, password, role, nif, activityArea } = validatePayload(payload, requestId);
+        const { email, name, password, role, nif, activityArea, privacyConsentVersion } = validatePayload(payload, requestId);
         await assertRateLimit(ip, email, requestId);
         await verifyCaptchaIfConfigured(payload.captchaToken, requestId);
         const auth = (0, admin_1.getAdminApp)().auth();
@@ -233,6 +251,10 @@ exports.registerUserSecure = (0, https_1.onCall)({
             createdAt: now,
             updatedAt: now,
             ...(nif ? { nif } : {}),
+            // T-09 (LGPD): consentimento + carimbo + versão.
+            privacy_consent: true,
+            privacy_consent_at: now,
+            privacy_consent_version: privacyConsentVersion,
         };
         const profileDoc = {
             name,
