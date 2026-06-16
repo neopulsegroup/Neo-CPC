@@ -1,0 +1,112 @@
+# CPC · CI/CD deploy (backend)
+#
+# T-30 do Bloco 3. Estrutura pronta; activação requer secrets no GitHub.
+#
+# **Frontend (Vercel)** já faz deploy automático em qualquer push para `main`,
+# por isso este workflow trata **apenas do backend Firebase** (functions,
+# firestore rules, firestore indexes, storage rules).
+#
+# ────────────────────────────────────────────────────────────────────────────
+# Secrets necessários (Silva configura em
+#   Settings > Secrets and variables > Actions):
+#
+#   FIREBASE_TOKEN   — token de CI: `firebase login:ci`
+#                      OU em alternativa:
+#   GCP_SA_KEY       — JSON de service account com roles necessários
+#                      (Firebase Admin, Cloud Functions Admin, Cloud
+#                      Datastore User, Service Account User).
+#
+# Recomendado: GCP_SA_KEY (`firebase login:ci` está deprecated desde 2024).
+#
+# Os secrets reais nunca vivem no repo. O workflow falha early se ambos
+# estiverem ausentes.
+# ────────────────────────────────────────────────────────────────────────────
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # permite trigger manual no GitHub UI
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps (root)
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Test frontend
+        run: npm run test:run
+
+      - name: Install + build functions
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+
+      - name: Test functions
+        working-directory: functions
+        run: npx vitest run
+
+  deploy-backend:
+    name: Deploy Firebase backend
+    needs: build-test
+    runs-on: ubuntu-latest
+    # Só faz deploy real no push para main; o workflow_dispatch também passa.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build functions
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+
+      # Preferência: autenticar via service account JSON.
+      # O secret GCP_SA_KEY deve ser o conteúdo do ficheiro JSON descarregado
+      # de IAM > Service Accounts > Keys > Add Key.
+      - name: Authenticate to Google Cloud
+        if: ${{ env.GCP_SA_KEY != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy Firebase (functions + rules + indexes)
+        run: |
+          if [ -z "${FIREBASE_TOKEN}" ] && [ -z "${GCP_SA_KEY}" ]; then
+            echo "✗ Nem FIREBASE_TOKEN nem GCP_SA_KEY estão configurados."
+            echo "  Configurar em GitHub > Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          npx firebase-tools deploy \
+            --only functions,firestore:rules,firestore:indexes,storage:rules \
+            --project cpc-projeto-app \
+            --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}

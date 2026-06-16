@@ -4,13 +4,20 @@ import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+/**
+ * T-31 (staging): config Firebase ler de `import.meta.env.VITE_FIREBASE_*`
+ * com fallback para os valores actuais de produção. Enquanto o projeto de
+ * staging não existe, os fallbacks garantem que produção continua igual.
+ * Documentação: `docs/STAGING.md`.
+ */
+const envConfig = import.meta.env as unknown as Record<string, string | undefined>;
 const firebaseConfig = {
-    apiKey: "AIzaSyDNGGwJcCBoMHPXPY-J4pMcOOtVRQPevaM",
-    authDomain: "cpc-projeto-app.firebaseapp.com",
-    projectId: "cpc-projeto-app",
-    storageBucket: "cpc-projeto-app.firebasestorage.app",
-    messagingSenderId: "936471221499",
-    appId: "1:936471221499:web:32a84776ac9f78afb58c5e"
+    apiKey: envConfig.VITE_FIREBASE_API_KEY || "AIzaSyDNGGwJcCBoMHPXPY-J4pMcOOtVRQPevaM",
+    authDomain: envConfig.VITE_FIREBASE_AUTH_DOMAIN || "cpc-projeto-app.firebaseapp.com",
+    projectId: envConfig.VITE_FIREBASE_PROJECT_ID || "cpc-projeto-app",
+    storageBucket: envConfig.VITE_FIREBASE_STORAGE_BUCKET || "cpc-projeto-app.firebasestorage.app",
+    messagingSenderId: envConfig.VITE_FIREBASE_MESSAGING_SENDER_ID || "936471221499",
+    appId: envConfig.VITE_FIREBASE_APP_ID || "1:936471221499:web:32a84776ac9f78afb58c5e",
 };
 
 // Initialize Firebase
