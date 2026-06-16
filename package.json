@@ -15,7 +15,8 @@
     "test:firestore-rules": "firebase emulators:exec --only firestore --project demo-firestore-rules \"npx vitest run --config vitest.firestore.config.ts\"",
     "tasks:validate": "node scripts/validate-project-tasks.mjs",
     "seed:communication": "node scripts/seed-communication-settings.mjs",
-    "emulators:start": "npx firebase-tools emulators:start"
+    "emulators:start": "npx firebase-tools emulators:start",
+    "storage:cors": "bash scripts/apply-storage-cors.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

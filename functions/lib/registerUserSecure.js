@@ -17,6 +17,7 @@ const ALLOWED_ROLES = [
     'lawyer',
     'psychologist',
     'manager',
+    'consultant',
     'coordinator',
     'trainer',
 ];

@@ -7,6 +7,12 @@ export type ActivityFormat = (typeof ACTIVITY_FORMATS)[number];
 export const ACTIVITY_STATUSES = ['rascunho', 'agendada', 'concluida', 'cancelada'] as const;
 export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
 
+export type ActivityScheduleSlot = {
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type ActivityDoc = {
   id: string;
   title: string;
@@ -16,6 +22,7 @@ export type ActivityDoc = {
   date: string;
   startTime: string;
   endTime: string;
+  scheduleSlots?: ActivityScheduleSlot[];
   startAt: string;
   endAt: string;
   durationMinutes: number;
@@ -40,9 +47,7 @@ export type ActivityUpsertInput = {
   activityType: ActivityType | '';
   format: ActivityFormat | '';
   status: ActivityStatus | '';
-  date: string;
-  startTime: string;
-  endTime: string;
+  scheduleSlots: ActivityScheduleSlot[];
   location: string;
   topics: string[];
   consultantIds: string[];
@@ -102,6 +107,86 @@ export function computeDurationMinutes(startTime: string, endTime: string): numb
   const diff = end - start;
   if (diff <= 0) return null;
   return diff;
+}
+
+export function resolveScheduleSlots(source: {
+  scheduleSlots?: ActivityScheduleSlot[] | null;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+}): ActivityScheduleSlot[] {
+  const raw = source.scheduleSlots ?? [];
+  const cleaned = raw
+    .map((slot) => ({
+      date: slot.date?.trim() ?? '',
+      startTime: slot.startTime?.trim() ?? '',
+      endTime: slot.endTime?.trim() ?? '',
+    }))
+    .filter((slot) => slot.date && slot.startTime && slot.endTime);
+  if (cleaned.length > 0) return cleaned;
+  if (source.date && source.startTime && source.endTime) {
+    return [{ date: source.date, startTime: source.startTime, endTime: source.endTime }];
+  }
+  return [];
+}
+
+export function computeScheduleSlotsDurationMinutes(slots: ActivityScheduleSlot[]): number | null {
+  if (slots.length === 0) return null;
+  let total = 0;
+  for (const slot of slots) {
+    const duration = computeDurationMinutes(slot.startTime, slot.endTime);
+    if (duration === null) return null;
+    total += duration;
+  }
+  return total > 0 ? total : null;
+}
+
+export function deriveScheduleBounds(slots: ActivityScheduleSlot[]): {
+  date: string;
+  startTime: string;
+  endTime: string;
+  startAt: string;
+  endAt: string;
+} {
+  const sorted = [...slots].sort((a, b) => toStartAt(a.date, a.startTime).localeCompare(toStartAt(b.date, b.startTime)));
+  const first = sorted[0];
+  const startAt = toStartAt(first.date, first.startTime);
+  let endAt = toStartAt(first.date, first.endTime);
+  for (const slot of sorted) {
+    const slotEnd = toStartAt(slot.date, slot.endTime);
+    if (slotEnd.localeCompare(endAt) > 0) endAt = slotEnd;
+  }
+  return {
+    date: first.date,
+    startTime: first.startTime,
+    endTime: first.endTime,
+    startAt,
+    endAt,
+  };
+}
+
+export function formatScheduleSlotsPreview(slots: ActivityScheduleSlot[]): string {
+  const resolved = resolveScheduleSlots({ scheduleSlots: slots });
+  if (resolved.length === 0) return '—';
+  if (resolved.length === 1) {
+    const slot = resolved[0];
+    return `${slot.date} • ${slot.startTime}-${slot.endTime}`;
+  }
+  const uniqueDates = new Set(resolved.map((slot) => slot.date));
+  if (uniqueDates.size === 1) {
+    return `${resolved[0].date} • ${resolved.length} intervalos`;
+  }
+  return `${resolved.length} intervalos • ${uniqueDates.size} dias`;
+}
+
+export function formatScheduleSlotsTimeSummary(slots: ActivityScheduleSlot[]): string {
+  const resolved = resolveScheduleSlots({ scheduleSlots: slots });
+  if (resolved.length === 0) return '—';
+  if (resolved.length === 1) {
+    const slot = resolved[0];
+    return `${slot.startTime} - ${slot.endTime}`;
+  }
+  return resolved.map((slot) => `${slot.date} ${slot.startTime}-${slot.endTime}`).join(' · ');
 }
 
 export function formatDuration(minutes: number | null): string {
@@ -177,17 +262,31 @@ export function validateActivity(input: ActivityUpsertInput, todayIsoCalendar: s
   if (!input.format) errors.format = 'Selecione um formato.';
   if (!input.status) errors.status = 'Selecione um estado.';
 
-  if (!isValidIsoDate(input.date)) {
-    errors.date = 'Selecione uma data válida.';
+  const scheduleSlots = resolveScheduleSlots({ scheduleSlots: input.scheduleSlots });
+  if (scheduleSlots.length === 0) {
+    errors.scheduleSlots = 'Adicione pelo menos um intervalo de agendamento.';
   } else {
     const allowPastDate = input.status === 'concluida' || input.status === 'cancelada';
-    if (!allowPastDate && input.date < todayIsoCalendar) errors.date = 'Não é possível agendar em datas passadas.';
+    scheduleSlots.forEach((slot, index) => {
+      if (!isValidIsoDate(slot.date)) {
+        errors.scheduleSlots = `Intervalo ${index + 1}: selecione uma data válida.`;
+      } else if (!allowPastDate && slot.date < todayIsoCalendar) {
+        errors.scheduleSlots = `Intervalo ${index + 1}: não é possível agendar em datas passadas.`;
+      }
+      if (!isValidTime24h(slot.startTime)) {
+        errors.scheduleSlots = `Intervalo ${index + 1}: indique a hora de início (24h).`;
+      }
+      if (!isValidTime24h(slot.endTime)) {
+        errors.scheduleSlots = `Intervalo ${index + 1}: indique a hora de fim (24h).`;
+      }
+      if (computeDurationMinutes(slot.startTime, slot.endTime) === null) {
+        errors.timeRange = `Intervalo ${index + 1}: a hora de fim deve ser posterior à hora de início.`;
+      }
+    });
+    if (computeScheduleSlotsDurationMinutes(scheduleSlots) === null && !errors.timeRange) {
+      errors.timeRange = 'Verifique os intervalos de horário.';
+    }
   }
-
-  if (!isValidTime24h(input.startTime)) errors.startTime = 'Indique a hora de início (24h).';
-  if (!isValidTime24h(input.endTime)) errors.endTime = 'Indique a hora de fim (24h).';
-  const duration = computeDurationMinutes(input.startTime, input.endTime);
-  if (duration === null) errors.timeRange = 'A hora de fim deve ser posterior à hora de início.';
 
   const location = input.location.trim();
   if (location.length < 3) errors.location = 'Indique um local/link com pelo menos 3 caracteres.';

@@ -6,7 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ActivityDoc } from '@/features/activities/model';
-import { formatDuration, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
+import { computeDurationMinutes, formatDuration, resolveScheduleSlots, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
 import { getActivity } from '@/features/activities/repository';
 
 function badgeVariant(status: ActivityDoc['status']): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -60,6 +60,8 @@ export default function MigrantActivityDetailPage() {
     return false;
   }, [row, user?.uid, user?.email]);
 
+  const scheduleSlots = useMemo(() => (row ? resolveScheduleSlots(row) : []), [row]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -112,18 +114,22 @@ export default function MigrantActivityDetailPage() {
               <CardTitle className="text-base">{t.get('cpc.activities.details.sections.general')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-muted/40 p-4">
-                  <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.date')}</p>
-                  <p className="font-semibold mt-1">{row.date}</p>
+              <div className="rounded-2xl bg-muted/40 p-4">
+                <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.editor.sections.schedule')}</p>
+                <div className="mt-3 space-y-2">
+                  {scheduleSlots.map((slot, index) => (
+                    <div key={`${slot.date}-${slot.startTime}-${index}`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="font-semibold">{slot.date}</span>
+                      <span className="text-muted-foreground">
+                        {slot.startTime} - {slot.endTime}
+                      </span>
+                      <span className="text-muted-foreground">{formatDuration(computeDurationMinutes(slot.startTime, slot.endTime))}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-2xl bg-muted/40 p-4">
-                  <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.time')}</p>
-                  <p className="font-semibold mt-1">
-                    {row.startTime} - {row.endTime}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{formatDuration(row.durationMinutes)}</p>
-                </div>
+                <p className="text-sm font-semibold mt-3 pt-3 border-t border-muted">
+                  {t.get('cpc.activities.fields.duration')}: {formatDuration(row.durationMinutes)}
+                </p>
               </div>
               <div className="rounded-2xl bg-muted/40 p-4">
                 <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('cpc.activities.fields.location')}</p>

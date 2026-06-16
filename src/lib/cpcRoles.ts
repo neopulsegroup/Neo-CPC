@@ -56,6 +56,11 @@ export function canManageTeamMembers(value: string | null | undefined): boolean 
   return value === 'admin' || value === 'manager';
 }
 
+/** Super Admin ou Admin — gestão de áreas de serviço. */
+export function canManageServiceAreas(value: string | null | undefined): boolean {
+  return canManageTeamMembers(value);
+}
+
 /** Perfis visíveis na listagem da Equipa (Super Admin fica oculto). */
 export function getVisibleTeamListRoles(): CpcTeamRole[] {
   return CPC_TEAM_ROLES.filter((role) => role !== 'admin');

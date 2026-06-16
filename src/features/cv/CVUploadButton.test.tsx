@@ -89,4 +89,18 @@ describe('CVUploadButton', () => {
     await waitFor(() => expect(onUploadComplete).toHaveBeenCalledWith('https://x/cv.pdf', 'cv.pdf'));
     expect(uploadCvFile).toHaveBeenCalledTimes(1);
   });
+
+  it('falha ao persistir após upload mostra toast de erro', async () => {
+    const onUploadComplete = vi.fn(async () => {
+      throw new Error('permission denied');
+    });
+    const { container } = render(<CVUploadButton {...baseProps} onUploadComplete={onUploadComplete} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [makeFile({})] } });
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'cvUpload.errors.uploadFailed.title', variant: 'destructive' })
+      )
+    );
+  });
 });

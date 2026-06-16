@@ -23,6 +23,7 @@ function area(partial: Partial<ServiceArea> & { id: ServiceArea['id'] }): Servic
     responsible_uids: [],
     responsible_names: [],
     default_duration_minutes: 30,
+    session_interval_minutes: 15,
     is_active: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -77,5 +78,13 @@ describe('serviceAreas', () => {
     expect(isAreaBookable(area({ id: 'legal', is_active: true, responsible_uids: [] }))).toBe(false);
     expect(isAreaBookable(area({ id: 'legal', is_active: false, responsible_uids: ['u1'] }))).toBe(false);
     expect(isAreaBookable(null)).toBe(false);
+  });
+
+  it('normalizeServiceDurationMinutes e normalizeSessionIntervalMinutes respeitam limites', async () => {
+    const { normalizeServiceDurationMinutes, normalizeSessionIntervalMinutes } = await import('./serviceAreas');
+    expect(normalizeServiceDurationMinutes(45)).toBe(45);
+    expect(normalizeServiceDurationMinutes(2)).toBe(5);
+    expect(normalizeSessionIntervalMinutes(20)).toBe(20);
+    expect(normalizeSessionIntervalMinutes(999)).toBe(120);
   });
 });

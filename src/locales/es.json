@@ -376,7 +376,9 @@
     "button": "Subir CV",
     "uploading": "Subiendo...",
     "viewUploaded": "Ver CV subido",
-    "hint": "PDF, DOC o DOCX. Máximo {maxSize} MB.",
+    "hint": "PDF, DOC o DOCX. Máximo {maxSize} MB. Solo un CV por usuario.",
+    "remove": "Eliminar CV",
+    "removeSuccess": "CV eliminado con éxito",
     "errors": {
       "tooLarge": {
         "title": "Archivo demasiado grande",
@@ -389,6 +391,10 @@
       "uploadFailed": {
         "title": "Error al subir el CV",
         "description": "Inténtalo de nuevo."
+      },
+      "removeFailed": {
+        "title": "Error al eliminar el CV",
+        "description": "No se pudo eliminar el CV. Inténtalo de nuevo."
       }
     },
     "success": "CV subido con éxito"
@@ -482,6 +488,12 @@
     "duration": "Duración predeterminada",
     "duration30": "30 minutos",
     "duration60": "60 minutos",
+    "sessionInterval": "Intervalo entre sesiones",
+    "minutesValue": "{count} minutos",
+    "durationManualHint": "En minutos (entre {min} y {max}). Ej.: 45",
+    "intervalManualHint": "En minutos (entre {min} y {max}). Ej.: 15",
+    "invalidDuration": "Indique una duración entre {min} y {max} minutos.",
+    "invalidInterval": "Indique un intervalo entre {min} y {max} minutos.",
     "responsibles": "Responsables",
     "active": "Activa",
     "inactive": "Inactiva",
@@ -492,7 +504,8 @@
     "saveError": "No se pudo guardar el área.",
     "noResponsibles": "Sin responsables asignados.",
     "selectArea": "Seleccione un área",
-    "areaUnavailable": "Esta área aún no tiene responsables disponibles. Inténtelo de nuevo más tarde o contacte con el equipo CPC."
+    "areaUnavailable": "Esta área aún no tiene responsables disponibles. Inténtelo de nuevo más tarde o contacte con el equipo CPC.",
+    "noPermission": "Solo Super Admin y Admin pueden gestionar las áreas de servicio."
   },
   "triage": {
     "title": "Situación Inicial",
@@ -875,7 +888,11 @@
       "time_days_ago": "Hace {count} días",
       "time_weeks_ago": "Hace {count} semanas",
       "time_months_ago": "Hace {count} meses",
-      "preview_empty": "No hay ofertas activas para mostrar."
+      "preview_empty": "No hay ofertas activas para mostrar.",
+      "access_alert_title": "Acceso a Empleo pendiente",
+      "access_alert_body": "Complete el perfil profesional y conceda autorización a las empresas para ver vacantes en el menú Empleo.",
+      "access_alert_missing_profile": "Rellene el perfil profesional (título, experiencia, competencias e idiomas).",
+      "access_alert_missing_authorization": "Conceda autorización para que las empresas consulten su perfil profesional."
     }
   },
   "sidebar": {
@@ -1010,7 +1027,24 @@
     },
     "profile": {
       "documents": {
-        "viewCvLink": "ver currículum"
+        "cpcCvLabel": "CURRÍCULO CPC",
+        "externalCvLabel": "CURRÍCULO EXTERNO",
+        "viewCvLink": "ver currículum",
+        "editCpcCvLink": "editar currículo CPC",
+        "manageExternalCvLink": "Gestionar currículo externo en el perfil"
+      },
+      "experienceLevel": "Experiencia",
+      "employerAuthorization": {
+        "title": "Autorización a empresas",
+        "description": "Para acceder al menú Empleo y candidatarse a vacantes, debe autorizar a las empresas a las que se candidata a consultar su perfil profesional en la plataforma CPC.",
+        "label": "Autorizo a las empresas a las que me candidato a consultar mi perfil profesional.",
+        "missingFieldsHint": "Complete primero el Perfil Profesional abajo (título, experiencia, competencias e idiomas) para activar esta autorización.",
+        "enabledTitle": "Autorización concedida",
+        "enabledDescription": "Ya puede acceder al menú Empleo y candidatarse a vacantes.",
+        "disabledTitle": "Autorización revocada",
+        "disabledDescription": "El acceso al menú Empleo quedará bloqueado hasta volver a conceder autorización.",
+        "errorTitle": "No se pudo actualizar",
+        "errorDescription": "Inténtelo de nuevo en unos segundos."
       }
     },
     "curriculum": {
@@ -1598,6 +1632,7 @@
       "migrants": "Migrantes",
       "activities": "Actividades",
       "agenda": "Agenda",
+      "companies": "Empresas",
       "applications": "Candidaturas",
       "offers": "Ofertas",
       "trails": "Trilhas",
@@ -1786,7 +1821,7 @@
         "start_time": "Inicio",
         "end_time": "Fin",
         "duration": "Duración",
-        "duration_hint": "Calculada automáticamente",
+        "duration_hint": "Suma automática de todos los intervalos",
         "location": "Lugar / Enlace",
         "location_placeholder": "Ej.: CPC Faro o https://…",
         "consultants": "Consultores",
@@ -1827,6 +1862,10 @@
         "migrants_empty": "No se encontraron migrantes.",
         "topics_placeholder": "Añadir temática…",
         "topics_add": "Añadir",
+        "add_interval": "Añadir intervalo",
+        "remove_interval": "Eliminar",
+        "interval_label": "Intervalo {index}",
+        "intervals_total": "Suma de {count} intervalos",
         "checklist": "Checklist",
         "checklist_title": "Título válido",
         "checklist_time": "Horario válido",
@@ -2380,6 +2419,45 @@
         "subtitle": "Consulte las candidaturas presentadas por migrantes a las ofertas de empleo.",
         "empty": "No hay candidaturas en este periodo"
       },
+      "companies": {
+        "title": "Empresas",
+        "subtitle": "Valide el registro de las empresas antes de que puedan publicar vacantes.",
+        "empty": "No hay empresas para el filtro seleccionado",
+        "status_pending": "Pendiente",
+        "status_approved": "Validada",
+        "status_rejected": "Rechazada",
+        "search_placeholder": "Buscar por empresa, email, NIF o área de actividad",
+        "viewDetails": "Ver detalles de la empresa",
+        "confirm_delete": "¿Desea eliminar la empresa \"{name}\"? Esta acción no se puede deshacer.",
+        "filters": {
+          "pending": "Pendientes",
+          "approved": "Validadas",
+          "rejected": "Rechazadas",
+          "all": "Todas"
+        },
+        "actions": {
+          "approve": "Validar",
+          "reject": "Rechazar",
+          "delete": "Eliminar"
+        },
+        "detail": {
+          "back": "Volver a empresas",
+          "notFound": "Empresa no encontrada",
+          "loadError": "No se pudieron cargar los detalles de la empresa.",
+          "moderationError": "No se pudo actualizar el estado de la empresa.",
+          "deleteError": "No se pudo eliminar la empresa.",
+          "approvedToast": "Empresa validada correctamente.",
+          "rejectedToast": "Registro de empresa rechazado.",
+          "deletedToast": "Empresa eliminada.",
+          "activityArea": "Área de actividad",
+          "nif": "NIF",
+          "contactName": "Contacto",
+          "registeredAt": "Registro en",
+          "notes": "Notas",
+          "moderation": "Moderación",
+          "moderationHint": "Revise los datos de la empresa antes de validar o rechazar el registro."
+        }
+      },
       "offers": {
         "title": "Ofertas",
         "empty": "Sin ofertas pendentes",
@@ -2399,6 +2477,34 @@
           "approve": "Validar",
           "reject": "Rechazar",
           "delete": "Eliminar"
+        },
+        "viewDetails": "Ver detalles de la vacante",
+        "detail": {
+          "back": "Volver a las ofertas",
+          "notFound": "Oferta no encontrada",
+          "loadError": "No se pudieron cargar los detalles de la vacante.",
+          "moderationError": "No se pudo actualizar el estado de la vacante.",
+          "deleteError": "No se pudo eliminar la vacante.",
+          "approvedToast": "Vacante validada correctamente.",
+          "rejectedToast": "Vacante rechazada.",
+          "deletedToast": "Vacante eliminada.",
+          "description": "Descripción",
+          "requirements": "Requisitos",
+          "skills": "Competencias",
+          "company": "Sobre la empresa",
+          "moderation": "Moderación",
+          "moderationHint": "Revise la información de la vacante antes de validar o rechazar.",
+          "contractTypes": {
+            "full_time": "Tiempo completo",
+            "part_time": "Tiempo parcial",
+            "temporary": "Temporal",
+            "internship": "Prácticas"
+          },
+          "workModes": {
+            "on_site": "Presencial",
+            "hybrid": "Híbrido",
+            "remote": "Remoto"
+          }
         }
       },
       "statistics": {
@@ -2605,6 +2711,13 @@
       "yesterday": "Ayer",
       "daysAgo": "Hace {count} días",
       "weeksAgo": "Hace {count} semanas"
+    },
+    "verification": {
+      "pendingTitle": "Registro en validación",
+      "pendingDescription": "El equipo de gestión CPC está analizando el registro de su empresa. Solo podrá publicar vacantes tras la validación.",
+      "rejectedTitle": "Registro no aprobado",
+      "rejectedDescription": "El registro de su empresa no fue aprobado. Contacte al equipo CPC para más información.",
+      "cannotPublish": "Su empresa aún no ha sido validada por el equipo CPC. Espere la aprobación del registro para publicar vacantes."
     },
     "status": {
       "active": "Activa",
@@ -2896,10 +3009,13 @@
           "email": "Correo electrónico",
           "date": "Fecha",
           "coverLetter": "Carta de presentación",
+          "cpcCv": "Currículo CPC",
           "candidateCv": "CV del candidato",
           "attachedCv": "CV adjuntado por la empresa"
         },
-        "viewCandidateCv": "Ver CV del candidato",
+        "viewCandidateCpcCv": "Descargar CV CPC del candidato",
+        "cpcCvUnavailable": "Perfil del candidato no disponible.",
+        "viewCandidateCv": "Descargar CV del candidato",
         "noCandidateCv": "El candidato no adjuntó CV."
       }
     },
@@ -2965,7 +3081,7 @@
         "ideal": "MATCHES IDEALES"
       },
       "filters": {
-        "job": "FILTRAR POR VACANTE",
+        "job": "BUSCAR",
         "job_all": "Todas las Vacantes",
         "skills": "COMPETENCIAS",
         "skills_placeholder": "Ej: React, Figma...",
@@ -2974,7 +3090,7 @@
         "minMatch": "MÍNIMO MATCH (%)"
       },
       "search": {
-        "placeholder": "Buscar por nombre o cargo",
+        "placeholder": "Buscar por nombre o título",
         "aria": "Buscar candidatos"
       },
       "table": {
@@ -3152,6 +3268,16 @@
         "openInNewWindow": "Abrir CV en una nueva pestaña",
         "notAvailable": "Currículum no disponible. Solicita al candidato que envíe su CV.",
         "useDemo": "Usar CV de demostración"
+      },
+      "externalCv": {
+        "title": "Currículo externo",
+        "download": "Descargar currículo",
+        "notAvailable": "El candidato aún no ha cargado un currículo externo."
+      },
+      "cpcCv": {
+        "title": "Currículo CPC",
+        "download": "Descargar PDF",
+        "notAvailable": "El candidato aún no ha completado el currículo CPC en la plataforma."
       },
       "sessions": {
         "title": "Citas",

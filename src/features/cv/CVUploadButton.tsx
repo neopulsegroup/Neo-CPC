@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { FirebaseError } from 'firebase/app';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, FileText, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -12,14 +13,20 @@ import {
 } from './uploadCvFile';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+const FILE_INPUT_ACCEPT = [...ALLOWED_MIME_TYPES, ...ALLOWED_EXTENSIONS].join(',');
 
 interface CVUploadButtonProps {
   contextId: string;
   contextType: CvContextType;
   uploaderUid: string;
   currentUrl?: string | null;
-  onUploadComplete: (url: string, fileName: string) => void;
-  onRemove?: () => void;
+  onUploadComplete: (url: string, fileName: string) => void | Promise<void>;
+  onRemove?: () => void | Promise<void>;
   disabled?: boolean;
 }
 
@@ -36,6 +43,7 @@ export function CVUploadButton({
   const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   function handleClick() {
     inputRef.current?.click();
@@ -65,18 +73,46 @@ export function CVUploadButton({
 
     setUploading(true);
     try {
-      const { url, fileName } = await uploadCvFile({ file, contextId, contextType, uploaderUid });
-      onUploadComplete(url, fileName);
+      const { url, fileName } = await uploadCvFile({
+        file,
+        contextId,
+        contextType,
+        uploaderUid,
+        previousUrl: currentUrl,
+      });
+      await onUploadComplete(url, fileName);
       toast({ title: t.get('cvUpload.success') });
     } catch (err) {
       console.error('[CVUploadButton] falha:', err);
+      const description =
+        err instanceof FirebaseError && err.message && err.message !== 'INTERNAL'
+          ? err.message
+          : t.get('cvUpload.errors.uploadFailed.description');
       toast({
         title: t.get('cvUpload.errors.uploadFailed.title'),
-        description: t.get('cvUpload.errors.uploadFailed.description'),
+        description,
         variant: 'destructive',
       });
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!onRemove || removing || uploading) return;
+    setRemoving(true);
+    try {
+      await onRemove();
+      toast({ title: t.get('cvUpload.removeSuccess') });
+    } catch (err) {
+      console.error('[CVUploadButton] falha ao remover:', err);
+      toast({
+        title: t.get('cvUpload.errors.removeFailed.title'),
+        description: t.get('cvUpload.errors.removeFailed.description'),
+        variant: 'destructive',
+      });
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -93,8 +129,15 @@ export function CVUploadButton({
           {t.get('cvUpload.viewUploaded')}
         </a>
         {onRemove ? (
-          <Button type="button" size="sm" variant="ghost" onClick={onRemove} disabled={disabled || uploading}>
-            <X className="h-4 w-4" />
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => void handleRemove()}
+            disabled={disabled || uploading || removing}
+            aria-label={t.get('cvUpload.remove')}
+          >
+            {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
           </Button>
         ) : null}
       </div>
@@ -106,7 +149,7 @@ export function CVUploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept={ALLOWED_EXTENSIONS.join(',')}
+        accept={FILE_INPUT_ACCEPT}
         onChange={handleChange}
         className="hidden"
       />

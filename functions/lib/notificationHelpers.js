@@ -34,6 +34,7 @@ const CPC_MODERATION_ROLES = new Set([
     'admin',
     'administrador',
     'manager',
+    'consultant',
     'coordinator',
     'cpc',
     'team',

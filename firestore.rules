@@ -306,6 +306,35 @@ service cloud.firestore {
         );
     }
 
+    function companyIsVerifiedForPublishing(companyId) {
+      return companyId is string
+        && companyId.size() > 0
+        && exists(/databases/$(database)/documents/companies/$(companyId))
+        && companyDoc(companyId).data.get('verified', false) == true;
+    }
+
+    function employerCompanySelfUpdateAllowed(companyId) {
+      return isAuthenticated() && (
+        resource.data.user_id == request.auth.uid
+        || (
+          companyId == request.auth.uid
+          && !(resource.data.keys().hasAll(['user_id']))
+        )
+        || (
+          employerPublisher()
+          && !(resource.data.keys().hasAll(['user_id']))
+          && request.resource.data.user_id == request.auth.uid
+        )
+      );
+    }
+
+    function companyModerationFieldsUnchanged() {
+      return request.resource.data.get('verified', resource.data.get('verified', false)) == resource.data.get('verified', false)
+        && request.resource.data.get('rejected', resource.data.get('rejected', false)) == resource.data.get('rejected', false)
+        && request.resource.data.get('reviewed_at', resource.data.get('reviewed_at', null)) == resource.data.get('reviewed_at', null)
+        && request.resource.data.get('reviewed_by', resource.data.get('reviewed_by', null)) == resource.data.get('reviewed_by', null);
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if (isAuthenticated() && isOwner(userId)) || isCpcStaff();
@@ -376,20 +405,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if (isAuthenticated() && request.auth.uid == companyId && request.resource.data.user_id == request.auth.uid) || isCpcStaff();
       // Atualizar perfil próprio; corrigir user_id em legado (sem campo ou só em companies/{uid}).
-      allow update: if isCpcStaff() || (
-        isAuthenticated() && (
-          resource.data.user_id == request.auth.uid
-          || (
-            companyId == request.auth.uid
-            && !(resource.data.keys().hasAll(['user_id']))
-          )
-          || (
-            employerPublisher()
-            && !(resource.data.keys().hasAll(['user_id']))
-            && request.resource.data.user_id == request.auth.uid
-          )
-        )
-      );
+      allow update: if isCpcStaff() || (employerCompanySelfUpdateAllowed(companyId) && companyModerationFieldsUnchanged());
       allow delete: if isCpcStaff();
     }
 
@@ -403,7 +419,8 @@ service cloud.firestore {
         );
       allow create: if employerPublisher()
         && request.resource.data.company_id is string
-        && companyOwnsCompanyId(request.resource.data.company_id);
+        && companyOwnsCompanyId(request.resource.data.company_id)
+        && companyIsVerifiedForPublishing(request.resource.data.company_id);
       allow update: if isCpcStaff() ||
         (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
       allow delete: if isCpcStaff();
@@ -437,7 +454,12 @@ service cloud.firestore {
       allow update: if isAccountEnabled()
         && resource.data.applicant_id == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['migrant_attached_cv_url', 'migrant_attached_cv_name', 'migrant_attached_cv_uploaded_at']);
+             .hasOnly([
+               'migrant_attached_cv_url',
+               'migrant_attached_cv_name',
+               'migrant_attached_cv_uploaded_at',
+               'updatedAt'
+             ]);
       allow delete: if isCpcStaff();
     }
 
@@ -665,12 +687,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Áreas de serviço (Jurídico / Psicológico / Mediação): responsáveis e duração padrão.
-    // Leitura: qualquer utilizador autenticado (o migrante precisa para agendar).
-    // Escrita: apenas admin (gestão na ServiceAreasAdminPage).
+    // Escrita: Super Admin ou Admin (gestão na ServiceAreasAdminPage).
     match /service_areas/{areaId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAccountEnabled() && hasRole('admin');
+      allow create, update, delete: if canManageTeamUsers();
     }
 
     // Default deny

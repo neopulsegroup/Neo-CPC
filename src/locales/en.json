@@ -376,7 +376,9 @@
     "button": "Upload CV",
     "uploading": "Uploading...",
     "viewUploaded": "View uploaded CV",
-    "hint": "PDF, DOC or DOCX. Maximum {maxSize} MB.",
+    "hint": "PDF, DOC or DOCX. Maximum {maxSize} MB. One CV per user only.",
+    "remove": "Remove CV",
+    "removeSuccess": "CV removed successfully",
     "errors": {
       "tooLarge": {
         "title": "File too large",
@@ -389,6 +391,10 @@
       "uploadFailed": {
         "title": "Error uploading CV",
         "description": "Please try again."
+      },
+      "removeFailed": {
+        "title": "Error removing CV",
+        "description": "Could not remove the CV. Please try again."
       }
     },
     "success": "CV uploaded successfully"
@@ -482,6 +488,12 @@
     "duration": "Default duration",
     "duration30": "30 minutes",
     "duration60": "60 minutes",
+    "sessionInterval": "Interval between sessions",
+    "minutesValue": "{count} minutes",
+    "durationManualHint": "In minutes (between {min} and {max}). E.g. 45",
+    "intervalManualHint": "In minutes (between {min} and {max}). E.g. 15",
+    "invalidDuration": "Enter a duration between {min} and {max} minutes.",
+    "invalidInterval": "Enter an interval between {min} and {max} minutes.",
     "responsibles": "Responsibles",
     "active": "Active",
     "inactive": "Inactive",
@@ -492,7 +504,8 @@
     "saveError": "Could not save the area.",
     "noResponsibles": "No responsibles assigned.",
     "selectArea": "Select an area",
-    "areaUnavailable": "This area has no available responsibles yet. Please try again later or contact the CPC team."
+    "areaUnavailable": "This area has no available responsibles yet. Please try again later or contact the CPC team.",
+    "noPermission": "Only Super Admin and Admin can manage service areas."
   },
   "triage": {
     "title": "Initial Situation",
@@ -875,7 +888,11 @@
       "time_days_ago": "{count} days ago",
       "time_weeks_ago": "{count} weeks ago",
       "time_months_ago": "{count} months ago",
-      "preview_empty": "No active openings to show."
+      "preview_empty": "No active openings to show.",
+      "access_alert_title": "Jobs access pending",
+      "access_alert_body": "Complete your professional profile and grant employer authorization to view vacancies in the Jobs menu.",
+      "access_alert_missing_profile": "Fill in your professional profile (title, experience, skills and languages).",
+      "access_alert_missing_authorization": "Grant authorization for companies to view your professional profile."
     }
   },
   "sidebar": {
@@ -1010,7 +1027,24 @@
     },
     "profile": {
       "documents": {
-        "viewCvLink": "view résumé"
+        "cpcCvLabel": "CPC RÉSUMÉ",
+        "externalCvLabel": "EXTERNAL RÉSUMÉ",
+        "viewCvLink": "view résumé",
+        "editCpcCvLink": "edit CPC résumé",
+        "manageExternalCvLink": "Manage external résumé in profile"
+      },
+      "experienceLevel": "Experience",
+      "employerAuthorization": {
+        "title": "Employer authorization",
+        "description": "To access the Jobs menu and apply to vacancies, you must authorize the companies you apply to view your professional profile on the CPC platform.",
+        "label": "I authorize the companies I apply to view my professional profile.",
+        "missingFieldsHint": "Complete the Professional Profile below (title, experience, skills and languages) before enabling this authorization.",
+        "enabledTitle": "Authorization granted",
+        "enabledDescription": "You can now access the Jobs menu and apply to vacancies.",
+        "disabledTitle": "Authorization revoked",
+        "disabledDescription": "Jobs menu access will be blocked until you grant authorization again.",
+        "errorTitle": "Could not update",
+        "errorDescription": "Please try again in a few seconds."
       }
     },
     "curriculum": {
@@ -1598,6 +1632,7 @@
       "migrants": "Migrants",
       "activities": "Activities",
       "agenda": "Agenda",
+      "companies": "Companies",
       "applications": "Applications",
       "offers": "Offers",
       "trails": "Trails",
@@ -1786,7 +1821,7 @@
         "start_time": "Start",
         "end_time": "End",
         "duration": "Duration",
-        "duration_hint": "Calculated automatically",
+        "duration_hint": "Sum of all intervals",
         "location": "Location / Link",
         "location_placeholder": "e.g. CPC Faro or https://…",
         "consultants": "Consultants",
@@ -1827,6 +1862,10 @@
         "migrants_empty": "No migrants found.",
         "topics_placeholder": "Add topic…",
         "topics_add": "Add",
+        "add_interval": "Add interval",
+        "remove_interval": "Remove",
+        "interval_label": "Interval {index}",
+        "intervals_total": "Sum of {count} intervals",
         "checklist": "Checklist",
         "checklist_title": "Valid title",
         "checklist_time": "Valid time range",
@@ -2380,6 +2419,45 @@
         "subtitle": "Review applications submitted by migrants to job postings.",
         "empty": "No applications in this period"
       },
+      "companies": {
+        "title": "Companies",
+        "subtitle": "Validate company registrations before they can publish jobs.",
+        "empty": "No companies match the selected filter",
+        "status_pending": "Pending",
+        "status_approved": "Validated",
+        "status_rejected": "Rejected",
+        "search_placeholder": "Search by company, email, tax ID or activity area",
+        "viewDetails": "View company details",
+        "confirm_delete": "Do you want to delete company \"{name}\"? This action cannot be undone.",
+        "filters": {
+          "pending": "Pending",
+          "approved": "Validated",
+          "rejected": "Rejected",
+          "all": "All"
+        },
+        "actions": {
+          "approve": "Validate",
+          "reject": "Reject",
+          "delete": "Delete"
+        },
+        "detail": {
+          "back": "Back to companies",
+          "notFound": "Company not found",
+          "loadError": "Could not load company details.",
+          "moderationError": "Could not update company status.",
+          "deleteError": "Could not delete the company.",
+          "approvedToast": "Company validated successfully.",
+          "rejectedToast": "Company registration rejected.",
+          "deletedToast": "Company deleted.",
+          "activityArea": "Activity area",
+          "nif": "Tax ID",
+          "contactName": "Contact",
+          "registeredAt": "Registered on",
+          "notes": "Notes",
+          "moderation": "Moderation",
+          "moderationHint": "Review the company details before validating or rejecting the registration."
+        }
+      },
       "offers": {
         "title": "Offers",
         "empty": "No pending offers",
@@ -2399,6 +2477,34 @@
           "approve": "Validate",
           "reject": "Reject",
           "delete": "Delete"
+        },
+        "viewDetails": "View job details",
+        "detail": {
+          "back": "Back to offers",
+          "notFound": "Job not found",
+          "loadError": "Could not load job details.",
+          "moderationError": "Could not update job status.",
+          "deleteError": "Could not delete the job.",
+          "approvedToast": "Job validated successfully.",
+          "rejectedToast": "Job rejected.",
+          "deletedToast": "Job deleted.",
+          "description": "Description",
+          "requirements": "Requirements",
+          "skills": "Skills",
+          "company": "About the company",
+          "moderation": "Moderation",
+          "moderationHint": "Review the job information before validating or rejecting.",
+          "contractTypes": {
+            "full_time": "Full-time",
+            "part_time": "Part-time",
+            "temporary": "Temporary",
+            "internship": "Internship"
+          },
+          "workModes": {
+            "on_site": "On-site",
+            "hybrid": "Hybrid",
+            "remote": "Remote"
+          }
         }
       },
       "statistics": {
@@ -2605,6 +2711,13 @@
       "yesterday": "Yesterday",
       "daysAgo": "{count} days ago",
       "weeksAgo": "{count} weeks ago"
+    },
+    "verification": {
+      "pendingTitle": "Registration under review",
+      "pendingDescription": "The CPC management team is reviewing your company registration. You can only publish jobs after validation.",
+      "rejectedTitle": "Registration not approved",
+      "rejectedDescription": "Your company registration was not approved. Contact the CPC team for more information.",
+      "cannotPublish": "Your company has not yet been validated by the CPC team. Wait for registration approval before publishing jobs."
     },
     "status": {
       "active": "Active",
@@ -2896,10 +3009,13 @@
           "email": "Email",
           "date": "Date",
           "coverLetter": "Cover letter",
+          "cpcCv": "CPC resume",
           "candidateCv": "Candidate CV",
           "attachedCv": "CV attached by the company"
         },
-        "viewCandidateCv": "View candidate CV",
+        "viewCandidateCpcCv": "Download CPC candidate CV",
+        "cpcCvUnavailable": "Candidate profile unavailable.",
+        "viewCandidateCv": "Download candidate CV",
         "noCandidateCv": "The candidate did not attach a CV."
       }
     },
@@ -2965,7 +3081,7 @@
         "ideal": "IDEAL MATCHES"
       },
       "filters": {
-        "job": "FILTER BY JOB",
+        "job": "SEARCH",
         "job_all": "All Jobs",
         "skills": "SKILLS",
         "skills_placeholder": "Ex: React, Figma...",
@@ -2974,7 +3090,7 @@
         "minMatch": "MIN MATCH (%)"
       },
       "search": {
-        "placeholder": "Search by name or role",
+        "placeholder": "Search by name or title",
         "aria": "Search candidates"
       },
       "table": {
@@ -3152,6 +3268,16 @@
         "openInNewWindow": "Open resume in a new tab",
         "notAvailable": "Resume not available. Ask the candidate to send their resume.",
         "useDemo": "Use demo resume"
+      },
+      "externalCv": {
+        "title": "External resume",
+        "download": "Download resume",
+        "notAvailable": "The candidate has not uploaded an external resume yet."
+      },
+      "cpcCv": {
+        "title": "CPC resume",
+        "download": "Download PDF",
+        "notAvailable": "The candidate has not completed the CPC resume on the platform yet."
       },
       "sessions": {
         "title": "Appointments",

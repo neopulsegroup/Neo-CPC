@@ -27,6 +27,7 @@ const SERVICE_AREAS = [
     responsible_uids: ['u-sarah'],
     responsible_names: ['Dra. Sarah Miller'],
     default_duration_minutes: 30,
+    session_interval_minutes: 15,
     is_active: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

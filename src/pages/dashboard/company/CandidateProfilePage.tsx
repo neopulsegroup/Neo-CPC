@@ -1,10 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getDocument, queryDocuments } from '@/integrations/firebase/firestore';
 import { Card } from '@/components/ui/card';
-import { User, Mail, Phone, ArrowLeft, Briefcase, Calendar, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { CpcCurriculumPreview } from '@/components/curriculum/CpcCurriculumPreview';
+import {
+  buildCpcCurriculumViewModel,
+  hasCpcCurriculum,
+  type ProfileDoc,
+} from '@/features/curriculum/profileCurriculumModel';
+import {
+  exportCurriculumPreviewToPdf,
+  sanitizeCurriculumPdfFileName,
+} from '@/features/curriculum/exportCurriculumPdf';
+import { User, Mail, Phone, ArrowLeft, Briefcase, Calendar, Download, FileText, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useToast } from '@/hooks/use-toast';
 import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/ApplicantProfileUnavailableBadge';
 
 interface Profile {
@@ -39,9 +51,13 @@ export default function CandidateProfilePage() {
   const { candidateId } = useParams();
   const { profile: viewerProfile } = useAuth();
   const { language, t } = useLanguage();
+  const { toast } = useToast();
+  const cpcCvExportRef = useRef<HTMLDivElement>(null);
+  const [exportingCpcCv, setExportingCpcCv] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [professional, setProfessional] = useState<ProfessionalProfile | null>(null);
   const [profileUnavailable, setProfileUnavailable] = useState(false);
+  const [profileDoc, setProfileDoc] = useState<ProfileDoc | null>(null);
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,33 +72,26 @@ export default function CandidateProfilePage() {
     setLoading(true);
     setProfileUnavailable(false);
     setProfessional(null);
+    setProfileDoc(null);
 
     try {
-      let prof: {
-        name?: string | null;
-        email?: string | null;
-        phone?: string | null;
-        avatar_url?: string | null;
-        resumeUrl?: string | null;
-        professionalTitle?: string | null;
-        professionalExperience?: string | null;
-        skills?: string | null;
-        languagesList?: string | null;
-      } | null = null;
+      let prof: ProfileDoc | null = null;
 
       try {
-        prof = await getDocument<typeof prof>('profiles', candidateId);
+        prof = await getDocument<ProfileDoc>('profiles', candidateId);
       } catch {
         setProfileUnavailable(true);
       }
 
       if (prof) {
+        setProfileDoc(prof);
+        const name = typeof prof.name === 'string' ? prof.name : '';
         setProfile({
           user_id: candidateId,
-          name: prof.name || t.get('company.candidate.fallbackName'),
-          email: prof.email || '',
-          phone: prof.phone ?? null,
-          avatar_url: prof.avatar_url ?? null,
+          name: name || t.get('company.candidate.fallbackName'),
+          email: typeof prof.email === 'string' ? prof.email : '',
+          phone: typeof prof.phone === 'string' ? prof.phone : null,
+          avatar_url: typeof prof.avatar_url === 'string' ? prof.avatar_url : null,
         });
 
         const firestoreUrl = typeof prof.resumeUrl === 'string' ? prof.resumeUrl.trim() : '';
@@ -90,10 +99,10 @@ export default function CandidateProfilePage() {
         const resumeUrl = firestoreUrl || (fromStorage && fromStorage.trim() ? fromStorage.trim() : null);
 
         setProfessional({
-          professionalTitle: prof.professionalTitle ?? null,
-          professionalExperience: prof.professionalExperience ?? null,
-          skills: prof.skills ?? null,
-          languagesList: prof.languagesList ?? null,
+          professionalTitle: typeof prof.professionalTitle === 'string' ? prof.professionalTitle : null,
+          professionalExperience: typeof prof.professionalExperience === 'string' ? prof.professionalExperience : null,
+          skills: typeof prof.skills === 'string' ? prof.skills : null,
+          languagesList: typeof prof.languagesList === 'string' ? prof.languagesList : null,
           resumeUrl,
         });
       } else if (!profileUnavailable) {
@@ -144,6 +153,46 @@ export default function CandidateProfilePage() {
       .filter(Boolean);
     return Array.from(new Set(tokens));
   }, [professional?.skills]);
+
+  const cpcCurriculumAvailable = useMemo(() => hasCpcCurriculum(profileDoc), [profileDoc]);
+
+  const cpcCurriculumModel = useMemo(
+    () =>
+      buildCpcCurriculumViewModel(profileDoc, {
+        fullName: profile?.name || t.get('company.candidate.fallbackName'),
+        professionalTitle: displayValue(professional?.professionalTitle),
+        email: profile?.email || '—',
+        phone: profile?.phone || '—',
+        location: '—',
+        summary: '—',
+      }),
+    [profile?.email, profile?.name, profile?.phone, professional?.professionalTitle, profileDoc, t]
+  );
+
+  async function handleDownloadCpcCv() {
+    const root = cpcCvExportRef.current;
+    if (!root) {
+      toast({
+        title: t.get('migrant.curriculum.feedback.exportPdfErrorTitle'),
+        description: t.get('migrant.curriculum.feedback.exportPdfErrorDescription'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    setExportingCpcCv(true);
+    try {
+      const safe = sanitizeCurriculumPdfFileName(cpcCurriculumModel.fullName || 'curriculo');
+      await exportCurriculumPreviewToPdf(root, `${safe}.pdf`);
+    } catch {
+      toast({
+        title: t.get('migrant.curriculum.feedback.exportPdfErrorTitle'),
+        description: t.get('migrant.curriculum.feedback.exportPdfErrorDescription'),
+        variant: 'destructive',
+      });
+    } finally {
+      setExportingCpcCv(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -258,39 +307,66 @@ export default function CandidateProfilePage() {
                 </p>
                 <p className="mt-2 text-sm">{displayValue(professional?.languagesList)}</p>
               </div>
-
-              <div className="md:col-span-2 pt-2 border-t">
-                <p className="text-[11px] tracking-wider text-muted-foreground uppercase mb-3">
-                  {t.get('company.candidate.professionalProfile.resume')}
-                </p>
-                {professional?.resumeUrl ? (
-                  <div className="space-y-4">
-                    <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden">
-                      <iframe
-                        src={professional.resumeUrl}
-                        className="w-full h-full"
-                        title={t.get('company.candidate.resume.iframeTitle')}
-                      />
-                    </div>
-                    <a
-                      href={professional.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      {t.get('company.candidate.resume.openInNewWindow')}
-                    </a>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{t.get('company.candidate.resume.notAvailable')}</p>
-                )}
-              </div>
             </div>
+          </Card>
+
+          <Card id="curriculo-cpc" className="p-6 scroll-mt-24">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                <GraduationCap className="h-5 w-5" />
+                {t.get('company.candidate.cpcCv.title')}
+              </h2>
+              {cpcCurriculumAvailable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={exportingCpcCv}
+                  onClick={() => void handleDownloadCpcCv()}
+                >
+                  {exportingCpcCv ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  {exportingCpcCv
+                    ? t.get('migrant.curriculum.actions.exportingPdf')
+                    : t.get('company.candidate.cpcCv.download')}
+                </Button>
+              ) : null}
+            </div>
+            {cpcCurriculumAvailable ? (
+              <div ref={cpcCvExportRef}>
+                <CpcCurriculumPreview model={cpcCurriculumModel} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t.get('company.candidate.cpcCv.notAvailable')}</p>
+            )}
           </Card>
         </div>
 
         <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="font-semibold mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {t.get('company.candidate.externalCv.title')}
+            </h2>
+            {professional?.resumeUrl ? (
+              <a
+                href={professional.resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-primary hover:bg-muted transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                {t.get('company.candidate.externalCv.download')}
+              </a>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t.get('company.candidate.externalCv.notAvailable')}</p>
+            )}
+          </Card>
+
           <Card className="p-6">
             <h2 className="font-semibold mb-4 flex items-center gap-2">
               <Briefcase className="h-5 w-5" />

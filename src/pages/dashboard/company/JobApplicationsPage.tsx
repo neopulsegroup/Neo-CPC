@@ -17,6 +17,7 @@ import {
   XCircle,
   Clock,
   Eye,
+  GraduationCap,
 } from 'lucide-react';
 
 interface Application {
@@ -87,8 +88,12 @@ export default function JobApplicationsPage() {
             status: app.status,
             created_at: app.created_at,
             applicantId: app.applicant_id,
-            applicantResumeUrl: prof?.resumeUrl ?? null,
-            migrantAttachedCvUrl: (typeof app.migrant_attached_cv_url === 'string' && app.migrant_attached_cv_url.trim()) ? app.migrant_attached_cv_url.trim() : null,
+            applicantResumeUrl:
+              (prof?.resumeUrl && prof.resumeUrl.trim()) ||
+              (typeof app.migrant_attached_cv_url === 'string' && app.migrant_attached_cv_url.trim()
+                ? app.migrant_attached_cv_url.trim()
+                : null),
+            migrantAttachedCvUrl: null,
             companyAttachedCvUrl: (typeof app.company_attached_cv_url === 'string' && app.company_attached_cv_url.trim()) ? app.company_attached_cv_url.trim() : null,
             applicant: prof
               ? { name: prof.name, email: prof.email, profileUnavailable: prof.profileUnavailable }
@@ -275,6 +280,24 @@ export default function JobApplicationsPage() {
 
                     <div className="pt-4 border-t border-border space-y-3">
                       <div>
+                        <label className="text-sm text-muted-foreground">
+                          {t.get('company.applications.details.labels.cpcCv')}
+                        </label>
+                        {selectedApplication.applicant.profileUnavailable ? (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {t.get('company.applications.details.cpcCvUnavailable')}
+                          </p>
+                        ) : (
+                          <Link
+                            to={`/dashboard/empresa/candidatos/${selectedApplication.applicantId}#curriculo-cpc`}
+                            className="mt-1 flex items-center gap-2 text-sm text-primary hover:underline"
+                          >
+                            <GraduationCap className="h-4 w-4" />
+                            {t.get('company.applications.details.viewCandidateCpcCv')}
+                          </Link>
+                        )}
+                      </div>
+                      <div>
                         <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.candidateCv')}</label>
                         {selectedApplication.applicantResumeUrl ? (
                           <a
@@ -290,20 +313,6 @@ export default function JobApplicationsPage() {
                           <p className="mt-1 text-sm text-muted-foreground">{t.get('company.applications.details.noCandidateCv')}</p>
                         )}
                       </div>
-                      {selectedApplication.migrantAttachedCvUrl ? (
-                        <div>
-                          <label className="text-sm text-muted-foreground">{t.get('applicationDetail.migrantAttachedCv')}</label>
-                          <a
-                            href={selectedApplication.migrantAttachedCvUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-1 flex items-center gap-2 text-sm text-primary hover:underline"
-                          >
-                            <FileText className="h-4 w-4" />
-                            {t.get('applicationDetail.migrantAttachedCv')}
-                          </a>
-                        </div>
-                      ) : null}
                       <div>
                         <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.attachedCv')}</label>
                         <div className="mt-1">

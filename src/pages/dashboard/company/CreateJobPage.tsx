@@ -17,6 +17,8 @@ import {
   type JobMinQualification,
   type JobStudyArea,
 } from '@/features/jobs/jobOfferQualifications';
+import { useCompanyVerification } from '@/hooks/useCompanyVerification';
+import { CompanyVerificationBanner } from '@/components/company/CompanyVerificationBanner';
 
 function normalizeRoleValue(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -50,6 +52,7 @@ export default function CreateJobPage() {
   const [searchParams] = useSearchParams();
   const { t } = useLanguage();
   const { toast } = useToast();
+  const { canPublish, status, loading: verificationLoading } = useCompanyVerification();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editJobId, setEditJobId] = useState<string | null>(null);
@@ -276,6 +279,15 @@ export default function CreateJobPage() {
       return;
     }
 
+    if (!editJobId && !canPublish) {
+      toast({
+        title: t.get('company.createJob.errors.createFailedTitle'),
+        description: t.get('company.verification.cannotPublish'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -398,6 +410,8 @@ export default function CreateJobPage() {
         <ArrowLeft className="h-4 w-4 mr-1" />
         {t.get('company.createJob.backToDashboard')}
       </Link>
+
+      {!verificationLoading && status !== 'approved' ? <CompanyVerificationBanner status={status} /> : null}
 
       <div className="max-w-2xl">
         <h1 className="text-2xl md:text-3xl font-bold mb-2">

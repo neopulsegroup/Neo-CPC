@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ClipboardList, Download, FileText, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import type { ActivityDoc, ActivityStatus, ActivityType } from '@/features/activities/model';
 import { normalizeText } from '@/features/activities/model';
-import { formatDuration, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
+import { formatDuration, formatScheduleSlotsPreview, formatScheduleSlotsTimeSummary, resolveScheduleSlots, toActivityFormatLabel, toActivityStatusLabel, toActivityTypeLabel } from '@/features/activities/model';
 import type { ActivitiesUiFilters } from '@/features/activities/controller';
 import { loadActivitiesForExport, loadActivitiesPage, loadActivitiesSummary, removeActivity } from '@/features/activities/controller';
 import { listConsultants } from '@/features/activities/repository';
@@ -57,15 +57,19 @@ function buildCsv(rows: ActivityDoc[]): string {
   const header = ['Nome', 'Tipo', 'Formato', 'Estado', 'Data', 'Início', 'Fim', 'Duração', 'Consultores', 'Temáticas', 'Local/Link'];
   const lines = [header.join(',')];
   rows.forEach((r) => {
+    const slots = resolveScheduleSlots(r);
+    const dateCell = slots.length > 1 ? formatScheduleSlotsPreview(slots) : r.date;
+    const startCell = slots.length > 1 ? formatScheduleSlotsTimeSummary(slots) : r.startTime;
+    const endCell = slots.length > 1 ? '—' : r.endTime;
     lines.push(
       [
         csvEscape(r.title),
         csvEscape(toActivityTypeLabel(r.activityType)),
         csvEscape(toActivityFormatLabel(r.format)),
         csvEscape(toActivityStatusLabel(r.status)),
-        csvEscape(r.date),
-        csvEscape(r.startTime),
-        csvEscape(r.endTime),
+        csvEscape(dateCell),
+        csvEscape(startCell),
+        csvEscape(endCell),
         csvEscape(formatDuration(r.durationMinutes)),
         csvEscape((r.consultantNames || []).join(' | ')),
         csvEscape((r.topics || []).join(' | ')),
@@ -124,21 +128,27 @@ async function openPrintableTable(rows: ActivityDoc[], documentTitle: string) {
           <tbody>
             ${rows
               .map(
-                (r) => `
+                (r) => {
+                  const slots = resolveScheduleSlots(r);
+                  const dateCell = slots.length > 1 ? formatScheduleSlotsPreview(slots) : r.date;
+                  const startCell = slots.length > 1 ? formatScheduleSlotsTimeSummary(slots) : r.startTime;
+                  const endCell = slots.length > 1 ? '—' : r.endTime;
+                  return `
                   <tr>
                     <td>${escapeHtmlForPrint(r.title)}</td>
                     <td>${escapeHtmlForPrint(toActivityTypeLabel(r.activityType))}</td>
                     <td>${escapeHtmlForPrint(toActivityFormatLabel(r.format))}</td>
                     <td>${escapeHtmlForPrint(toActivityStatusLabel(r.status))}</td>
-                    <td>${escapeHtmlForPrint(r.date)}</td>
-                    <td>${escapeHtmlForPrint(r.startTime)}</td>
-                    <td>${escapeHtmlForPrint(r.endTime)}</td>
+                    <td>${escapeHtmlForPrint(dateCell)}</td>
+                    <td>${escapeHtmlForPrint(startCell)}</td>
+                    <td>${escapeHtmlForPrint(endCell)}</td>
                     <td>${escapeHtmlForPrint(formatDuration(r.durationMinutes))}</td>
                     <td>${escapeHtmlForPrint((r.consultantNames || []).join(', '))}</td>
                     <td>${escapeHtmlForPrint((r.topics || []).join(', '))}</td>
                     <td>${escapeHtmlForPrint(r.location || '—')}</td>
                   </tr>
-                `
+                `;
+                }
               )
               .join('')}
           </tbody>
@@ -583,9 +593,9 @@ export default function ActivitiesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <p className="font-medium">{row.date}</p>
+                        <p className="font-medium">{formatScheduleSlotsPreview(resolveScheduleSlots(row))}</p>
                         <p className="text-muted-foreground">
-                          {row.startTime} - {row.endTime}
+                          {formatScheduleSlotsTimeSummary(resolveScheduleSlots(row))}
                         </p>
                         <p className="text-xs text-muted-foreground">{formatDuration(row.durationMinutes)}</p>
                       </div>

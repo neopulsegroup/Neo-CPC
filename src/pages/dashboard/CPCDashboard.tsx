@@ -24,7 +24,6 @@ import {
   Clock,
   CalendarX,
   FileText,
-  Filter,
   CheckCircle,
   Ban,
   Mail,
@@ -52,6 +51,7 @@ import {
   previousMonthStartEndFromTodayIso,
   weekStartEndIsoMondayInAppCalendar,
 } from '@/lib/appCalendar';
+import { canManageServiceAreas } from '@/lib/cpcRoles';
 import {
   computeMigrantProfileCompletenessPercent,
   type MigrantProfileFieldsForCompleteness,
@@ -170,11 +170,20 @@ function CpcAdminOnlyRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function CpcServiceAreasAdminRoute({ children }: { children: React.ReactNode }) {
+  const { profile } = useAuth();
+  if (!canManageServiceAreas(profile?.role)) {
+    return <Navigate to="/dashboard/cpc" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function CPCDashboard() {
   const { profile, profileData, user } = useAuth();
   const { t, language } = useLanguage();
   const location = useLocation();
   const isCpcAdmin = isCpcAdminRole(profile?.role);
+  const canAccessServiceAreas = canManageServiceAreas(profile?.role);
 
   const cpcDisplayName = useMemo(() => {
     const profileDocName = typeof profileData?.name === 'string' ? profileData.name.trim() : '';
@@ -505,12 +514,12 @@ export default function CPCDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
                 <Label>{t.get('cpc.team.search.label')}</Label>
-              <div className="flex items-center gap-2 mt-1">
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.get('cpc.team.search.placeholder')} />
-                <Button variant="outline" className="gap-2">
-                    <Filter className="h-4 w-4" /> {t.get('cpc.team.actions.filter')}
-                </Button>
-              </div>
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t.get('cpc.team.search.placeholder')}
+                  className="mt-1"
+                />
             </div>
             <div>
                 <Label>{t.get('cpc.team.role.label')}</Label>
@@ -838,7 +847,6 @@ export default function CPCDashboard() {
     };
 
     const [loadingList, setLoadingList] = useState(true);
-    const [processingId, setProcessingId] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending_review' | 'active' | 'rejected'>('pending_review');
     const [searchQuery, setSearchQuery] = useState('');
     const [rows, setRows] = useState<OfferRow[]>([]);
@@ -900,36 +908,6 @@ export default function CPCDashboard() {
     useEffect(() => {
       void fetchAll();
     }, []);
-
-    async function handleSetStatus(row: OfferRow, nextStatus: 'active' | 'rejected') {
-      setProcessingId(row.id);
-      try {
-        await updateDocument('job_offers', row.id, {
-          status: nextStatus,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.uid || null,
-        });
-        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: nextStatus } : r)));
-      } catch (error) {
-        console.error('Error moderating offer status:', error);
-      } finally {
-        setProcessingId(null);
-      }
-    }
-
-    async function handleDelete(row: OfferRow) {
-      const ok = window.confirm(t.get('cpc.pages.offers.confirm_delete', { title: row.title }));
-      if (!ok) return;
-      setProcessingId(row.id);
-      try {
-        await deleteDocument('job_offers', row.id);
-        setRows((prev) => prev.filter((r) => r.id !== row.id));
-      } catch (error) {
-        console.error('Error deleting offer:', error);
-      } finally {
-        setProcessingId(null);
-      }
-    }
 
     const filteredRows = useMemo(() => {
       let out = [...rows];
@@ -1013,10 +991,12 @@ export default function CPCDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredRows.map((r) => {
-                const rowBusy = processingId === r.id;
-                return (
-                  <div key={r.id} className="cpc-card p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {filteredRows.map((r) => (
+                  <Link
+                    key={r.id}
+                    to={`/dashboard/cpc/ofertas/${r.id}`}
+                    className="cpc-card p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 hover:border-primary/40 transition-colors"
+                  >
                     <div className="min-w-0">
                       <p className="font-medium truncate">{r.title}</p>
                       <p className="text-sm text-muted-foreground truncate">
@@ -1025,39 +1005,13 @@ export default function CPCDashboard() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {r.created_at ? new Date(r.created_at).toLocaleDateString(locale) : '—'}
                       </p>
+                      <p className="text-xs text-primary mt-2">{t.get('cpc.pages.offers.viewDetails')}</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 md:justify-end shrink-0">
                       {statusBadge(r.status)}
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetStatus(r, 'active')}
-                        disabled={rowBusy || r.status === 'active'}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        {t.get('cpc.pages.offers.actions.approve')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSetStatus(r, 'rejected')}
-                        disabled={rowBusy || r.status === 'rejected'}
-                      >
-                        <Ban className="h-4 w-4 mr-2" />
-                        {t.get('cpc.pages.offers.actions.reject')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(r)}
-                        disabled={rowBusy}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        {t.get('cpc.pages.offers.actions.delete')}
-                      </Button>
                     </div>
-                  </div>
-                );
-            })}
+                  </Link>
+                ))}
             {filteredRows.length === 0 && (
               <div className="cpc-card p-12 text-center text-muted-foreground">{t.get('cpc.pages.offers.empty')}</div>
             )}
@@ -1333,18 +1287,21 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/migrantes', label: t.get('cpc.menu.migrants'), icon: Users },
     { to: '/dashboard/cpc/atividades', label: t.get('cpc.menu.activities'), icon: ClipboardList },
     { to: '/dashboard/cpc/agenda', label: t.get('cpc.menu.agenda'), icon: Calendar },
+    { to: '/dashboard/cpc/empresas', label: t.get('cpc.menu.companies'), icon: Building2 },
     { to: '/dashboard/cpc/candidaturas', label: t.get('cpc.menu.applications'), icon: FileText },
     { to: '/dashboard/cpc/ofertas', label: t.get('cpc.menu.offers'), icon: Briefcase },
     { to: '/dashboard/cpc/trilhas', label: t.get('cpc.menu.trails'), icon: BookOpen },
     { to: '/dashboard/cpc/equipa', label: t.get('cpc.menu.team'), icon: UserCog },
     { to: '/dashboard/cpc/estatisticas', label: t.get('cpc.menu.statistics'), icon: TrendingUp },
-    ...(isCpcAdmin ? [{ to: '/dashboard/cpc/areas-servico', label: t.get('serviceAreas.title'), icon: UserCog }] : []),
     { to: '/dashboard/cpc/traducoes', label: t.get('cpcTranslations.title'), icon: Languages },
   ];
 
-  const sidebarItemsAdministration = isCpcAdmin
-    ? [{ to: '/dashboard/cpc/log-eventos', label: t.get('cpc.menu.eventLog'), icon: ScrollText }]
-    : [];
+  const sidebarItemsAdministration = [
+    ...(canAccessServiceAreas
+      ? [{ to: '/dashboard/cpc/areas-servico', label: t.get('serviceAreas.title'), icon: Wrench }]
+      : []),
+    ...(isCpcAdmin ? [{ to: '/dashboard/cpc/log-eventos', label: t.get('cpc.menu.eventLog'), icon: ScrollText }] : []),
+  ];
 
   const sidebarItemsProfile = [
     { to: '/dashboard/cpc/perfil', label: t.get('cpc.menu.profile'), icon: Building2 },
@@ -1642,8 +1599,11 @@ export default function CPCDashboard() {
                 <Route path="atividades/:activityId" element={<ActivityDetailsPage />} />
                 <Route path="atividades/:activityId/editar" element={<ActivityEditorPage />} />
                 <Route path="agenda" element={<TeamAgendaPage />} />
+                <Route path="empresas" element={<CompaniesAdminPage />} />
+                <Route path="empresas/:companyId" element={<CpcCompanyDetailPage />} />
                 <Route path="candidaturas" element={<CandidaturasDetalhadas />} />
                 <Route path="ofertas" element={<OfertasAguardandoAprovacao />} />
+                <Route path="ofertas/:jobId" element={<CpcJobOfferDetailPage />} />
                 <Route path="trilhas" element={<TrailsAdminPage />} />
                 <Route path="trilhas/:trailId" element={<TrailEditorPage />} />
                 <Route path="equipa" element={<EquipaPage />} />
@@ -1661,7 +1621,14 @@ export default function CPCDashboard() {
                 <Route path="mensagens" element={<CPCMessagesPage />} />
                 <Route path="traducoes" element={<TranslationsAdminPage />} />
                 <Route path="conteudo" element={<ContentEditorPage />} />
-                <Route path="areas-servico" element={<ServiceAreasAdminPage />} />
+                <Route
+                  path="areas-servico"
+                  element={
+                    <CpcServiceAreasAdminRoute>
+                      <ServiceAreasAdminPage />
+                    </CpcServiceAreasAdminRoute>
+                  }
+                />
               </Routes>
             </div>
           </div>
@@ -1682,6 +1649,9 @@ import CPCMessagesPage from './cpc/MessagesPage';
 import ActivitiesPage from './cpc/ActivitiesPage';
 import ActivityEditorPage from './cpc/ActivityEditorPage';
 import ActivityDetailsPage from './cpc/ActivityDetailsPage';
+import CpcJobOfferDetailPage from './cpc/CpcJobOfferDetailPage';
+import CompaniesAdminPage from './cpc/CompaniesAdminPage';
+import CpcCompanyDetailPage from './cpc/CpcCompanyDetailPage';
 import StatisticsPage from './cpc/StatisticsPage';
 import CPCSettingsPage from './cpc/SettingsPage';
 import EventLogPage from './cpc/EventLogPage';

@@ -61,7 +61,14 @@ import SessionsPage from './migrant/SessionsPage';
 import MigrantActivitiesListPage from './migrant/MigrantActivitiesListPage';
 import MigrantActivityDetailPage from './migrant/MigrantActivityDetailPage';
 import MigrantMessagesPage from './migrant/MessagesPage';
+import MigrantJobsAccessGate from './migrant/MigrantJobsAccessGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
+import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
+import {
+  canAccessMigrantJobs,
+  hasEmployerProfessionalAuthorization,
+  MIGRANT_JOBS_ACCESS_PROFILE_PATH,
+} from '@/lib/migrantJobsAccess';
 
 type MigrantDashboardProfileDoc = {
   id?: string;
@@ -85,6 +92,7 @@ type MigrantDashboardProfileDoc = {
   languagesList?: string | null;
   mainNeeds?: string | null;
   contactPreference?: string | null;
+  authorizeEmployersProfessionalProfile?: boolean | null;
 };
 
 type DashboardNotificationDoc = {
@@ -103,6 +111,37 @@ function normalizeDashboardRole(value?: string | null): string {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+function parseNotificationCreatedAtMs(created: unknown): number {
+  if (!created) return 0;
+  if (typeof created === 'string') {
+    const parsed = Date.parse(created);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof created === 'object') {
+    const value = created as { toDate?: () => Date; seconds?: number };
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    }
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+  }
+  return 0;
+}
+
+function mapNotificationDoc(d: DashboardNotificationDoc) {
+  const created = d.created_at;
+  const dateMs = parseNotificationCreatedAtMs(created);
+  const date = dateMs > 0 ? new Date(dateMs).toISOString() : new Date().toISOString();
+  return {
+    id: d.id,
+    title: (d.title || 'Notificação').trim(),
+    body: (d.body || '').trim(),
+    date,
+    type: d.type || undefined,
+    href: d.href || undefined,
+  };
 }
 
 function MigrantHome() {
@@ -303,28 +342,13 @@ function MigrantHome() {
     const unsubscribe = subscribeQuery<DashboardNotificationDoc>({
       collectionName: 'notifications',
       filters: [{ field: 'recipient_id', operator: '==', value: user.uid }],
-      orderByField: { field: 'created_at', direction: 'desc' },
-      limitCount: 20,
+      // Ordenação client-side: evita índice composto até deploy de firestore.indexes.json.
       onNext: (docs) => {
-        const mapped = docs.map((d) => {
-          const created = d.created_at as { toDate?: () => Date; seconds?: number } | string | null | undefined;
-          const date =
-            created && typeof created === 'object' && typeof created.toDate === 'function'
-              ? created.toDate().toISOString()
-              : created && typeof created === 'object' && typeof created.seconds === 'number'
-                ? new Date(created.seconds * 1000).toISOString()
-                : typeof created === 'string'
-                  ? created
-                  : new Date().toISOString();
-          return {
-            id: d.id,
-            title: (d.title || 'Notificação').trim(),
-            body: (d.body || '').trim(),
-            date,
-            type: d.type || undefined,
-            href: d.href || undefined,
-          };
-        });
+        const mapped = docs
+          .slice()
+          .sort((a, b) => parseNotificationCreatedAtMs(b.created_at) - parseNotificationCreatedAtMs(a.created_at))
+          .slice(0, 20)
+          .map(mapNotificationDoc);
         setDbNotifications(mapped);
       },
       onError: () => setDbNotifications([]),
@@ -503,14 +527,28 @@ function MigrantHome() {
     };
   }, [profile?.name, profile, profileDoc]);
 
+  const jobsAccessAlert = useMemo(() => {
+    if (hasEmployerProfessionalAuthorization(profileDoc)) return null;
+
+    return {
+      id: 'jobs-access-alert',
+      title: t.get('dashboard.migrant_jobs.access_alert_title'),
+      body: t.get('dashboard.migrant_jobs.access_alert_missing_authorization'),
+      date: new Date().toISOString(),
+      type: 'warning',
+      href: MIGRANT_JOBS_ACCESS_PROFILE_PATH,
+    };
+  }, [profileDoc, t]);
+
   const visibleNotifications = useMemo(() => {
     const list = [
       ...(profileRequiredAlert ? [profileRequiredAlert] : []),
+      ...(jobsAccessAlert ? [jobsAccessAlert] : []),
       ...dbNotifications,
       ...notifications,
     ];
     return list.slice(0, 4);
-  }, [dbNotifications, notifications, profileRequiredAlert]);
+  }, [dbNotifications, notifications, profileRequiredAlert, jobsAccessAlert]);
 
   function addUrgentRequest() {
     if (!user || !urgentDesc) return;
@@ -767,7 +805,12 @@ function MigrantHome() {
           <div className="cpc-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold flex items-center gap-2"><Briefcase className="h-5 w-5 text-primary" /> {t.dashboard.employment_area}</h2>
-              <Link to="/dashboard/migrante/emprego" className="text-sm text-primary hover:underline">{t.dashboard.view_all}</Link>
+              <Link
+                to={canAccessMigrantJobs(profileDoc) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}
+                className="text-sm text-primary hover:underline"
+              >
+                {t.dashboard.view_all}
+              </Link>
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
               <Button asChild variant="outline" size="sm">
@@ -777,7 +820,7 @@ function MigrantHome() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="sm">
-                <Link to="/dashboard/migrante/emprego">
+                <Link to={canAccessMigrantJobs(profileDoc) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}>
                   <Briefcase className="h-4 w-4 mr-2" />
                   {t.dashboard.view_vacancies}
                 </Link>
@@ -794,7 +837,11 @@ function MigrantHome() {
                 employmentPreview.map((job) => (
                   <Link
                     key={job.id}
-                    to={`/dashboard/migrante/emprego/${job.id}`}
+                    to={
+                      canAccessMigrantJobs(profileDoc)
+                        ? `/dashboard/migrante/emprego/${job.id}`
+                        : MIGRANT_JOBS_ACCESS_PROFILE_PATH
+                    }
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted"
                   >
                     <div className="min-w-0">
@@ -954,6 +1001,8 @@ export default function MigrantDashboard() {
   const location = useLocation();
   const { t } = useLanguage();
   const { profile } = useAuth();
+  const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
+  const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
   const sidebarItemsMain = [
     { to: '/dashboard/migrante', label: t.get('dashboard.overview'), icon: TrendingUp },
@@ -989,10 +1038,12 @@ export default function MigrantDashboard() {
                 - Visibilidade: secção de definições apenas para utilizadores com perfil migrante.
               */}
               <nav className="space-y-1">
-                {sidebarItemsMain.map((item) => (
+                {sidebarItemsMain.map((item) => {
+                  const to = item.to === '/dashboard/migrante/emprego' ? jobsMenuPath : item.to;
+                  return (
                   <NavLink
                     key={item.to}
-                    to={item.to}
+                    to={to}
                     end={item.to === '/dashboard/migrante'}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`
@@ -1001,7 +1052,8 @@ export default function MigrantDashboard() {
                     <item.icon className="h-4 w-4" />
                     <span>{item.label}</span>
                   </NavLink>
-                ))}
+                  );
+                })}
 
                 {isMigrant ? (
                   <>
@@ -1046,8 +1098,8 @@ export default function MigrantDashboard() {
                 <Route path="trilhas" element={<TrailsPage />} />
                 <Route path="trilhas/:trailId" element={<TrailDetailPage />} />
                 <Route path="trilhas/:trailId/modulo/:moduleId" element={<ModuleViewerPage />} />
-                <Route path="emprego" element={<JobsPage />} />
-                <Route path="emprego/:jobId" element={<JobDetailPage />} />
+                <Route path="emprego" element={<MigrantJobsAccessGate><JobsPage /></MigrantJobsAccessGate>} />
+                <Route path="emprego/:jobId" element={<MigrantJobsAccessGate><JobDetailPage /></MigrantJobsAccessGate>} />
                 {/* TASK-02 — Minhas Candidaturas */}
                 <Route path="candidaturas" element={<MyApplicationsPage />} />
                 <Route path="atividades" element={<MigrantActivitiesListPage />} />

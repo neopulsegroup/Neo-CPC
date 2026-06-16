@@ -34,8 +34,47 @@ describe("Firestore rules — job_offers (empresa)", () => {
     await testEnv.clearFirestore();
   });
 
-  it("permite criar job_offers com users.role company, companies/{uid} e company_id == uid", async () => {
+  it("permite criar job_offers com empresa validada (verified: true)", async () => {
     const uid = "y3Ba2yDMmfVlYjdC5JByt7xdPK43";
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection("users").doc(uid).set({
+        email: "empresa@test.com",
+        name: "Empresa",
+        role: "company",
+        active: true,
+        blocked: false,
+      });
+      await db.collection("companies").doc(uid).set({
+        user_id: uid,
+        company_name: "empresa",
+        verified: true,
+        createdAt: "2026-03-19T21:30:59.297Z",
+      });
+    });
+
+    const authed = testEnv.authenticatedContext(uid);
+    const db = authed.firestore();
+
+    await assertSucceeds(
+      db.collection("job_offers").add({
+        company_id: uid,
+        title: "Desenvolvedor",
+        description: "Detalhes",
+        location: "Lisboa",
+        sector: "TI",
+        contract_type: "full_time",
+        work_mode: "on_site",
+        salary_range: "",
+        requirements: "",
+        status: "pending_review",
+        created_at: new Date().toISOString(),
+      })
+    );
+  });
+
+  it("nega criar job_offers se empresa não está validada (verified: false)", async () => {
+    const uid = "unverifiedCompany01";
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       await db.collection("users").doc(uid).set({
@@ -54,10 +93,8 @@ describe("Firestore rules — job_offers (empresa)", () => {
     });
 
     const authed = testEnv.authenticatedContext(uid);
-    const db = authed.firestore();
-
-    await assertSucceeds(
-      db.collection("job_offers").add({
+    await assertFails(
+      authed.firestore().collection("job_offers").add({
         company_id: uid,
         title: "Desenvolvedor",
         description: "Detalhes",
@@ -85,7 +122,7 @@ describe("Firestore rules — job_offers (empresa)", () => {
       await db.collection("companies").doc(uid).set({
         user_id: uid,
         company_name: "X",
-        verified: false,
+        verified: true,
       });
     });
 
@@ -149,7 +186,7 @@ describe("Firestore rules — job_offers (empresa)", () => {
       });
       await db.collection("companies").doc(uid).set({
         company_name: "Só nome",
-        verified: false,
+        verified: true,
       });
     });
 
