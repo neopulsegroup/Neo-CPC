@@ -8,6 +8,7 @@ import {
   applyBrandingToAllPdfLibPages,
   embedBrandingImagesForPdfLib,
 } from '@/lib/pdfLibDocumentBranding';
+import { buildDocxBrandingSections, withSheetBranding } from '@/lib/exportBrandingHeaders';
 
 export type StatisticsPeriod = 'year' | 'q1' | 'q2' | 'q3' | 'q4';
 
@@ -375,46 +376,62 @@ export async function exportStatisticsXlsx(
 
   const wb = XLSX.utils.book_new();
 
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  // T-02 (Bloco 4): branding rows no topo e no fim de cada sheet.
+  const summarySheet = XLSX.utils.aoa_to_sheet(withSheetBranding(summaryRows, { title: 'Resumo' }));
   summarySheet['!cols'] = [{ wch: 28 }, { wch: 36 }];
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Resumo');
 
-  const regionalSheet = XLSX.utils.aoa_to_sheet([
-    ['Região', 'Total', 'Inícios', 'Conclusões', 'Taxa de Conclusão'],
-    ...report.regionStats.map((r) => [r.region, r.total, r.started, r.completed, r.completionRate / 100]),
-  ]);
+  const regionalSheet = XLSX.utils.aoa_to_sheet(withSheetBranding(
+    [
+      ['Região', 'Total', 'Inícios', 'Conclusões', 'Taxa de Conclusão'],
+      ...report.regionStats.map((r) => [r.region, r.total, r.started, r.completed, r.completionRate / 100]),
+    ] as string[][],
+    { title: 'Regiões' }
+  ));
   regionalSheet['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, regionalSheet, 'Regiões');
 
-  const monthlySheet = XLSX.utils.aoa_to_sheet([
-    ['Mês', 'Inscrições'],
-    ...report.monthly.map((m) => [m.month, m.registrations]),
-  ]);
+  const monthlySheet = XLSX.utils.aoa_to_sheet(withSheetBranding(
+    [
+      ['Mês', 'Inscrições'],
+      ...report.monthly.map((m) => [m.month, m.registrations]),
+    ] as string[][],
+    { title: 'Mensal' }
+  ));
   monthlySheet['!cols'] = [{ wch: 14 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, monthlySheet, 'Mensal');
 
-  const trailSheet = XLSX.utils.aoa_to_sheet([
-    ['Percurso', 'Conclusões'],
-    ...report.trailPerf.map((t) => [t.trail, t.completed]),
-  ]);
+  const trailSheet = XLSX.utils.aoa_to_sheet(withSheetBranding(
+    [
+      ['Percurso', 'Conclusões'],
+      ...report.trailPerf.map((t) => [t.trail, t.completed]),
+    ] as string[][],
+    { title: 'Percursos' }
+  ));
   trailSheet['!cols'] = [{ wch: 40 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, trailSheet, 'Percursos');
 
   if (report.registrationYearStats.length > 0) {
     const yearLabels = opts?.registrationYearLabels ?? DEFAULT_REGISTRATION_YEAR_EXPORT_LABELS;
-    const yearSheet = XLSX.utils.aoa_to_sheet([
-      [yearLabels.headerYear, yearLabels.headerCount],
-      ...report.registrationYearStats.map((row) => [row.year, row.count]),
-    ]);
+    const yearSheet = XLSX.utils.aoa_to_sheet(withSheetBranding(
+      [
+        [yearLabels.headerYear, yearLabels.headerCount],
+        ...report.registrationYearStats.map((row) => [row.year, row.count]),
+      ] as string[][],
+      { title: 'Ano de Registo' }
+    ));
     yearSheet['!cols'] = [{ wch: 12 }, { wch: 12 }];
     // Nome da aba limitado a 31 chars pelo formato XLSX; "Ano de Registo" tem 14.
     XLSX.utils.book_append_sheet(wb, yearSheet, 'Ano de Registo');
   }
 
-  const rawSheet = XLSX.utils.aoa_to_sheet([
-    ['User ID', 'Data de registo', 'Região', 'Iniciou plano', 'Concluiu plano', 'Percursos concluídos'],
-    ...report.rawUsers.map((r) => [r.userId, r.createdAtISO, r.region, r.startedPlan ? 'Sim' : 'Não', r.completedPlan ? 'Sim' : 'Não', r.trailsCompleted]),
-  ]);
+  const rawSheet = XLSX.utils.aoa_to_sheet(withSheetBranding(
+    [
+      ['User ID', 'Data de registo', 'Região', 'Iniciou plano', 'Concluiu plano', 'Percursos concluídos'],
+      ...report.rawUsers.map((r) => [r.userId, r.createdAtISO, r.region, r.startedPlan ? 'Sim' : 'Não', r.completedPlan ? 'Sim' : 'Não', r.trailsCompleted]),
+    ] as string[][],
+    { title: 'Base' }
+  ));
   rawSheet['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, rawSheet, 'Base');
 
@@ -524,9 +541,14 @@ export async function exportStatisticsDocx(
     report.rawUsers.map((r) => [r.userId, r.createdAtISO, r.region, r.startedPlan ? 'Sim' : 'Não', r.completedPlan ? 'Sim' : 'Não', r.trailsCompleted])
   );
 
+  // T-02 (Bloco 4): branding header+footer em todas as páginas do DOCX.
+  const branding = buildDocxBrandingSections(docx);
+
   const doc = new Document({
     sections: [
       {
+        headers: branding.headers,
+        footers: branding.footers,
         children: [
           title,
           ...meta,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, setDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { withSheetBranding } from '@/lib/exportBrandingHeaders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
@@ -671,7 +672,10 @@ export default function CandidatesPage() {
       } else {
         const XLSX = xlsxModuleRef.current;
         if (!XLSX) throw new Error(t.get('company.candidates.export.error.xlsx_missing'));
-        const worksheet = XLSX.utils.aoa_to_sheet(rows);
+        // T-02 (Bloco 4): branding rows no topo e no fim do XLSX.
+        const worksheet = XLSX.utils.aoa_to_sheet(
+          withSheetBranding(rows as string[][], { title: t.get('company.candidates.title') })
+        );
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, t.get('company.candidates.title'));
         const out = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

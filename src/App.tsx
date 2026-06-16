@@ -20,6 +20,7 @@ import MigrantDashboard from "./pages/dashboard/MigrantDashboard";
 import CPCDashboard from "./pages/dashboard/CPCDashboard";
 import CompanyDashboard from "./pages/dashboard/CompanyDashboard";
 import NotFound from "./pages/NotFound";
+import { EmailVerificationGuard } from "./components/auth/EmailVerificationGuard";
 import CreateTestUsersDev from "./pages/dev/CreateTestUsers";
 import Cookies from "./pages/Cookies";
 import Privacy from "./pages/Privacy";
@@ -135,7 +136,9 @@ function AppRoutes() {
         path="/triagem"
         element={
           <ProtectedRoute allowedRoles={['migrant']}>
-            <Triage />
+            <EmailVerificationGuard>
+              <Triage />
+            </EmailVerificationGuard>
           </ProtectedRoute>
         }
       />
@@ -145,9 +148,11 @@ function AppRoutes() {
         path="/dashboard/migrante/*"
         element={
           <ProtectedRoute allowedRoles={['migrant']}>
-            <TriageGuard>
-              <MigrantDashboard />
-            </TriageGuard>
+            <EmailVerificationGuard>
+              <TriageGuard>
+                <MigrantDashboard />
+              </TriageGuard>
+            </EmailVerificationGuard>
           </ProtectedRoute>
         }
       />
@@ -157,7 +162,9 @@ function AppRoutes() {
         path="/dashboard/cpc/*"
         element={
           <ProtectedRoute allowedRoles={['mediator', 'lawyer', 'psychologist', 'manager', 'coordinator', 'admin', 'trainer']}>
-            <CPCDashboard />
+            <EmailVerificationGuard>
+              <CPCDashboard />
+            </EmailVerificationGuard>
           </ProtectedRoute>
         }
       />
@@ -167,7 +174,9 @@ function AppRoutes() {
         path="/dashboard/empresa/*"
         element={
           <ProtectedRoute allowedRoles={['company']}>
-            <CompanyDashboard />
+            <EmailVerificationGuard>
+              <CompanyDashboard />
+            </EmailVerificationGuard>
           </ProtectedRoute>
         }
       />

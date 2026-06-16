@@ -1,3 +1,5 @@
+import { buildDocxBrandingSections, withSheetBranding } from '@/lib/exportBrandingHeaders';
+
 export function escapeHtmlForMessagesExport(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -98,9 +100,16 @@ export function buildCpcMessagesXlsx(
   }
 ): ArrayBuffer {
   const wb = XLSX.utils.book_new();
-  const convAoa = [args.conversationHeaders, ...args.conversationRows];
+  // T-02 (Bloco 4): branding rows no topo + footer text em ambas as sheets.
+  const convAoa = withSheetBranding(
+    [args.conversationHeaders, ...args.conversationRows],
+    { title: args.conversationsSheetName }
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(convAoa), args.conversationsSheetName.slice(0, 31));
-  const msgAoa = [args.messageHeaders, ...args.messageRows];
+  const msgAoa = withSheetBranding(
+    [args.messageHeaders, ...args.messageRows],
+    { title: args.messagesSheetName }
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(msgAoa), args.messagesSheetName.slice(0, 31));
   return XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
 }
@@ -156,9 +165,14 @@ export async function buildCpcMessagesDocx(
   const msgHeading = new Paragraph({ text: args.messagesHeading, heading: HeadingLevel.HEADING_2 });
   const msgTable = mkTable(args.messageHeaders, args.messageRows);
 
+  // T-02 (Bloco 4): headers + footers em todas as páginas do DOCX.
+  const branding = buildDocxBrandingSections(docx);
+
   const doc = new Document({
     sections: [
       {
+        headers: branding.headers,
+        footers: branding.footers,
         children: [
           titlePara,
           ...introParas,

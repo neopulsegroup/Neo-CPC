@@ -152,11 +152,15 @@ describe('statisticsExport', () => {
     const buf = await exportStatisticsXlsx(report, XLSX);
     const wb = XLSX.read(buf, { type: 'array' });
     expect(wb.SheetNames).toContain('Ano de Registo');
-    // Verifica que a aba tem header + 2 linhas de dados
+    // T-02 (Bloco 4): cada sheet recebe branding rows no topo + footer no fim.
+    // Localizar a row do header de dados (['Ano', 'Inscritos']) e validar os dados a seguir.
     const sheet = wb.Sheets['Ano de Registo'];
     const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-    expect(rows[0]).toEqual(['Ano', 'Inscritos']);
-    expect(rows).toHaveLength(3);
+    const headerIndex = rows.findIndex((row) => row[0] === 'Ano' && row[1] === 'Inscritos');
+    expect(headerIndex).toBeGreaterThanOrEqual(0);
+    // Espera 2 rows de dados a seguir ao header.
+    expect(rows[headerIndex + 1]?.length).toBeGreaterThan(0);
+    expect(rows[headerIndex + 2]?.length).toBeGreaterThan(0);
   });
 
   // TASK-01.1: PDF aceita registrationYearStats sem crashar

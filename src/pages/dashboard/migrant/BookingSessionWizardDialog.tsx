@@ -537,8 +537,13 @@ export default function BookingSessionWizardDialog({
         if (!next) resetWizard();
       }}
     >
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl p-0">
-        <div className="grid min-h-[560px] grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
+      {/* T-03 (Bloco 4): wizard em fullscreen para focar a tarefa de marcação.
+          As classes `!inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0` sobrescrevem
+          o posicionamento centrado default do DialogContent (shadcn/Radix). */}
+      <DialogContent
+        className="!inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 w-screen h-screen max-w-none max-h-screen sm:max-w-none sm:max-h-screen sm:rounded-none rounded-none border-0 p-0 overflow-y-auto gap-0"
+      >
+        <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
           <div className="hidden border-r bg-slate-50 p-6 lg:block">
             <div className="flex items-center justify-between">
               <div>
@@ -605,6 +610,8 @@ export default function BookingSessionWizardDialog({
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 pb-6 lg:px-8">
+              {/* T-03 (Bloco 4): conteúdo centrado em ecrãs largos, ocupa toda a largura em mobile. */}
+              <div className="mx-auto w-full max-w-3xl">
               {wizardTransitionLoading ? (
                 <div className="flex h-full items-center justify-center">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -717,6 +724,7 @@ export default function BookingSessionWizardDialog({
                   ) : null}
                 </>
               )}
+              </div>
             </div>
 
             <div className="border-t px-5 py-4 lg:px-8">
