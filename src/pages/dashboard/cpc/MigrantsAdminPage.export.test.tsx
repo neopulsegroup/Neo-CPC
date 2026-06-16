@@ -10,6 +10,7 @@ const mockGetDocument = vi.fn();
 const mockUpdateDocument = vi.fn();
 const mockDeleteDocument = vi.fn();
 const mockAddDocument = vi.fn();
+const mockSetDocument = vi.fn();
 const mockServerTimestamp = vi.fn();
 const mockToast = vi.fn();
 
@@ -19,6 +20,7 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
   deleteDocument: (...args: unknown[]) => mockDeleteDocument(...args),
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
+  setDocument: (...args: unknown[]) => mockSetDocument(...args),
   serverTimestamp: (...args: unknown[]) => mockServerTimestamp(...args),
 }));
 
@@ -115,6 +117,7 @@ describe('MigrantsAdminPage - exportação (Email)', () => {
     mockUpdateDocument.mockReset();
     mockDeleteDocument.mockReset();
     mockAddDocument.mockReset();
+    mockSetDocument.mockReset().mockResolvedValue(undefined);
     mockServerTimestamp.mockReset().mockReturnValue('ts');
     mockToast.mockReset();
     mockRole = 'admin';
@@ -278,13 +281,27 @@ describe('MigrantsAdminPage - exportação (Email)', () => {
       return [];
     });
 
+    let usersDocExists: Record<string, boolean> = { u1: true, u2: true };
     mockGetDocument.mockImplementation(async (collection: string, docId: string) => {
       if (collection === 'profiles') return { name: docId === 'u1' ? 'Pessoa 1' : 'Pessoa 2', email: `${docId}@exemplo.com` };
       if (collection === 'triage') return { legal_status: 'regular', answers: {} };
+      // T-07 (LGPD): o cascade verifica existência antes de apagar users/{uid};
+      // após delete, refaz a verificação com `usersDocExists` para confirmar persistência.
+      if (collection === 'users') {
+        if (usersDocExists[docId]) {
+          return { id: docId };
+        }
+        return null;
+      }
       return null;
     });
 
-    mockDeleteDocument.mockResolvedValue(undefined);
+    // Quando deleteDocument apaga 'users/u1', marcar como deletado para o next getDocument.
+    mockDeleteDocument.mockImplementation(async (collection: string, docId: string) => {
+      if (collection === 'users') {
+        usersDocExists = { ...usersDocExists, [docId]: false };
+      }
+    });
 
     render(
       <MemoryRouter>

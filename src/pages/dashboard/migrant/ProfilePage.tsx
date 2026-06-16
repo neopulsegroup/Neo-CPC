@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList } from 'lucide-react';
+import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList, Trash2, ShieldAlert } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/integrations/firebase/functionsClient';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -164,10 +176,15 @@ function buildEditStateFromMergedProfile(res: MigrantProfileResponse, merged: Mi
 }
 
 export default function ProfilePage() {
-  const { user, profile: authProfile, refreshProfile } = useAuth();
+  const { user, profile: authProfile, refreshProfile, logout } = useAuth();
   const { migrantId } = useParams<{ migrantId?: string }>();
+  const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
+  // T-08 (LGPD Art. 17): self-service delete state.
+  const [selfDeleteOpen, setSelfDeleteOpen] = useState(false);
+  const [selfDeleteConfirmText, setSelfDeleteConfirmText] = useState('');
+  const [selfDeleting, setSelfDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<MigrantProfileResponse | null>(null);
@@ -243,6 +260,40 @@ export default function ProfilePage() {
 
   const targetUserId = migrantId || user?.uid || null;
   const isViewingOtherUser = !!(migrantId && user?.uid && migrantId !== user.uid);
+
+  // T-08 (LGPD Art. 17): self-service delete handler.
+  const handleSelfDelete = useCallback(async () => {
+    if (selfDeleteConfirmText.trim().toUpperCase() !== t.get('migrant.deleteAccount.confirmWord')) {
+      return;
+    }
+    setSelfDeleting(true);
+    try {
+      const callDelete = httpsCallable<undefined, { success: boolean }>(
+        functions,
+        'deleteOwnAccount'
+      );
+      await callDelete();
+      try {
+        await logout();
+      } catch {
+        // se a sessão já caiu por causa do auth.deleteUser, ignorar
+      }
+      toast({
+        title: t.get('migrant.deleteAccount.success.title'),
+        description: t.get('migrant.deleteAccount.success.description'),
+      });
+      navigate('/', { replace: true });
+    } catch (error: unknown) {
+      console.error('self_delete_failed', error);
+      toast({
+        title: t.get('migrant.deleteAccount.error.title'),
+        description: t.get('migrant.deleteAccount.error.description'),
+        variant: 'destructive',
+      });
+      setSelfDeleting(false);
+    }
+  }, [selfDeleteConfirmText, t, logout, toast, navigate]);
+
   const sessionsUrl = isViewingOtherUser ? '/dashboard/cpc/agenda' : '/dashboard/migrante/sessoes';
   const triageUrl = isViewingOtherUser ? '/dashboard/cpc/migrantes' : '/triagem';
   const trailsUrl = isViewingOtherUser ? '/dashboard/cpc/trilhas' : '/dashboard/migrante/trilhas';
@@ -2298,6 +2349,87 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* T-08 (LGPD Art. 17): self-service delete — só visível ao próprio dono do perfil. */}
+      {!isViewingOtherUser && (
+        <div className="mt-6 cpc-card border-destructive/30 p-6">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-destructive">
+                {t.get('migrant.deleteAccount.title')}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                {t.get('migrant.deleteAccount.warning')}
+              </p>
+              <div className="mt-4">
+                <Button
+                  variant="destructive"
+                  type="button"
+                  onClick={() => {
+                    setSelfDeleteConfirmText('');
+                    setSelfDeleteOpen(true);
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t.get('migrant.deleteAccount.button')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={selfDeleteOpen} onOpenChange={(open) => {
+        if (selfDeleting) return;
+        setSelfDeleteOpen(open);
+        if (!open) setSelfDeleteConfirmText('');
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.get('migrant.deleteAccount.title')}</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span className="block">{t.get('migrant.deleteAccount.warning')}</span>
+              <span className="block font-medium">
+                {t.get('migrant.deleteAccount.confirmLabel')}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={selfDeleteConfirmText}
+            onChange={(e) => setSelfDeleteConfirmText(e.target.value)}
+            placeholder={t.get('migrant.deleteAccount.confirmWord')}
+            autoFocus
+            disabled={selfDeleting}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={selfDeleting}>
+              {t.get('migrant.deleteAccount.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleSelfDelete();
+              }}
+              disabled={
+                selfDeleting ||
+                selfDeleteConfirmText.trim().toUpperCase() !==
+                  t.get('migrant.deleteAccount.confirmWord')
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {selfDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t.get('migrant.deleteAccount.confirmButton')}
+                </>
+              ) : (
+                t.get('migrant.deleteAccount.confirmButton')
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

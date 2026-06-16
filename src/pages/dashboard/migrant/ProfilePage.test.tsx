@@ -33,6 +33,15 @@ vi.mock('@/integrations/firebase/client', () => ({
   storage: {},
 }));
 
+// T-08 (LGPD): ProfilePage importa `functions` para chamar `deleteOwnAccount`.
+vi.mock('@/integrations/firebase/functionsClient', () => ({
+  functions: {},
+}));
+
+vi.mock('firebase/functions', () => ({
+  httpsCallable: () => vi.fn().mockResolvedValue({ data: { success: true } }),
+}));
+
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: (...args: unknown[]) => mockToast(...args) }),
 }));

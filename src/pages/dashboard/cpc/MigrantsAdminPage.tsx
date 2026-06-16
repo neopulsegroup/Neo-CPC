@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { addDocument, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { addDocument, getDocument, queryDocuments, setDocument, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { cascadeDeleteUserData } from '@/features/admin/cascadeDeleteUser';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
 import { defaultBranding, fetchDocumentBranding } from '@/lib/documentBranding';
+import { withSheetBranding } from '@/lib/exportBrandingHeaders';
 import {
   buildPrintBrandingFooterWrappedRowHtml,
   buildPrintBrandingHeaderWrappedRowHtml,
@@ -517,7 +519,10 @@ export default function MigrantsAdminPage() {
         if (!XLSX) {
           throw new Error(t.get('cpc.migrantsAdmin.export.xlsx_missing_module'));
         }
-        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        // T-02 (Bloco 4): branding rows no topo e no fim do XLSX.
+        const worksheet = XLSX.utils.aoa_to_sheet(
+          withSheetBranding(data as string[][], { title: t.get('cpc.migrantsAdmin.title') })
+        );
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, t.get('cpc.migrantsAdmin.title'));
         const out = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
@@ -731,27 +736,33 @@ export default function MigrantsAdminPage() {
 
     setDeletingUserId(uid);
     try {
-      const [sessions, progress, applications] = await Promise.all([
-        queryDocuments<{ id: string }>('sessions', [{ field: 'migrant_id', operator: '==', value: uid }]),
-        queryDocuments<{ id: string }>('user_trail_progress', [{ field: 'user_id', operator: '==', value: uid }]),
-        queryDocuments<{ id: string }>('job_applications', [{ field: 'applicant_id', operator: '==', value: uid }]),
-      ]);
-
-      await Promise.all([
-        ...sessions.map((s) => deleteDocument('sessions', s.id)),
-        ...progress.map((p) => deleteDocument('user_trail_progress', p.id)),
-        ...applications.map((a) => deleteDocument('job_applications', a.id)),
-      ]);
-
-      await Promise.all([
-        deleteDocument('triage', uid),
-        deleteDocument('profiles', uid),
-        deleteDocument('users', uid),
-      ]);
+      // T-07 (LGPD): cascade-delete em todas as collections com dados deste utilizador.
+      // A lista vive em src/features/admin/userCollections.ts (single source of truth).
+      const cascadeReport = await cascadeDeleteUserData(uid);
 
       const stillExists = await getDocument<{ id: string }>('users', uid);
       if (stillExists) {
         throw new Error(t.get('cpc.migrantsAdmin.delete.error.not_persisted'));
+      }
+
+      // Audit do delete com relatório granular por collection.
+      try {
+        await setDocument(
+          'audit_logs',
+          `delete_${uid}_${Date.now()}`,
+          {
+            action: 'user_deleted',
+            actor_id: user?.uid ?? 'unknown',
+            target_id: uid,
+            target_name: name,
+            cascade_report: cascadeReport,
+            createdAt: serverTimestamp(),
+          },
+          { merge: false }
+        );
+      } catch (auditError) {
+        // Não bloqueia a UI — o cascade já correu e o utilizador desapareceu.
+        console.error('audit_log_failed', auditError);
       }
 
       setRows((prev) => prev.filter((r) => r.user_id !== uid));
