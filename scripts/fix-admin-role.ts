@@ -1,9 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // Caminho para o arquivo de service account
 // Baixar de: console.firebase.google.com > Project Settings > Service Accounts > Generate new private key
-const serviceAccount = require('../service-account.json');
+// T-44 (Bloco 6): lido em runtime para evitar `require()` style import (regra @typescript-eslint/no-require-imports).
+const serviceAccount = JSON.parse(
+  readFileSync(resolve(__dirname, '../service-account.json'), 'utf-8')
+) as Record<string, unknown>;
 
 initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();

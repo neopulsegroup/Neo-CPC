@@ -79,23 +79,26 @@ export function ContentEditorForm({ pageId }: { pageId: PageId }) {
     debugAuthAndRole();
   }, [user]);
 
-  if (!pageSchema) {
-    return <div>Schema de página não encontrado.</div>;
-  }
+  // T-44 (Bloco 6): hooks têm de correr SEMPRE na mesma ordem, mesmo quando
+  // `pageSchema` é undefined. Substituímos por uma lista vazia para os hooks
+  // serem chamados; o early return acontece depois deles. `useMemo` evita
+  // disparar re-renders nos hooks dependentes (T-45 wrap).
+  const pageFields = useMemo(() => pageSchema?.fields ?? [], [pageSchema]);
 
-  const pageFieldKeys = useMemo(() => new Set(pageSchema.fields.map((field) => field.key)), [pageSchema.fields]);
+  const pageFieldKeys = useMemo(() => new Set(pageFields.map((field) => field.key)), [pageFields]);
 
   const defaultValues = useMemo(() => {
     const fallback: Record<string, string> = {};
-    for (const field of pageSchema.fields) {
+    for (const field of pageFields) {
       fallback[field.key] = t.get(field.key);
     }
     return fallback;
-  }, [pageSchema.fields, t]);
+  }, [pageFields, t]);
 
   useUnsavedChangesWarning(JSON.stringify(fields) !== JSON.stringify(originalFields));
 
   useEffect(() => {
+    if (!pageSchema) return;
     mountedRef.current = true;
     setLoaded(false);
     setLoadingError(null);
@@ -104,7 +107,7 @@ export function ContentEditorForm({ pageId }: { pageId: PageId }) {
       .then((doc) => {
         if (!mountedRef.current) return;
         const fetchedFields: Record<string, string> = {};
-        for (const field of pageSchema.fields) {
+        for (const field of pageFields) {
           const overrideValue = doc?.fields?.[field.key]?.pt;
           fetchedFields[field.key] = overrideValue ?? defaultValues[field.key];
         }
@@ -127,16 +130,16 @@ export function ContentEditorForm({ pageId }: { pageId: PageId }) {
     return () => {
       mountedRef.current = false;
     };
-  }, [defaultValues, pageId, pageSchema.fields]);
+  }, [defaultValues, pageId, pageFields, pageSchema]);
 
   const sections = useMemo(() => {
-    const grouped: Record<string, Array<typeof pageSchema.fields[number]>> = {};
-    for (const field of pageSchema.fields) {
+    const grouped: Record<string, Array<typeof pageFields[number]>> = {};
+    for (const field of pageFields) {
       grouped[field.section] = grouped[field.section] ?? [];
       grouped[field.section].push(field);
     }
     return Object.entries(grouped).map(([section, fieldsInSection]) => ({ section, fields: fieldsInSection }));
-  }, [pageSchema.fields]);
+  }, [pageFields]);
 
   const hasChanges = JSON.stringify(fields) !== JSON.stringify(originalFields);
 
@@ -201,6 +204,11 @@ export function ContentEditorForm({ pageId }: { pageId: PageId }) {
       setSaving(false);
     }
   }, [saving, fields, pageFieldKeys, pageId, user]);
+
+  // T-44 (Bloco 6): early return movido para depois dos hooks (rules-of-hooks).
+  if (!pageSchema) {
+    return <div>Schema de página não encontrado.</div>;
+  }
 
   if (!loaded) {
     return (
