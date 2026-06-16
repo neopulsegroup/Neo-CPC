@@ -138,6 +138,142 @@ Ofertas `active` aparecem na lista do migrante; `rejected` não aparecem.
 
 ---
 
+## T-13 — Inventário completo de rotas (Bloco 5, 2026-06-15)
+
+Listagem extraída de `src/App.tsx:115-186`. Build verde confirma que todos os 17
+imports resolvem para componentes existentes.
+
+### Rotas públicas (sem auth)
+
+| Rota | Página | Notas |
+|---|---|---|
+| `/` | `Index` | Landing |
+| `/sobre` | `About` | Institucional |
+| `/como-funciona` | `HowItWorks` | Institucional |
+| `/contacto` | `Contact` | Form público → `submitContactForm` callable |
+| `/entrar` | `Auth` | Login |
+| `/registar` | `Auth` | Registo (modo register) |
+| `/recuperar-senha` | `ForgotPassword` | Reset password Firebase Auth |
+| `/ajuda` | `HelpCenter` | FAQ acordeão |
+| `/em-breve` | `ComingSoon` | Placeholder |
+| `/privacidade` | `Privacy` | Política de privacidade (LGPD) |
+| `/cookies` | `Cookies` | Política de cookies |
+| `/termos` | `NotFound` | **Placeholder** — termos por escrever |
+| `/trails` | `NotFound` | **Placeholder** — listagem pública de trilhas |
+| `/precos` | `NotFound` | **Placeholder** — preços |
+
+### Rota dev-only
+
+| Rota | Página | Guard |
+|---|---|---|
+| `/dev/criar-usuarios` | `CreateTestUsersDev` | só em `import.meta.env.DEV` |
+
+### Rotas protegidas
+
+| Rota | Componente | Guards aplicados | Roles permitidos |
+|---|---|---|---|
+| `/triagem` | `Triage` | `ProtectedRoute` + `EmailVerificationGuard` | `migrant` |
+| `/dashboard/migrante/*` | `MigrantDashboard` | `ProtectedRoute` + `EmailVerificationGuard` + `TriageGuard` | `migrant` |
+| `/dashboard/cpc/*` | `CPCDashboard` | `ProtectedRoute` + `EmailVerificationGuard` | `mediator`, `lawyer`, `psychologist`, `manager`, `coordinator`, `admin`, `trainer` |
+| `/dashboard/empresa/*` | `CompanyDashboard` | `ProtectedRoute` + `EmailVerificationGuard` | `company` |
+
+### Catch-all
+
+| Rota | Página |
+|---|---|
+| `*` | `NotFound` |
+
+### Total
+- **14 rotas públicas** (3 são placeholder → `NotFound`)
+- **1 rota dev-only**
+- **4 rotas protegidas** (1 triage + 3 dashboards)
+- **1 catch-all**
+
+### Análise de guards
+
+`ProtectedRoute` (linhas 52–85) faz, por esta ordem:
+1. Loading → `LoadingScreen`
+2. Sem auth → `Navigate('/entrar')`
+3. Com `allowedRoles` mas sem profile → ecrã de erro "Sem acesso aos dados"
+4. Profile com role fora de `allowedRoles` → `Navigate` para dashboard do role correcto
+
+`EmailVerificationGuard` (Bloco 4 T-01) → bloqueia até `user.emailVerified` (com
+grandfather clause para contas pré-`2026-06-01`).
+
+`TriageGuard` (linhas 95–110) → bloqueia `/dashboard/migrante/*` enquanto a
+triagem não estiver completa, redireccionando para `/triagem`.
+
+**Validação dos guards (✓ todos correctos):**
+
+| Rota | Role exigido | Esperado | OK? |
+|---|---|---|---|
+| `/triagem` | `migrant` | `migrant` | ✓ |
+| `/dashboard/migrante/*` | `migrant` | `migrant` | ✓ |
+| `/dashboard/cpc/*` | 7 roles CPC | `mediator`,`lawyer`,`psychologist`,`manager`,`coordinator`,`admin`,`trainer` | ✓ |
+| `/dashboard/empresa/*` | `company` | `company` | ✓ |
+
+Cross-role redireccionamento funciona porque `ProtectedRoute` chama
+`getDashboardPath(profile.role)` antes do `<Navigate>` quando o role não bate certo.
+
+### Imports verificados
+
+17 imports em `App.tsx` resolvidos pelo build:
+`Index, About, HowItWorks, Contact, Auth, ForgotPassword, Triage,
+MigrantDashboard, CPCDashboard, CompanyDashboard, NotFound,
+EmailVerificationGuard, CreateTestUsersDev, Cookies, Privacy, HelpCenter, ComingSoon`.
+Zero imports órfãos.
+
+---
+
+## T-12 — Service Areas (Bloco 5, validação)
+
+**Arquivos:**
+- `src/features/serviceAreas/serviceAreas.ts`
+- `src/pages/dashboard/cpc/ServiceAreasAdminPage.tsx`
+- `src/pages/dashboard/migrant/BookingSessionWizardDialog.tsx`
+- `firestore.rules` linhas 628-631
+
+### Auto-seed (verificado)
+`ensureServiceAreasSeeded(updatedBy)` em `serviceAreas.ts:54-75`:
+- Lê `loadServiceAreas()`; se vazio, cria 3 docs em `service_areas/{id}`:
+  - `legal` (30 min)
+  - `psychology` (60 min)
+  - `mediation` (30 min)
+- Cada seed gravado com `responsible_uids:[], responsible_names:[], is_active:true`.
+- Ordem garantida por `SERVICE_AREA_ORDER` e `sortByOrder()`.
+
+### Edição (verificado)
+- `updateServiceArea(id, patch, updatedBy)` actualiza `responsible_uids`,
+  `responsible_names`, `default_duration_minutes`, `is_active` + carimbo
+  `updated_at/updated_by`.
+- UI admin em `ServiceAreasAdminPage` consome estes helpers.
+
+### Regras Firestore (verificadas em `firestore.rules:628-631`)
+```
+match /service_areas/{areaId} {
+  allow read: if isAuthenticated();
+  allow create, update, delete: if isAccountEnabled() && hasRole('admin');
+}
+```
+- Leitura: qualquer autenticado (necessário para o booking dialog do migrante).
+- Escrita: só `admin`. **Conforme.**
+
+### Integração com booking (verificado)
+`BookingSessionWizardDialog.tsx`:
+- `import { loadServiceAreas, isAreaBookable }` (linha 3).
+- `selectedArea` filtrado por `isAreaBookable` (linha 387) — só áreas
+  `is_active === true` E com `responsible_uids.length > 0`.
+- `BookingSpecialistStep` (linha 653) consome `responsible_uids` reais; área
+  sem responsáveis ou inactiva mostra mensagem `serviceAreas.areaUnavailable`.
+
+### Estado
+- Rota: `/dashboard/cpc/areas-servico`
+- Perfil: `admin` (escrita) + qualquer CPC (leitura via dashboard)
+- Comportamento: ✅ auto-seed funciona, ✅ edição funciona, ✅ toggle activo bloqueia booking, ✅ responsáveis usados no dialog
+- Status: **funcional**.
+
+---
+
 ## Decisões pendentes (CIBEA)
 
 | ID | Pergunta | Origem |
