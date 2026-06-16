@@ -54,6 +54,7 @@ export type MigrantProfileDoc = {
   resumeUrl?: string | null;
   professionalTitle?: string | null;
   professionalExperience?: string | null;
+  experienceLevel?: 'junior' | 'mid' | 'senior' | null;
   skills?: string | null;
   languagesList?: string | null;
   mainNeeds?: string | null;
@@ -135,6 +136,12 @@ export async function fetchMigrantProfile(uid: string): Promise<MigrantProfileRe
       resumeUrl: profileFs?.resumeUrl ?? null,
       professionalTitle: profileFs?.professionalTitle ?? null,
       professionalExperience: profileFs?.professionalExperience ?? null,
+      experienceLevel:
+        profileFs?.experienceLevel === 'junior' ||
+        profileFs?.experienceLevel === 'mid' ||
+        profileFs?.experienceLevel === 'senior'
+          ? profileFs.experienceLevel
+          : null,
       skills: profileFs?.skills ?? null,
       languagesList: profileFs?.languagesList ?? null,
       mainNeeds: profileFs?.mainNeeds ?? null,

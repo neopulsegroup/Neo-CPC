@@ -22,6 +22,8 @@ import CompanyApplicationsPage from './company/CompanyApplicationsPage';
 import CompanyMessagesPage from './company/MessagesPage';
 import { ApplicantProfileUnavailableBadge } from './company/ApplicantProfileUnavailableBadge';
 import { bootstrapCompanyJobOfferScope, fetchCompanyHomeSnapshot, type CompanyHomeSnapshot } from './company/companyDashboardHomeData';
+import { useCompanyVerification } from '@/hooks/useCompanyVerification';
+import { CompanyVerificationBanner } from '@/components/company/CompanyVerificationBanner';
 
 function normalizeText(value?: string | null): string {
   if (!value) return '';
@@ -437,7 +439,7 @@ const EMPTY_HOME_SNAPSHOT: CompanyHomeSnapshot = {
   recentApplications: [],
 };
 
-function CompanyHome() {
+function CompanyHome({ canPublish }: { canPublish: boolean }) {
   const { user, profile, profileData } = useAuth();
   const { language, t } = useLanguage();
   const { toast } = useToast();
@@ -629,8 +631,8 @@ function CompanyHome() {
                 {t.get('company.home.promo.description')}
               </p>
             </div>
-            <Link to="/dashboard/empresa/nova-oferta">
-              <Button variant="hero-outline" size="lg">
+            <Link to={canPublish ? '/dashboard/empresa/nova-oferta' : '#'} aria-disabled={!canPublish} onClick={(e) => !canPublish && e.preventDefault()}>
+              <Button variant="hero-outline" size="lg" disabled={!canPublish}>
                 <Plus className="mr-2 h-5 w-5" />
                 {t.get('company.home.promo.cta')}
               </Button>
@@ -646,6 +648,7 @@ export default function CompanyDashboard() {
   const location = useLocation();
   const { profile, profileData, user } = useAuth();
   const { language, t } = useLanguage();
+  const { status, canPublish, loading: verificationLoading } = useCompanyVerification();
   const isHome = location.pathname === '/dashboard/empresa' || location.pathname === '/dashboard/empresa/';
   const [namePreference, setNamePreference] = useState<{
     legalName: string;
@@ -729,7 +732,9 @@ export default function CompanyDashboard() {
     { to: '/dashboard/empresa', label: t.get('company.menu.overview'), icon: TrendingUp },
     { to: '/dashboard/empresa/ofertas', label: t.get('company.menu.offers'), icon: Briefcase },
     { to: '/dashboard/empresa/candidaturas', label: t.get('company.menu.applications'), icon: FileText },
-    { to: '/dashboard/empresa/nova-oferta', label: t.get('company.menu.new_offer'), icon: Plus },
+    ...(canPublish
+      ? [{ to: '/dashboard/empresa/nova-oferta', label: t.get('company.menu.new_offer'), icon: Plus }]
+      : []),
     { to: '/dashboard/empresa/candidatos', label: t.get('company.menu.candidates'), icon: Users },
   ];
 
@@ -782,6 +787,8 @@ export default function CompanyDashboard() {
             </aside>
 
             <div>
+              {!verificationLoading && status !== 'approved' ? <CompanyVerificationBanner status={status} /> : null}
+
               {isHome ? (
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
                   <div>
@@ -793,17 +800,19 @@ export default function CompanyDashboard() {
                       {t.get('company.dashboard.summary', { date: longDateFormatter.format(new Date()) })}
                     </p>
                   </div>
-                  <Link to="/dashboard/empresa/nova-oferta" className="shrink-0">
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
-                      {t.get('company.menu.new_offer')}
-                    </Button>
-                  </Link>
+                  {canPublish ? (
+                    <Link to="/dashboard/empresa/nova-oferta" className="shrink-0">
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        {t.get('company.menu.new_offer')}
+                      </Button>
+                    </Link>
+                  ) : null}
                 </div>
               ) : null}
 
               <Routes>
-                <Route index element={<CompanyHome />} />
+                <Route index element={<CompanyHome canPublish={canPublish} />} />
                 <Route path="nova-oferta" element={<CreateJobPage />} />
                 <Route path="ofertas" element={<MyJobsPage />} />
                 <Route path="candidaturas" element={<CompanyApplicationsPage />} />

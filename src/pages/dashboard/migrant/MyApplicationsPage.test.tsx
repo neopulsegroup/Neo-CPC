@@ -57,13 +57,6 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
 }));
 
-// Stub do CVUploadButton para isolar a lógica da página (evita cadeia firebase/storage).
-vi.mock('@/features/cv/CVUploadButton', () => ({
-  CVUploadButton: ({ contextId }: { contextId: string }) => (
-    <div data-testid="cv-upload" data-context={contextId}>upload</div>
-  ),
-}));
-
 function setupOfferAndCompanyMocks(opts: {
   offers: Record<string, { id: string; title?: string; company_id?: string; location?: string | null } | null>;
   companies: Record<string, { id: string; company_name?: string } | null>;
@@ -202,7 +195,7 @@ describe('MyApplicationsPage (dashboard/migrante/candidaturas)', () => {
     expect(screen.getByText('Empresa')).toBeInTheDocument();
   });
 
-  it('candidatura em estado submitted mostra o CVUploadButton', async () => {
+  it('não mostra upload de CV personalizado por candidatura', async () => {
     mockQueryDocuments.mockResolvedValueOnce([
       { id: 'app-1', job_id: 'j1', applicant_id: 'm1', status: 'submitted', created_at: '2026-05-01T10:00:00.000Z' },
     ]);
@@ -217,53 +210,8 @@ describe('MyApplicationsPage (dashboard/migrante/candidaturas)', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByTestId('cv-upload')).toBeInTheDocument());
-    expect(screen.getByTestId('cv-upload')).toHaveAttribute('data-context', 'app-1');
-  });
-
-  it('candidatura accepted NÃO mostra upload mas mostra link quando há CV', async () => {
-    mockQueryDocuments.mockResolvedValueOnce([
-      {
-        id: 'app-2',
-        job_id: 'j1',
-        applicant_id: 'm1',
-        status: 'accepted',
-        created_at: '2026-05-01T10:00:00.000Z',
-        migrant_attached_cv_url: 'https://x/cv.pdf',
-      },
-    ]);
-    setupOfferAndCompanyMocks({
-      offers: { j1: { id: 'j1', title: 'Vaga B', company_id: 'c1' } },
-      companies: { c1: { id: 'c1', company_name: 'Empresa B' } },
-    });
-
-    render(
-      <MemoryRouter>
-        <MyApplicationsPage />
-      </MemoryRouter>
-    );
-
-    const link = await screen.findByText('Ver CV personalizado anexado');
-    expect(link).toHaveAttribute('href', 'https://x/cv.pdf');
-    expect(screen.queryByTestId('cv-upload')).toBeNull();
-  });
-
-  it('candidatura accepted sem CV mostra mensagem de bloqueio', async () => {
-    mockQueryDocuments.mockResolvedValueOnce([
-      { id: 'app-3', job_id: 'j1', applicant_id: 'm1', status: 'accepted', created_at: '2026-05-01T10:00:00.000Z' },
-    ]);
-    setupOfferAndCompanyMocks({
-      offers: { j1: { id: 'j1', title: 'Vaga C', company_id: 'c1' } },
-      companies: { c1: { id: 'c1', company_name: 'Empresa C' } },
-    });
-
-    render(
-      <MemoryRouter>
-        <MyApplicationsPage />
-      </MemoryRouter>
-    );
-
-    expect(await screen.findByText('Não é possível anexar CV nesta fase da candidatura.')).toBeInTheDocument();
+    await screen.findByRole('heading', { name: 'Vaga A' });
+    expect(screen.queryByText('CV personalizado para esta candidatura')).toBeNull();
     expect(screen.queryByTestId('cv-upload')).toBeNull();
   });
 });

@@ -1,13 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { FirebaseError } from 'firebase/app';
 
 const mockCallable = vi.fn();
+const mockUploadBytes = vi.fn(async () => ({}));
+const mockGetDownloadURL = vi.fn(async () => 'https://storage.example.com/direct.pdf');
+const mockSetDocument = vi.fn(async () => undefined);
 
 vi.mock('firebase/functions', () => ({
   httpsCallable: () => mockCallable,
 }));
 
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn(() => ({ _ref: true })),
+  uploadBytes: (...args: unknown[]) => mockUploadBytes(...args),
+  getDownloadURL: (...args: unknown[]) => mockGetDownloadURL(...args),
+}));
+
+vi.mock('@/integrations/firebase/client', () => ({
+  storage: { _storage: true },
+}));
+
+vi.mock('@/integrations/firebase/firestore', () => ({
+  setDocument: (...args: unknown[]) => mockSetDocument(...args),
+}));
+
 vi.mock('@/integrations/firebase/functionsClient', () => ({
   functions: { _functions: true },
+}));
+
+vi.mock('./deleteCvFile', () => ({
+  deleteMigrantUserCvFiles: vi.fn(async () => undefined),
+  deleteProfileExternalCvFiles: vi.fn(async () => undefined),
+  deleteCvFromStorageByUrl: vi.fn(async () => undefined),
 }));
 
 import { uploadCvFile, validateCvFile, CvValidationError } from './uploadCvFile';
@@ -55,7 +79,7 @@ describe('uploadCvFile', () => {
       data: {
         url: 'https://storage.example.com/cv.pdf',
         fileName: 'cv.pdf',
-        storagePath: 'cv_uploads/application/app1/1_cv.pdf',
+        storagePath: 'cv_uploads/migrant/migrant-uid/curriculo.pdf',
       },
     });
   });
@@ -64,8 +88,8 @@ describe('uploadCvFile', () => {
     await expect(
       uploadCvFile({
         file: makeFile({ type: 'image/png', name: 'x.png' }),
-        contextId: 'app1',
-        contextType: 'application',
+        contextId: 'migrant-uid',
+        contextType: 'migrant',
         uploaderUid: 'u1',
       })
     ).rejects.toBeInstanceOf(CvValidationError);
@@ -82,13 +106,37 @@ describe('uploadCvFile', () => {
     expect(result.url).toBe('https://storage.example.com/cv.pdf');
     expect(result.fileName).toBe('cv.pdf');
     expect(mockCallable).toHaveBeenCalledTimes(1);
-    expect(mockCallable).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: 'João CV final.pdf',
-        mimeType: 'application/pdf',
-        contextId: 'app1',
-        contextType: 'application',
-      })
+    expect(mockUploadBytes).not.toHaveBeenCalled();
+  });
+
+  it('faz fallback para upload direto quando a Cloud Function falha com internal', async () => {
+    mockCallable.mockRejectedValueOnce(new FirebaseError('functions/internal', 'falha no servidor'));
+
+    const result = await uploadCvFile({
+      file: makeFile({ name: 'cv.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      contextId: 'app1',
+      contextType: 'application',
+      uploaderUid: 'migrant-uid',
+    });
+
+    expect(result.url).toBe('https://storage.example.com/direct.pdf');
+    expect(mockUploadBytes).toHaveBeenCalledTimes(1);
+    expect(mockSetDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('faz fallback para upload direto quando profile não é suportado pela função', async () => {
+    mockCallable.mockRejectedValueOnce(
+      new FirebaseError('functions/invalid-argument', 'Tipo de contexto não suportado.')
     );
+
+    const result = await uploadCvFile({
+      file: makeFile({ name: 'cv.pdf' }),
+      contextId: 'migrant-uid',
+      contextType: 'profile',
+      uploaderUid: 'migrant-uid',
+    });
+
+    expect(result.url).toBe('https://storage.example.com/direct.pdf');
+    expect(mockUploadBytes).toHaveBeenCalledTimes(1);
   });
 });

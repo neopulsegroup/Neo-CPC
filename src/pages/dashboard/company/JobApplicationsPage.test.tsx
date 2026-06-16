@@ -52,7 +52,7 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     vi.clearAllMocks();
   });
 
-  it('mostra os 3 CVs quando os 3 campos existem', async () => {
+  it('mostra CV do perfil e upload da empresa quando existem', async () => {
     setup(
       {
         id: 'app-1',
@@ -69,11 +69,8 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     const card = await screen.findByText('Ana Silva');
     await userEvent.click(card);
 
-    // 1. CV do candidato (perfil)
     await waitFor(() => expect(screen.getByText('company.applications.details.viewCandidateCv')).toBeInTheDocument());
-    // 2. CV anexado pelo migrante (label + link usam a mesma chave → pelo menos 1)
-    expect(screen.getAllByText('applicationDetail.migrantAttachedCv').length).toBeGreaterThan(0);
-    // 3. Upload da empresa (stub)
+    expect(screen.queryByText('applicationDetail.migrantAttachedCv')).toBeNull();
     expect(screen.getByTestId('cv-upload')).toHaveAttribute('data-context', 'app-1');
   });
 
@@ -115,5 +112,28 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     await userEvent.click(card);
 
     await waitFor(() => expect(screen.getByText('company.applications.details.noCandidateCv')).toBeInTheDocument());
+  });
+
+  it('usa CV legado da candidatura quando o perfil não tem resumeUrl', async () => {
+    setup(
+      {
+        id: 'app-4',
+        applicant_id: 'mig-4',
+        status: 'submitted',
+        cover_letter: null,
+        created_at: '2026-05-01T10:00:00Z',
+        migrant_attached_cv_url: 'https://x/legacy-migrant.pdf',
+      },
+      { id: 'mig-4', name: 'Diana Lima', email: 'diana@x.com', resumeUrl: null }
+    );
+
+    const card = await screen.findByText('Diana Lima');
+    await userEvent.click(card);
+
+    await waitFor(() => expect(screen.getByText('company.applications.details.viewCandidateCv')).toBeInTheDocument());
+    expect(screen.getByText('company.applications.details.viewCandidateCv').closest('a')).toHaveAttribute(
+      'href',
+      'https://x/legacy-migrant.pdf'
+    );
   });
 });

@@ -1,5 +1,19 @@
+import { FirebaseError } from 'firebase/app';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
+import { storage } from '@/integrations/firebase/client';
+import { setDocument } from '@/integrations/firebase/firestore';
 import { functions } from '@/integrations/firebase/functionsClient';
+import {
+  buildMigrantCvStoragePath,
+  buildProfileExternalCvStoragePath,
+  sanitizeCvFileName,
+} from './cvStoragePaths';
+import {
+  deleteCvFromStorageByUrl,
+  deleteMigrantUserCvFiles,
+  deleteProfileExternalCvFiles,
+} from './deleteCvFile';
 
 export const MAX_CV_SIZE_MB = 5;
 
@@ -9,7 +23,7 @@ export const ALLOWED_CV_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
-export type CvContextType = 'application' | 'job_offer' | 'candidate_profile';
+export type CvContextType = 'application' | 'migrant' | 'profile' | 'job_offer' | 'candidate_profile';
 
 export type CvValidationCode = 'too_large' | 'invalid_type';
 
@@ -48,6 +62,7 @@ interface UploadCvFileArgs {
   contextId: string;
   contextType: CvContextType;
   uploaderUid: string;
+  previousUrl?: string | null;
 }
 
 interface UploadCvFileResult {
@@ -62,6 +77,7 @@ type UploadCvSecurePayload = {
   mimeType: string;
   contextId: string;
   contextType: CvContextType;
+  previousUrl?: string | null;
 };
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -81,9 +97,46 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
-export async function uploadCvFile(args: UploadCvFileArgs): Promise<UploadCvFileResult> {
-  validateCvFile(args.file);
+function shouldTryDirectUploadAfterCallableFailure(err: unknown, contextType?: CvContextType): boolean {
+  if (!(err instanceof FirebaseError)) return true;
+  if (err.code === 'functions/unauthenticated') return false;
+  if (err.code === 'functions/permission-denied') return false;
+  if (err.code === 'functions/invalid-argument') {
+    // Função em produção pode ainda não reconhecer contextType profile — tentar upload direto.
+    return contextType === 'profile';
+  }
+  if (err.code === 'functions/not-found') return false;
+  return true;
+}
 
+function resolveStoragePath(args: UploadCvFileArgs): string {
+  if (args.contextType === 'migrant') {
+    return buildMigrantCvStoragePath(args.uploaderUid, args.file.name);
+  }
+  if (args.contextType === 'profile') {
+    return buildProfileExternalCvStoragePath(args.uploaderUid, args.file.name);
+  }
+  const sanitizedName = sanitizeCvFileName(args.file.name);
+  const timestamp = Date.now();
+  return `cv_uploads/${args.contextType}/${args.contextId}/${timestamp}_${sanitizedName}`;
+}
+
+async function prepareCvUpload(args: UploadCvFileArgs): Promise<string> {
+  if (args.contextType === 'migrant') {
+    await deleteMigrantUserCvFiles(args.uploaderUid, args.previousUrl);
+    return buildMigrantCvStoragePath(args.uploaderUid, args.file.name);
+  }
+  if (args.contextType === 'profile') {
+    await deleteProfileExternalCvFiles(args.uploaderUid, args.previousUrl);
+    return buildProfileExternalCvStoragePath(args.uploaderUid, args.file.name);
+  }
+  if (args.previousUrl) {
+    await deleteCvFromStorageByUrl(args.previousUrl);
+  }
+  return resolveStoragePath(args);
+}
+
+async function uploadCvViaCallable(args: UploadCvFileArgs): Promise<UploadCvFileResult> {
   const fileBase64 = await readFileAsBase64(args.file);
   const call = httpsCallable<UploadCvSecurePayload, UploadCvFileResult>(functions, 'uploadCvSecure');
   const response = await call({
@@ -92,7 +145,63 @@ export async function uploadCvFile(args: UploadCvFileArgs): Promise<UploadCvFile
     mimeType: inferCvMimeType(args.file),
     contextId: args.contextId,
     contextType: args.contextType,
+    previousUrl: args.previousUrl ?? null,
   });
-
   return response.data;
 }
+
+async function uploadCvDirect(args: UploadCvFileArgs): Promise<UploadCvFileResult> {
+  const storagePath = await prepareCvUpload(args);
+  const storageRef = ref(storage, storagePath);
+  const contentType = inferCvMimeType(args.file);
+  const sanitizedName = sanitizeCvFileName(args.file.name);
+
+  await uploadBytes(storageRef, args.file, {
+    contentType,
+    customMetadata: {
+      uploaderUid: args.uploaderUid,
+      contextType: args.contextType,
+      contextId: args.contextId,
+      originalName: args.file.name,
+    },
+  });
+
+  const url = await getDownloadURL(storageRef);
+  const auditId = `${args.contextType}_${args.contextId}_${Date.now()}`;
+
+  await setDocument('cv_uploads_audit', auditId, {
+    contextType: args.contextType,
+    contextId: args.contextId,
+    uploaderUid: args.uploaderUid,
+    fileName: sanitizedName,
+    storagePath,
+    downloadUrl: url,
+    uploadedAt: new Date().toISOString(),
+    fileSize: args.file.size,
+    fileType: contentType,
+  });
+
+  return { url, fileName: sanitizedName, storagePath };
+}
+
+export async function uploadCvFile(args: UploadCvFileArgs): Promise<UploadCvFileResult> {
+  validateCvFile(args.file);
+
+  try {
+    return await uploadCvViaCallable(args);
+  } catch (callableErr) {
+    if (!shouldTryDirectUploadAfterCallableFailure(callableErr, args.contextType)) {
+      throw callableErr;
+    }
+    try {
+      return await uploadCvDirect(args);
+    } catch (directErr) {
+      if (callableErr instanceof FirebaseError) {
+        throw callableErr;
+      }
+      throw directErr;
+    }
+  }
+}
+
+export { deleteMigrantUserCvFiles, deleteProfileExternalCvFiles, deleteCvFromStorageByUrl };

@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Scale, HeartHandshake, LifeBuoy, Users, type LucideIcon } from 'lucide-react';
+import { canManageServiceAreas } from '@/lib/cpcRoles';
 import { listConsultants, type ConsultantOption } from '@/features/activities/repository';
 import {
   ensureServiceAreasSeeded,
@@ -37,7 +38,7 @@ export default function ServiceAreasAdminPage() {
   const { profile, user } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = canManageServiceAreas(profile?.role);
 
   const [loading, setLoading] = useState(true);
   const [areas, setAreas] = useState<ServiceArea[]>([]);
@@ -78,7 +79,7 @@ export default function ServiceAreasAdminPage() {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
         <p className="text-sm font-semibold text-rose-600">{t.get('common.error')}</p>
-        <p className="mt-2 text-sm text-muted-foreground">Apenas super administradores podem gerir as áreas de serviço.</p>
+        <p className="mt-2 text-sm text-muted-foreground">{t.get('serviceAreas.noPermission')}</p>
       </div>
     );
   }
