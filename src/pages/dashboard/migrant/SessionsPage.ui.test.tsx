@@ -103,6 +103,60 @@ describe('SessionsPage - UI/Interações (referência)', () => {
     expect(mockUpdateDocument).toHaveBeenCalledWith('sessions', 's1', { status: 'Cancelada' });
   });
 
+  it('sessões canceladas ou passadas aparecem apenas no histórico', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([
+      {
+        id: 's-upcoming',
+        migrant_id: stableUser.uid,
+        session_type: 'jurista',
+        scheduled_date: '2099-10-11',
+        scheduled_time: '10:00',
+        status: 'Agendada',
+        service_id: 'legal',
+        service_label: 'Aconselhamento jurídico',
+        specialist_name: 'Sarah Johnson',
+      },
+      {
+        id: 's-cancelled',
+        migrant_id: stableUser.uid,
+        session_type: 'psicologa',
+        scheduled_date: '2099-10-12',
+        scheduled_time: '11:00',
+        status: 'Cancelada',
+        service_id: 'psychology',
+        service_label: 'Apoio psicológico',
+        specialist_name: 'Dra. Amina',
+      },
+      {
+        id: 's-past',
+        migrant_id: stableUser.uid,
+        session_type: 'mediador',
+        scheduled_date: '2020-01-01',
+        scheduled_time: '09:00',
+        status: 'Agendada',
+        service_id: 'mediation',
+        service_label: 'Mediação',
+        specialist_name: 'João',
+      },
+    ]);
+
+    render(<SessionsPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
+
+    const upcomingSection = screen.getByText('Minhas próximas sessões').closest('section');
+    expect(upcomingSection).toBeTruthy();
+    const upcoming = within(upcomingSection as HTMLElement);
+    expect(upcoming.getByText('Sarah Johnson')).toBeInTheDocument();
+    expect(upcoming.queryByText('Dra. Amina')).not.toBeInTheDocument();
+    expect(upcoming.queryByText('João')).not.toBeInTheDocument();
+
+    const historySection = screen.getByText('Histórico').closest('section');
+    expect(historySection).toBeTruthy();
+    const history = within(historySection as HTMLElement);
+    expect(history.getByText('Dra. Amina')).toBeInTheDocument();
+    expect(history.getByText('João')).toBeInTheDocument();
+  });
+
   it('abre o wizard ao clicar em Marcar sessão no card de especialistas', async () => {
     const user = userEvent.setup();
     mockQueryDocuments.mockResolvedValueOnce([]);

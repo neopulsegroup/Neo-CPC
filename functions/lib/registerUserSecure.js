@@ -126,9 +126,18 @@ async function assertRateLimit(ip, email, requestId) {
     });
 }
 async function verifyCaptchaIfConfigured(captchaToken, requestId) {
-    const secret = process.env.RECAPTCHA_SECRET_KEY;
-    if (!secret)
+    const secret = process.env.RECAPTCHA_SECRET_KEY?.trim();
+    const captchaRequired = process.env.RECAPTCHA_REQUIRED !== 'false';
+    if (!secret) {
+        if (captchaRequired && process.env.NODE_ENV === 'production') {
+            firebase_functions_1.logger.error('captcha_secret_missing_in_production', { requestId });
+            throw new https_1.HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
+                error: 'CAPTCHA_REQUIRED',
+                requestId,
+            });
+        }
         return;
+    }
     const token = typeof captchaToken === 'string' ? captchaToken.trim() : '';
     if (!token) {
         throw new https_1.HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
@@ -154,8 +163,16 @@ async function verifyCaptchaIfConfigured(captchaToken, requestId) {
     const body = (await response.json());
     const minScore = Number(process.env.RECAPTCHA_MIN_SCORE || 0.5);
     const score = typeof body.score === 'number' ? body.score : 0;
+    const action = typeof body.action === 'string' ? body.action.trim() : '';
+    if (action && action !== 'register') {
+        firebase_functions_1.logger.warn('captcha_action_mismatch', { requestId, action });
+        throw new https_1.HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
+            error: 'REGISTRATION_FAILED',
+            requestId,
+        });
+    }
     if (!body.success || score < minScore) {
-        firebase_functions_1.logger.warn('captcha_failed', { requestId, score, minScore });
+        firebase_functions_1.logger.warn('captcha_failed', { requestId, score, minScore, action: action || null });
         throw new https_1.HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
             error: 'REGISTRATION_FAILED',
             requestId,

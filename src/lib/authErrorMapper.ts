@@ -51,7 +51,7 @@ export function mapAuthErrorToMessage(args: MapAuthErrorArgs): string {
     case 'VALIDATION_FAILED':
       return mode === 'register' ? t.get('auth.registerErrorGeneric') : t.get('auth.loginTryAgain');
     case 'CAPTCHA_REQUIRED':
-      return t.get('auth.registerErrorGeneric');
+      return t.get('auth.captcha.required');
     case 'NETWORK_ERROR':
       return t.get('auth.networkError');
     case 'RATE_LIMITED':

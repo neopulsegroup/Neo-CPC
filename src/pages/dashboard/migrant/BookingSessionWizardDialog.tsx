@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { SESSION_STATUS_PENDING_APPROVAL } from '@/lib/sessionApproval';
 import { loadServiceAreas, isAreaBookable, type ServiceArea } from '@/features/serviceAreas/serviceAreas';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -508,7 +509,9 @@ export default function BookingSessionWizardDialog({
         session_type: selectedSpecialist.role,
         scheduled_date: toISODate(slotDate),
         scheduled_time: slotTime,
-        status: 'Agendada',
+        status: SESSION_STATUS_PENDING_APPROVAL,
+        requested_by: 'migrant',
+        created_at: new Date().toISOString(),
         service_id: selectedService.id,
         service_label: selectedService.title,
         specialist_id: selectedSpecialist.id,
@@ -518,7 +521,10 @@ export default function BookingSessionWizardDialog({
         duration_minutes: selectedArea?.default_duration_minutes ?? 30,
         consultant_uid: selectedSpecialist.id,
       });
-      toast({ title: 'Sessão marcada', description: 'A sua marcação foi confirmada com sucesso.' });
+      toast({
+        title: t.get('dashboard.booking.pendingSuccess'),
+        description: t.get('dashboard.booking.pendingSuccessDesc'),
+      });
       onOpenChange(false);
       onBooked?.();
       resetWizard();

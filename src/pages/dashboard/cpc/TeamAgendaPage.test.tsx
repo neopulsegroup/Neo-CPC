@@ -9,9 +9,31 @@ const messages = {
   pt: {
     cpc: {
       agenda: {
-        header: { today: 'Hoje', filterBy: 'Filtrar por', week: 'Semana', month: 'Mês', newSession: 'Nova sessão' },
+        header: { today: 'Hoje', previous: 'Período anterior', next: 'Período seguinte', filterBy: 'Filtrar por', week: 'Semana', month: 'Mês', newSession: 'Nova sessão' },
+        sessionTypes: { legal: 'Consulta Jurídica', psychology: 'Apoio Psicológico', mediation: 'Mediação', collective: 'Sessão Coletiva' },
+        filter: { title: 'Categoria', all: 'Todas as categorias' },
+        create: {
+          title: 'Nova sessão',
+          category: 'Categoria',
+          migrant: 'Migrante',
+          migrantSearch: 'Pesquisar migrante...',
+          migrantPlaceholder: 'Selecione o migrante',
+          loadingMigrants: 'A carregar migrantes...',
+          noMigrants: 'Nenhum migrante encontrado',
+          specialist: 'Especialista',
+          specialistPlaceholder: 'Selecione o especialista',
+          loadingSpecialists: 'A carregar especialistas...',
+          noSpecialists: 'Nenhum especialista disponível nesta categoria',
+          date: 'Data',
+          time: 'Hora',
+          cancel: 'Cancelar',
+          submit: 'Criar sessão',
+          success: 'Sessão criada com sucesso.',
+          error: 'Não foi possível criar a sessão.',
+          validation: 'Preencha todos os campos obrigatórios.',
+        },
         weekdays: { mon: 'SEG', tue: 'TER', wed: 'QUA', thu: 'QUI', fri: 'SEX', sat: 'SÁB', sun: 'DOM' },
-        pending: { title: 'Pedidos Pendentes', viewAll: 'Ver todos os pedidos' },
+        pending: { title: 'Pedidos Pendentes', viewAll: 'Ver todos os pedidos', empty: 'Sem pedidos pendentes de aprovação.', requestSource: 'Pedido do migrante', noPermission: 'Apenas Consultores, Admins e Super Admins podem aprovar pedidos.', statusLabel: 'Em aprovação', approveSuccess: 'Pedido aprovado e sessão agendada.', approveError: 'Não foi possível aprovar o pedido.', declineSuccess: 'Pedido recusado.', declineError: 'Não foi possível recusar o pedido.' },
         actions: { approve: 'Aprovar', decline: 'Recusar', assignSlot: 'Atribuir horário', reschedule: 'Reagendar', cancel: 'Cancelar' },
         status: { approved: 'Aprovado', declined: 'Recusado', assigned: 'Horário atribuído' },
         eventModal: { close: 'Fechar' },
@@ -248,8 +270,101 @@ vi.mock('@/contexts/LanguageContext', () => ({
   }),
 }));
 
+vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { uid: 'cpc-consultant-1' },
+    profile: { role: 'consultant', name: 'Consultor CPC' },
+  }),
+}));
+
+vi.mock('@/integrations/firebase/firestore', () => {
+  const todayIso = (() => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Lisbon',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+    const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+    const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+    return `${y}-${m}-${d}`;
+  })();
+
+  const sessions = [
+    {
+      id: 's1',
+      migrant_id: 'm1',
+      session_type: 'jurista',
+      service_id: 'legal',
+      service_label: 'Consulta Jurídica',
+      specialist_name: 'Dr. A. Rossi',
+      scheduled_date: todayIso,
+      scheduled_time: '09:00',
+      status: 'Agendada',
+    },
+    {
+      id: 's2',
+      migrant_id: 'm2',
+      session_type: 'psicologa',
+      service_id: 'psychology',
+      service_label: 'Acompanhamento',
+      specialist_name: 'Dr. M. Garcia',
+      scheduled_date: todayIso,
+      scheduled_time: '13:00',
+      status: 'Agendada',
+    },
+    {
+      id: 's3',
+      migrant_id: 'm1',
+      session_type: 'mediador',
+      service_id: 'mediation',
+      service_label: 'Mediação Familiar',
+      specialist_name: 'Joana Pereira',
+      scheduled_date: todayIso,
+      scheduled_time: '11:00',
+      status: 'pending_approval',
+      created_at: new Date().toISOString(),
+    },
+  ];
+  const profiles: Record<string, { name: string }> = {
+    m1: { name: 'Ahmed Khan' },
+    m2: { name: 'Lucas Dubois' },
+  };
+  const migrants = [
+    { id: 'm1', role: 'migrant', name: 'Ahmed Khan' },
+    { id: 'm2', role: 'migrant', name: 'Lucas Dubois' },
+  ];
+  const teamMembers = [
+    { id: 'lawyer1', role: 'lawyer', name: 'Dr. A. Rossi', active: true },
+    { id: 'psy1', role: 'psychologist', name: 'Dr. M. Garcia', active: true },
+  ];
+
+  return {
+    queryDocuments: vi.fn(async (collectionName: string, filters?: Array<{ field: string; operator: string; value: unknown }>) => {
+      if (collectionName === 'users') {
+        const roleFilter = filters?.find((f) => f.field === 'role');
+        if (roleFilter?.operator === 'in' && Array.isArray(roleFilter.value) && roleFilter.value.includes('migrant')) {
+          return migrants;
+        }
+        return teamMembers;
+      }
+      return sessions;
+    }),
+    getDocument: vi.fn(async (collectionName: string, id: string) => {
+      if (collectionName === 'profiles') return profiles[id] ?? null;
+      if (collectionName === 'sessions') return sessions.find((session) => session.id === id) ?? null;
+      return null;
+    }),
+    addDocument: vi.fn(async () => 's-new'),
+    updateDocument: vi.fn(async () => undefined),
+  };
+});
+
 describe('TeamAgendaPage', () => {
-  it('renderiza topo com overflow oculto e textos contidos no container', () => {
+  it('renderiza topo com overflow oculto e textos contidos no container', async () => {
     currentLanguage = 'pt';
     render(<TeamAgendaPage />);
 
@@ -258,45 +373,35 @@ describe('TeamAgendaPage', () => {
     expect(topBar?.className).toContain('overflow-hidden');
     expect(topBar?.className).not.toContain('overflow-x-auto');
     expect(screen.getByRole('button', { name: 'Nova sessão' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
   });
 
-  it('troca idioma dinamicamente para pt/en/es sem reload e mantém ações funcionando', async () => {
+  it('troca idioma dinamicamente para pt/en/es e mantém ações de pedidos funcionando', async () => {
     currentLanguage = 'pt';
     const { rerender } = render(<TeamAgendaPage />);
 
     expect(screen.getByText('Pedidos Pendentes')).toBeInTheDocument();
-    expect(screen.getByText('Consulta Jurídica')).toBeInTheDocument();
-    expect(screen.getByText('Acompanhamento')).toBeInTheDocument();
+    expect(await screen.findByText('Mediação Familiar')).toBeInTheDocument();
 
     currentLanguage = 'en';
     rerender(<TeamAgendaPage />);
     expect(screen.getByText('Pending Requests')).toBeInTheDocument();
-    expect(screen.getByText('Legal Consultation')).toBeInTheDocument();
-    expect(screen.getByText('Follow-up')).toBeInTheDocument();
 
     currentLanguage = 'es';
     rerender(<TeamAgendaPage />);
     expect(screen.getByText('Solicitudes Pendientes')).toBeInTheDocument();
-    expect(screen.getByText('Consulta Legal')).toBeInTheDocument();
-    expect(screen.getByText('Seguimiento')).toBeInTheDocument();
 
     currentLanguage = 'pt';
     rerender(<TeamAgendaPage />);
 
     const user = userEvent.setup();
-
-    await user.click(screen.getByRole('button', { name: /acompanhamento/i }));
-    expect(screen.getByText('Acompanhamento de Trauma')).toBeInTheDocument();
-    const overlay = document.querySelector('div[data-state="open"][class*="bg-black"]') as HTMLElement | null;
-    expect(overlay).not.toBeNull();
-    await user.click(overlay as HTMLElement);
-    expect(screen.queryByText('Acompanhamento de Trauma')).not.toBeInTheDocument();
-
+    expect(screen.getAllByRole('button', { name: 'Aprovar' })).toHaveLength(1);
     await user.click(screen.getAllByRole('button', { name: 'Aprovar' })[0]);
-    expect(screen.getByText('Aprovado')).toBeInTheDocument();
+    expect(screen.queryAllByRole('button', { name: 'Aprovar' })).toHaveLength(0);
+    expect(screen.getByText('Sem pedidos pendentes de aprovação.')).toBeInTheDocument();
   });
 
-  it('mantém renderização estável em mobile, tablet e desktop sem overflow textual', () => {
+  it('mantém renderização estável em mobile, tablet e desktop sem overflow textual', async () => {
     currentLanguage = 'pt';
 
     const widths = [390, 768, 1366];
@@ -306,8 +411,66 @@ describe('TeamAgendaPage', () => {
       const { unmount } = render(<TeamAgendaPage />);
       expect(screen.getByText('Pedidos Pendentes')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Nova sessão' })).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it('carrega sessões reais e permite navegar e alternar entre semana e mês', async () => {
+    currentLanguage = 'pt';
+    render(<TeamAgendaPage />);
+
+    const user = userEvent.setup();
+    expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Consulta Jurídica/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Período seguinte' }));
+    expect(screen.queryByRole('button', { name: /Acompanhamento/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Mês' }));
+    expect(screen.queryByRole('button', { name: /Acompanhamento/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Semana' }));
+    expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
+  });
+
+  it('filtra sessões por categoria', async () => {
+    currentLanguage = 'pt';
+    render(<TeamAgendaPage />);
+
+    const user = userEvent.setup();
+    expect(await screen.findByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Consulta Jurídica/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar por' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Apoio Psicológico' }));
+
+    expect(screen.getByRole('button', { name: 'Apoio Psicológico' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Consulta Jurídica/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Acompanhamento/ })).toBeInTheDocument();
+  });
+
+  it('abre diálogo de criação de sessão com autocomplete de migrantes', async () => {
+    currentLanguage = 'pt';
+    render(<TeamAgendaPage />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nova sessão' }));
+    expect(screen.getByRole('heading', { name: 'Nova sessão' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Categoria')).toBeInTheDocument();
+
+    const migrantInput = screen.getByLabelText('Migrante');
+    expect(migrantInput).toBeInTheDocument();
+    await user.click(migrantInput);
+    expect(await screen.findByRole('option', { name: 'Ahmed Khan' })).toBeInTheDocument();
+
+    await user.clear(migrantInput);
+    await user.type(migrantInput, 'Lucas');
+    expect(await screen.findByRole('option', { name: 'Lucas Dubois' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Ahmed Khan' })).not.toBeInTheDocument();
   });
 
   it('abre visualização de sessão a partir do calendário com todos os elementos do layout', async () => {
@@ -315,7 +478,7 @@ describe('TeamAgendaPage', () => {
     render(<TeamAgendaPage />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /acompanhamento/i }));
+    await user.click(await screen.findByRole('button', { name: /Acompanhamento/ }));
     await user.click(screen.getByRole('button', { name: 'Ver nota de sessão' }));
 
     expect(screen.getByRole('heading', { name: 'Registo de Sessão' })).toBeInTheDocument();

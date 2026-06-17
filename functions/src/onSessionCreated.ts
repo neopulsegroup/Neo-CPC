@@ -47,6 +47,13 @@ export const onSessionCreated = onDocumentCreated('sessions/{sessionId}', async 
     typeof session.specialist_name === 'string' && session.specialist_name.trim()
       ? session.specialist_name.trim()
       : 'Equipa CPC';
+  const requestedBy = typeof session.requested_by === 'string' ? session.requested_by.trim() : '';
+  const scheduledByCpc = requestedBy === 'cpc';
+  const sessionDateTimeForMigrant = formatSessionDateForEmail(
+    session.scheduled_date,
+    session.scheduled_time,
+    'pt'
+  );
 
   // Sempre que possível liga as flags para o cron — mesmo se não houver email
   // disponível neste momento (ex.: criação em background sem perfil completo).
@@ -62,6 +69,19 @@ export const onSessionCreated = onDocumentCreated('sessions/{sessionId}', async 
 
   // ---- Migrante ----
   if (migrantId) {
+    // In-app: criada pela CPC no cliente; aqui cobrimos marcações do migrante e outros fluxos.
+    if (!scheduledByCpc) {
+      await enqueueAppNotification({
+        recipientId: migrantId,
+        type: 'session_scheduled',
+        title: `Sessão marcada: ${sessionType}`,
+        body: `Agendada para ${sessionDateTimeForMigrant}.`,
+        href: '/dashboard/migrante/sessoes',
+        contextId: sessionId,
+        documentId: `session_notify_${sessionId}`,
+      });
+    }
+
     const migrantRecipient = await resolveRecipient(migrantId);
     if (migrantRecipient) {
       const sessionDateTime = formatSessionDateForEmail(
@@ -86,14 +106,6 @@ export const onSessionCreated = onDocumentCreated('sessions/{sessionId}', async 
         locale: migrantRecipient.locale,
         vars: { userName: migrantName, sessionType, sessionDateTime, specialistName },
         tag: 'session-confirmation',
-        contextId: sessionId,
-      });
-      await enqueueAppNotification({
-        recipientId: migrantId,
-        type: 'session_scheduled',
-        title: `Sessão marcada: ${sessionType}`,
-        body: `Agendada para ${sessionDateTime}.`,
-        href: '/dashboard/migrante/sessoes',
         contextId: sessionId,
       });
     }

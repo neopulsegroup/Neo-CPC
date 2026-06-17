@@ -305,6 +305,17 @@
     "accountCreated": "Compte créé avec succès !",
     "backToSelection": "Revenir à la sélection du profil",
     "registerAs": "Inscrivez-vous en tant que :",
+    "captcha": {
+      "label": "Vérification de sécurité",
+      "instruction": "Saisissez les caractères affichés dans l'image",
+      "placeholder": "Code",
+      "imageAlt": "Image avec code de vérification",
+      "refresh": "Générer un nouveau code",
+      "hint": "Cette vérification protège contre les inscriptions automatiques et le spam.",
+      "success": "Vérification terminée.",
+      "error": "Le code ne correspond pas. Veuillez réessayer.",
+      "required": "Effectuez la vérification de sécurité pour continuer."
+    },
     "loginError": "Email ou mot de passe incorrect",
     "loginTryAgain": "Impossible d'entrer. Vérifiez les données et réessayez.",
     "registerErrorGeneric": "Impossible de finaliser l'inscription. Vérifiez les données ou réessayez.",
@@ -833,6 +844,10 @@
     "write_message": "Écrire message",
     "send": "Envoyer",
     "book_session_action": "Réserver une session",
+    "booking": {
+      "pendingSuccess": "Demande envoyée",
+      "pendingSuccessDesc": "L'équipe CPC analysera votre demande de réservation. Vous recevrez une confirmation après approbation."
+    },
     "start_trail_action": "Commencer la piste d'entraînement",
     "complete_cv_action": "Remplir le CV",
     "history_reports": "Rapports d’historique",
@@ -1938,10 +1953,53 @@
       },
       "header": {
         "today": "Aujourd'hui",
+        "previous": "Période précédente",
+        "next": "Période suivante",
         "filterBy": "Filtrer par",
         "week": "Semaine",
         "month": "Mois",
         "newSession": "Nouvelle séance"
+      },
+      "sessionTypes": {
+        "legal": "Consultation juridique",
+        "psychology": "Soutien psychologique",
+        "mediation": "Médiation",
+        "collective": "Séance collective"
+      },
+      "calendar": {
+        "loading": "Chargement des séances...",
+        "more": "+{count} de plus"
+      },
+      "filter": {
+        "title": "Catégorie",
+        "all": "Toutes les catégories"
+      },
+      "create": {
+        "title": "Nouvelle séance",
+        "category": "Catégorie",
+        "migrant": "Migrant",
+        "migrantSearch": "Rechercher un migrant...",
+        "migrantPlaceholder": "Sélectionnez le migrant",
+        "loadingMigrants": "Chargement des migrants...",
+        "noMigrants": "Aucun migrant trouvé",
+        "specialist": "Spécialiste",
+        "specialistPlaceholder": "Sélectionnez le spécialiste",
+        "loadingSpecialists": "Chargement des spécialistes...",
+        "noSpecialists": "Aucun spécialiste disponible pour cette catégorie",
+        "date": "Date",
+        "time": "Heure",
+        "cancel": "Annuler",
+        "submit": "Créer la séance",
+        "success": "Séance créée avec succès.",
+        "error": "Impossible de créer la séance.",
+        "validation": "Veuillez remplir tous les champs obligatoires."
+      },
+      "event": {
+        "unknownPerson": "Migrant",
+        "noSpecialist": "Spécialiste à attribuer",
+        "join": "Rejoindre la réunion",
+        "cancelSuccess": "Séance annulée.",
+        "cancelError": "Impossible d'annuler la séance."
       },
       "weekdays": {
         "mon": "LUN",
@@ -2072,8 +2130,16 @@
         }
       },
       "pending": {
-        "title": "Commandes en attente",
-        "viewAll": "Voir toutes les commandes"
+        "title": "Demandes en attente",
+        "viewAll": "Voir toutes les demandes",
+        "empty": "Aucune demande en attente d'approbation.",
+        "requestSource": "Demande du migrant",
+        "noPermission": "Seuls les consultants, admins et super admins peuvent approuver les demandes.",
+        "statusLabel": "En attente d'approbation",
+        "approveSuccess": "Demande approuvée et séance planifiée.",
+        "approveError": "Impossible d'approuver la demande.",
+        "declineSuccess": "Demande refusée.",
+        "declineError": "Impossible de refuser la demande."
       },
       "status": {
         "approved": "Approuvé",

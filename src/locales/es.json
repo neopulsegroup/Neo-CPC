@@ -305,6 +305,17 @@
     "accountCreated": "Cuenta creada correctamente",
     "backToSelection": "Volver a la selección de perfil",
     "registerAs": "Registrarse Como:",
+    "captcha": {
+      "label": "Verificación de seguridad",
+      "instruction": "Escriba los caracteres que aparecen en la imagen",
+      "placeholder": "Código",
+      "imageAlt": "Imagen con código de verificación",
+      "refresh": "Generar un nuevo código",
+      "hint": "Esta verificación protege contra registros automáticos y spam.",
+      "success": "Verificación completada.",
+      "error": "El código no coincide. Inténtelo de nuevo.",
+      "required": "Complete la verificación de seguridad para continuar."
+    },
     "loginError": "Contraseña o correo electrónico incorrectos",
     "loginTryAgain": "No fue posible iniciar sesión. Verifica los datos e inténtalo de nuevo.",
     "registerErrorGeneric": "No fue posible completar el registro. Verifica los datos o inténtalo de nuevo.",
@@ -833,6 +844,10 @@
     "write_message": "Escribir mensaje",
     "send": "Enviar",
     "book_session_action": "Reservar sesión",
+    "booking": {
+      "pendingSuccess": "Solicitud enviada",
+      "pendingSuccessDesc": "El equipo CPC analizará su solicitud de reserva. Recibirá confirmación tras la aprobación."
+    },
     "start_trail_action": "Iniciar ruta de entrenamiento",
     "complete_cv_action": "Completar CV",
     "history_reports": "Informes de historial",
@@ -1938,10 +1953,53 @@
       },
       "header": {
         "today": "Hoy",
+        "previous": "Período anterior",
+        "next": "Período siguiente",
         "filterBy": "Filtrar por",
         "week": "Semana",
         "month": "Mes",
         "newSession": "Nueva sesión"
+      },
+      "sessionTypes": {
+        "legal": "Consulta Legal",
+        "psychology": "Apoyo Psicológico",
+        "mediation": "Mediación",
+        "collective": "Sesión Colectiva"
+      },
+      "calendar": {
+        "loading": "Cargando sesiones...",
+        "more": "+{count} más"
+      },
+      "filter": {
+        "title": "Categoría",
+        "all": "Todas las categorías"
+      },
+      "create": {
+        "title": "Nueva sesión",
+        "category": "Categoría",
+        "migrant": "Migrante",
+        "migrantSearch": "Buscar migrante...",
+        "migrantPlaceholder": "Seleccione el migrante",
+        "loadingMigrants": "Cargando migrantes...",
+        "noMigrants": "No se encontraron migrantes",
+        "specialist": "Especialista",
+        "specialistPlaceholder": "Seleccione el especialista",
+        "loadingSpecialists": "Cargando especialistas...",
+        "noSpecialists": "No hay especialistas disponibles en esta categoría",
+        "date": "Fecha",
+        "time": "Hora",
+        "cancel": "Cancelar",
+        "submit": "Crear sesión",
+        "success": "Sesión creada con éxito.",
+        "error": "No se pudo crear la sesión.",
+        "validation": "Complete todos los campos obligatorios."
+      },
+      "event": {
+        "unknownPerson": "Migrante",
+        "noSpecialist": "Especialista por asignar",
+        "join": "Unirse a la reunión",
+        "cancelSuccess": "Sesión cancelada.",
+        "cancelError": "No se pudo cancelar la sesión."
       },
       "weekdays": {
         "mon": "LUN",
@@ -2073,7 +2131,15 @@
       },
       "pending": {
         "title": "Solicitudes Pendientes",
-        "viewAll": "Ver Todas las Solicitudes"
+        "viewAll": "Ver Todas las Solicitudes",
+        "empty": "No hay solicitudes pendientes de aprobación.",
+        "requestSource": "Solicitud del migrante",
+        "noPermission": "Solo Consultores, Admins y Super Admins pueden aprobar solicitudes.",
+        "statusLabel": "En aprobación",
+        "approveSuccess": "Solicitud aprobada y sesión programada.",
+        "approveError": "No se pudo aprobar la solicitud.",
+        "declineSuccess": "Solicitud rechazada.",
+        "declineError": "No se pudo rechazar la solicitud."
       },
       "status": {
         "approved": "Aprobado",

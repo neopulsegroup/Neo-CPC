@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   'auth.networkError': 'Problema de ligação',
   'auth.tooManyAttempts': 'Muitas tentativas',
   'auth.serviceUnavailable': 'Serviço indisponível',
+  'auth.captcha.required': 'Conclua a verificação de segurança para continuar.',
   'common.error': 'Erro',
 };
 
@@ -61,6 +62,16 @@ describe('mapAuthErrorToMessage', () => {
     });
 
     expect(message).toBe('Não foi possível concluir o cadastro');
+  });
+
+  it('mapeia CAPTCHA_REQUIRED para mensagem de verificação', () => {
+    const message = mapAuthErrorToMessage({
+      error: new Error('CAPTCHA_REQUIRED'),
+      mode: 'register',
+      t,
+    });
+
+    expect(message).toBe('Conclua a verificação de segurança para continuar.');
   });
 });
 

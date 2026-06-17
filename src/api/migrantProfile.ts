@@ -156,10 +156,16 @@ export async function fetchMigrantProfile(uid: string): Promise<MigrantProfileRe
 
   const triage = await safe(() => getDocument<MigrantTriageDoc>('triage', uid), null);
 
-  const sessions = await safe(
-    () => queryDocuments<MigrantSession>('sessions', [{ field: 'migrant_id', operator: '==', value: uid }], { field: 'scheduled_date', direction: 'desc' }),
-    []
-  );
+  const sessions = await safe(async () => {
+    const docs = await queryDocuments<MigrantSession>('sessions', [
+      { field: 'migrant_id', operator: '==', value: uid },
+    ]);
+    return (docs || []).slice().sort((a, b) => {
+      const byDate = b.scheduled_date.localeCompare(a.scheduled_date);
+      if (byDate !== 0) return byDate;
+      return b.scheduled_time.localeCompare(a.scheduled_time);
+    });
+  }, []);
 
   const progress = await safe(
     () => queryDocuments<TrailProgress>('user_trail_progress', [{ field: 'user_id', operator: '==', value: uid }]),

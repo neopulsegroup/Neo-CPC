@@ -40,7 +40,15 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
+import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
 import { computeMigrantProfileCompletenessPercent } from '@/lib/migrantProfileCompleteness';
+import { resolveMigrantRegisteredName } from '@/lib/migrantProfileDisplay';
+import {
+  computeMigrantOverallProgressPercent,
+  computeMigrantSessionsProgressPercent,
+  countMigrantCompletedModules,
+  countMigrantCompletedSessions,
+} from '@/lib/migrantHistoryMetrics';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
@@ -185,6 +193,7 @@ function MigrantHome() {
   const [employmentPreview, setEmploymentPreview] = useState<
     Array<{ id: string; title: string; subtitle: string }>
   >([]);
+  const [applicationsCount, setApplicationsCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -269,11 +278,11 @@ function MigrantHome() {
     const unsubSessions = subscribeQuery<{ id: string; session_type: string; scheduled_date: string; scheduled_time: string; status: string | null }>({
       collectionName: 'sessions',
       filters: [{ field: 'migrant_id', operator: '==', value: user.uid }],
-      orderByField: { field: 'scheduled_date', direction: 'desc' },
       onNext: (docs) => {
         ready.sessions = true;
         setSessionsError(null);
-        setSessions(docs || []);
+        const sorted = (docs || []).slice().sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
+        setSessions(sorted);
         markReady();
       },
       onError: () => {
@@ -356,9 +365,25 @@ function MigrantHome() {
     return () => unsubscribe();
   }, [user?.uid]);
 
+  useEffect(() => {
+    if (!user?.uid) {
+      setApplicationsCount(null);
+      return;
+    }
+    const unsubscribe = subscribeQuery<{ id: string }>({
+      collectionName: 'job_applications',
+      filters: [{ field: 'applicant_id', operator: '==', value: user.uid }],
+      onNext: (docs) => setApplicationsCount((docs || []).length),
+      onError: () => setApplicationsCount(0),
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   const upcomingSessions = useMemo(() => {
     const now = todayIsoAppCalendar();
-    return sessions.filter(s => s.scheduled_date >= now).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+    return sessions
+      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, now))
+      .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.scheduled_time.localeCompare(b.scheduled_time));
   }, [sessions]);
 
   const trailsProgressAvg = useMemo(() => {
@@ -367,12 +392,10 @@ function MigrantHome() {
     return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
   }, [progress]);
 
-  const sessionsProgress = useMemo(() => {
-    const total = sessions.length;
-    if (total === 0) return 0;
-    const done = sessions.filter((s) => (s.status || '').toLowerCase() === 'completed' || (s.status || '').toLowerCase() === 'concluida' || (s.status || '').toLowerCase() === 'concluída').length;
-    return Math.min(100, Math.round((done / total) * 100));
-  }, [sessions]);
+  const sessionsProgress = useMemo(() => computeMigrantSessionsProgressPercent(sessions), [sessions]);
+
+  const completedSessionsCount = useMemo(() => countMigrantCompletedSessions(sessions), [sessions]);
+  const completedModulesCount = useMemo(() => countMigrantCompletedModules(progress), [progress]);
 
   const profileCompleteness = useMemo(
     () =>
@@ -413,10 +436,16 @@ function MigrantHome() {
       .join(', ') || '—';
   }, [triage, t]);
 
-  const overallProgress = useMemo(() => {
-    const parts = [trailsProgressAvg, sessionsProgress, profileCompleteness, triageProgress];
-    return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
-  }, [trailsProgressAvg, sessionsProgress, profileCompleteness, triageProgress]);
+  const overallProgress = useMemo(
+    () =>
+      computeMigrantOverallProgressPercent({
+        trailsProgressAvg,
+        sessionsProgress,
+        profileCompleteness,
+        triageProgress,
+      }),
+    [trailsProgressAvg, sessionsProgress, profileCompleteness, triageProgress]
+  );
 
   const needsProfile = useMemo(() => inferNeedsProfile(triage), [triage]);
 
@@ -685,7 +714,11 @@ function MigrantHome() {
                           <p className="text-sm font-medium">{s.session_type}</p>
                           <p className="text-xs text-muted-foreground">{new Date(s.scheduled_date).toLocaleDateString()} • {s.scheduled_time}</p>
                         </div>
-                        <span className="text-xs text-muted-foreground">{s.status || t.dashboard.status_scheduled}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {isSessionPendingApproval(s.status)
+                            ? t.dashboard.status_pending
+                            : s.status || t.dashboard.status_scheduled}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -917,15 +950,15 @@ function MigrantHome() {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-md bg-muted/50">
                 <p className="text-muted-foreground mb-1">{t.dashboard.sessions_done}</p>
-                <p className="font-semibold text-sm">{sessions.filter(s => s.status === 'completed' || s.status === t.dashboard.status_concluded).length}</p>
+                <p className="font-semibold text-sm">{completedSessionsCount}</p>
               </div>
               <div className="p-3 rounded-md bg-muted/50">
                 <p className="text-muted-foreground mb-1">{t.dashboard.modules_done}</p>
-                <p className="font-semibold text-sm">{progress.reduce((a, b) => a + (b.modules_completed || 0), 0)}</p>
+                <p className="font-semibold text-sm">{completedModulesCount}</p>
               </div>
               <div className="p-3 rounded-md bg-muted/50">
                 <p className="text-muted-foreground mb-1">{t.dashboard.applications}</p>
-                <p className="font-semibold text-sm">—</p>
+                <p className="font-semibold text-sm">{applicationsCount === null ? '—' : applicationsCount}</p>
               </div>
               <div className="p-3 rounded-md bg-muted/50">
                 <p className="text-muted-foreground mb-1">{t.dashboard.progress_report}</p>
@@ -1000,7 +1033,15 @@ function MigrantHome() {
 export default function MigrantDashboard() {
   const location = useLocation();
   const { t } = useLanguage();
-  const { profile } = useAuth();
+  const { profile, profileData } = useAuth();
+  const migrantDisplayName = useMemo(
+    () =>
+      resolveMigrantRegisteredName({
+        profileDocName: profileData?.name,
+        userProfileName: profile?.name,
+      }),
+    [profile?.name, profileData?.name]
+  );
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
   const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
@@ -1029,7 +1070,7 @@ export default function MigrantDashboard() {
             <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24">
               <div className="mb-4 px-2">
                 <p className="text-sm text-muted-foreground">{t.get('migrant.menu.title')}</p>
-                <p className="font-semibold">{profile?.name || t.get('cpc.menu.user_fallback')}</p>
+                <p className="font-semibold">{migrantDisplayName || t.get('cpc.menu.user_fallback')}</p>
               </div>
 
               {/* Documentação:
@@ -1084,7 +1125,7 @@ export default function MigrantDashboard() {
                 <div className="mb-8">
                   <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                     {t.get('dashboard.welcome')},{' '}
-                    <span className="text-primary">{profile?.name || t.get('auth.roles.migrant')}</span>
+                    <span className="text-primary">{migrantDisplayName || t.get('auth.roles.migrant')}</span>
                   </h1>
                   <p className="text-sm text-muted-foreground mt-1">
                     {t.get('dashboard.overview_desc')}.

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { getCalendarDateIsoInTimeZone, todayIsoAppCalendar } from '@/lib/appCalendar';
+import { isMigrantHistorySession, isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
 import BookingSessionWizardDialog, {
   BOOKING_SERVICES,
   BOOKING_SPECIALISTS,
@@ -109,10 +110,14 @@ export default function SessionsPage() {
       try {
         const typed = await queryDocuments<SessionItem>(
           'sessions',
-          [{ field: 'migrant_id', operator: '==', value: user.uid }],
-          { field: 'scheduled_date', direction: 'asc' }
+          [{ field: 'migrant_id', operator: '==', value: user.uid }]
         );
-        setSessions(typed);
+        const sorted = (typed || []).slice().sort((a, b) => {
+          const byDate = a.scheduled_date.localeCompare(b.scheduled_date);
+          if (byDate !== 0) return byDate;
+          return a.scheduled_time.localeCompare(b.scheduled_time);
+        });
+        setSessions(sorted);
       } finally {
         setLoading(false);
       }
@@ -146,12 +151,15 @@ export default function SessionsPage() {
 
   const upcomingSessions = useMemo(() => {
     const today = todayIsoAppCalendar();
-    return filtered.filter(s => s.scheduled_date >= today);
+    return filtered.filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today));
   }, [filtered]);
 
   const pastSessions = useMemo(() => {
     const today = todayIsoAppCalendar();
-    return filtered.filter(s => s.scheduled_date < today).reverse();
+    return filtered
+      .filter((s) => isMigrantHistorySession(s.status, s.scheduled_date, today))
+      .slice()
+      .sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date) || b.scheduled_time.localeCompare(a.scheduled_time));
   }, [filtered]);
 
 
@@ -241,9 +249,11 @@ export default function SessionsPage() {
                 upcomingSessions.map((s) => {
                   const svcId = resolveServiceIdFromSession(s);
                   const statusUi = sessionStatusUi(s.status);
-                  const canJoin = !!s.meeting_url && (s.status ?? 'Agendada') === 'Agendada';
-                  const canReschedule = (s.status ?? 'Agendada') === 'Agendada';
-                  const canCancel = (s.status ?? 'Agendada') === 'Agendada';
+                  const isPending = isSessionPendingApproval(s.status);
+                  const isScheduled = (s.status ?? 'Agendada') === 'Agendada' || (s.status ?? '').toLowerCase() === 'scheduled';
+                  const canJoin = !!s.meeting_url && isScheduled && !isPending;
+                  const canReschedule = isScheduled && !isPending;
+                  const canCancel = isScheduled || isPending;
                   const title = s.service_label ?? (svcId ? (BOOKING_SERVICES.find((x) => x.id === svcId)?.title ?? s.session_type) : s.session_type);
 
                   return (

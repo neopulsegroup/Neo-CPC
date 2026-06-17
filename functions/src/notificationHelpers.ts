@@ -166,9 +166,11 @@ export async function enqueueAppNotification(args: {
   createdBy?: string;
   /** ID do trigger para audit. */
   contextId?: string;
+  /** ID fixo do doc (idempotência, ex.: session_notify_{sessionId}). */
+  documentId?: string;
 }): Promise<string | null> {
   try {
-    const ref = await getFirestore().collection('notifications').add({
+    const payload = {
       recipient_id: args.recipientId,
       title: args.title,
       body: args.body,
@@ -176,7 +178,24 @@ export async function enqueueAppNotification(args: {
       href: args.href ?? null,
       created_by: args.createdBy ?? 'system',
       created_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+    const collection = getFirestore().collection('notifications');
+    const ref = args.documentId ? collection.doc(args.documentId) : collection.doc();
+    if (args.documentId) {
+      const existing = await ref.get();
+      if (existing.exists) {
+        logger.info('app_notification_skipped_duplicate', {
+          notificationId: ref.id,
+          recipientId: args.recipientId,
+          type: args.type,
+          contextId: args.contextId ?? null,
+        });
+        return ref.id;
+      }
+      await ref.set(payload);
+    } else {
+      await ref.set(payload);
+    }
     logger.info('app_notification_enqueued', {
       notificationId: ref.id,
       recipientId: args.recipientId,

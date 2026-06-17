@@ -8,7 +8,7 @@ import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './client';
 import { functions } from './functionsClient';
-import { getRecaptchaToken } from '@/lib/recaptcha';
+import { isRecaptchaSiteKeyConfigured, resolveRegisterRecaptchaToken } from '@/lib/recaptcha';
 import { resolvePasswordResetContinueUrl } from '@/lib/passwordResetContinueUrl';
 const env = import.meta.env as unknown as Record<string, string | boolean | undefined>;
 
@@ -75,6 +75,7 @@ function mapRegisterAuthError(error: unknown): string {
     if (code === 'auth/network-request-failed') return 'NETWORK_ERROR';
     if (code === 'auth/too-many-requests') return 'RATE_LIMITED';
     if (code === 'auth/internal-error' || code === 'auth/app-not-authorized') return 'AUTH_PROVIDER_UNAVAILABLE';
+    if (error instanceof Error && error.message === 'CAPTCHA_REQUIRED') return 'CAPTCHA_REQUIRED';
     return 'REGISTER_FAILED';
 }
 
@@ -181,7 +182,17 @@ async function registerUserWithClientFallback(
 }
 
 function useSecureRegisterFunction(): boolean {
-    return String(env.VITE_USE_SECURE_REGISTER_FUNCTION ?? 'false').toLowerCase() === 'true';
+    const explicit = String(env.VITE_USE_SECURE_REGISTER_FUNCTION ?? '').trim().toLowerCase();
+    if (explicit === 'true') return true;
+    if (explicit === 'false') return false;
+    // Em produção, o registo passa sempre pela Cloud Function segura.
+    return env.PROD === true;
+}
+
+function allowClientRegisterFallback(): boolean {
+    if (env.PROD === true) return false;
+    if (isRecaptchaSiteKeyConfigured()) return false;
+    return String(env.VITE_ALLOW_CLIENT_REGISTER_FALLBACK ?? 'true').toLowerCase() === 'true';
 }
 
 /**
@@ -209,11 +220,14 @@ export async function registerUser(
         >(functions, 'registerUserSecure');
 
         if (!useSecureRegisterFunction()) {
+            if (!allowClientRegisterFallback()) {
+                throw new Error('CAPTCHA_REQUIRED');
+            }
             return await registerUserWithClientFallback(email, password, name, role, additionalData);
         }
 
         try {
-            const captchaToken = await getRecaptchaToken('register');
+            const captchaToken = await resolveRegisterRecaptchaToken();
 
             await callRegister({
                 email,
@@ -225,7 +239,7 @@ export async function registerUser(
                 ...(additionalData?.activityArea ? { activityArea: additionalData.activityArea } : {}),
             });
         } catch (functionError) {
-            if (!isFunctionFallbackEligible(functionError)) {
+            if (!allowClientRegisterFallback() || !isFunctionFallbackEligible(functionError)) {
                 throw functionError;
             }
             console.warn('registerUserSecure indisponível. A usar fallback de cadastro no cliente.');
