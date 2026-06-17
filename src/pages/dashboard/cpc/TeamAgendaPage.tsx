@@ -3,12 +3,39 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
+import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { parseUnknownDate } from '@/lib/companyVerification';
 import {
-  AlertTriangle,
+  canApproveSessionRequests,
+  isSessionPendingApproval,
+  SESSION_STATUS_REJECTED,
+  SESSION_STATUS_SCHEDULED,
+  shouldShowSessionOnAgenda,
+} from '@/lib/sessionApproval';
+import {
+  addCalendarDaysIso,
+  APP_TIME_ZONE,
+  getCalendarDateIsoInTimeZone,
+  getJsWeekdaySun0ForCalendarDateIso,
+  todayIsoAppCalendar,
+  weekStartEndIsoMondayInAppCalendar,
+} from '@/lib/appCalendar';
+import {
   AlignLeft,
   Bold,
   Calendar,
@@ -18,156 +45,233 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  ExternalLink,
   Filter,
   Italic,
   List,
   ListOrdered,
+  Loader2,
   MapPin,
   Plus,
   Save,
   User,
   X,
 } from 'lucide-react';
+import CpcCreateSessionDialog from './CpcCreateSessionDialog';
+import type { AgendaCategory as CreateAgendaCategory } from '@/lib/cpcSpecialists';
 
-type CalendarEvent = {
+type AgendaCategory = 'legal' | 'psychology' | 'mediation' | 'collective';
+type SessionColor = 'blue' | 'green' | 'purple';
+
+type SessionDoc = {
   id: string;
-  title: string;
-  subtitle: string;
-  person: string;
-  specialist: string;
-  tag: string;
-  dayIndex: number;
+  migrant_id?: string | null;
+  session_type?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  status?: string | null;
+  service_id?: string | null;
+  service_label?: string | null;
+  specialist_id?: string | null;
+  specialist_name?: string | null;
+  meeting_url?: string | null;
+  created_at?: string | null;
+};
+
+type AgendaSession = {
+  id: string;
+  migrantId: string;
+  personName: string;
+  category: AgendaCategory;
+  color: SessionColor;
+  serviceLabel: string | null;
+  specialistName: string | null;
+  status: string | null;
+  meetingUrl: string | null;
+  dateIso: string;
+  timeLabel: string;
   startHour: number;
+  startMinute: number;
   durationHours: number;
-  color: 'blue' | 'green' | 'purple';
 };
 
 type PendingRequest = {
   id: string;
-  category: string;
-  categoryClassName: string;
+  category: AgendaCategory;
   title: string;
   person: string;
-  team: string;
+  specialistName: string | null;
   when: string;
   timeAgo: string;
-  action: 'approve' | 'assign';
-  urgent?: string;
+  createdAtMs: number;
 };
 
+const START_HOUR = 8;
+const END_HOUR = 19;
+const ROW_HEIGHT = 74;
+const HEADER_HEIGHT = 72;
 const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const CATEGORY_COLOR: Record<AgendaCategory, SessionColor> = {
+  legal: 'blue',
+  psychology: 'purple',
+  mediation: 'green',
+  collective: 'blue',
+};
 
-const events: CalendarEvent[] = [
-  {
-    id: 'legal-consult',
-    title: 'Legal Consultation',
-    subtitle: 'M. Al-Fayed (ID ...',
-    person: 'M. Al-Fayed',
-    specialist: 'Specialist J. Perez',
-    tag: 'LEGAL',
-    dayIndex: 0,
-    startHour: 9,
-    durationHours: 1.5,
-    color: 'blue',
-  },
-  {
-    id: 'initial-assessment',
-    title: 'Initial Assessment',
-    subtitle: 'S. Kovacs (ID ...',
-    person: 'S. Kovacs',
-    specialist: 'Dr. M. Garcia',
-    tag: 'PSYCHOLOGY',
-    dayIndex: 1,
-    startHour: 11,
-    durationHours: 1.25,
-    color: 'purple',
-  },
-  {
-    id: 'family-mediation',
-    title: 'Family Mediation',
-    subtitle: 'Family H. (Case...',
-    person: 'Family H.',
-    specialist: 'Med. Team A',
-    tag: 'MEDIATION',
-    dayIndex: 2,
-    startHour: 9,
-    durationHours: 2,
-    color: 'green',
-  },
-  {
-    id: 'workplace-conflict',
-    title: 'Workplace conflict',
-    subtitle: 'Case #9912',
-    person: 'Case #9912',
-    specialist: 'Med. Team B',
-    tag: 'MEDIATION',
-    dayIndex: 4,
-    startHour: 9,
-    durationHours: 2,
-    color: 'green',
-  },
-  {
-    id: 'follow-up',
-    title: 'Follow-up',
-    subtitle: 'L. Dubois (ID: 4...',
-    person: 'Lucas Dubois',
-    specialist: 'Dr. A. Rossi',
-    tag: 'PSYCHOLOGY',
-    dayIndex: 2,
-    startHour: 13,
+function resolveCategory(sessionType?: string | null, serviceId?: string | null): AgendaCategory {
+  const type = (sessionType ?? '').toLowerCase();
+  const service = (serviceId ?? '').toLowerCase();
+  if (service === 'legal' || type === 'jurista' || type === 'lawyer') return 'legal';
+  if (service === 'psychology' || type === 'psicologa' || type === 'psychologist') return 'psychology';
+  if (service === 'mediation' || type === 'mediador' || type === 'mediator') return 'mediation';
+  return 'collective';
+}
+
+function categoryBadgeClass(category: AgendaCategory): string {
+  if (category === 'legal') return 'bg-blue-50 text-blue-600';
+  if (category === 'psychology') return 'bg-violet-50 text-violet-600';
+  if (category === 'mediation') return 'bg-emerald-50 text-emerald-600';
+  return 'bg-cyan-50 text-cyan-600';
+}
+
+function categoryDotClass(category: AgendaCategory): string {
+  if (category === 'legal') return 'bg-blue-500';
+  if (category === 'psychology') return 'bg-violet-500';
+  if (category === 'mediation') return 'bg-emerald-500';
+  return 'bg-cyan-500';
+}
+
+function normalizeIso(value?: string | null): string {
+  const raw = (value ?? '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return getCalendarDateIsoInTimeZone(parsed);
+}
+
+function parseTime(value?: string | null): { hour: number; minute: number } {
+  const match = /^(\d{1,2}):(\d{2})/.exec((value ?? '').trim());
+  if (!match) return { hour: 9, minute: 0 };
+  return {
+    hour: Math.min(23, Math.max(0, Number(match[1]))),
+    minute: Math.min(59, Math.max(0, Number(match[2]))),
+  };
+}
+
+function addCalendarMonthsIso(isoDate: string, deltaMonths: number): string {
+  const [y, m] = isoDate.split('-').map(Number);
+  const total = y * 12 + (m - 1) + deltaMonths;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  return `${ny}-${String(nm).padStart(2, '0')}-01`;
+}
+
+function buildMonthMatrix(anchorIso: string): string[] {
+  const [y, m] = anchorIso.split('-').map(Number);
+  const firstIso = `${y}-${String(m).padStart(2, '0')}-01`;
+  const firstWeekdaySun0 = getJsWeekdaySun0ForCalendarDateIso(firstIso);
+  const mondayOffset = firstWeekdaySun0 === 0 ? 6 : firstWeekdaySun0 - 1;
+  const gridStart = addCalendarDaysIso(firstIso, -mondayOffset);
+  return Array.from({ length: 42 }, (_, i) => addCalendarDaysIso(gridStart, i));
+}
+
+function appTimeHourMinute(now: Date): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+  return { hour: hour === 24 ? 0 : hour, minute };
+}
+
+function buildAgendaSession(doc: SessionDoc, nameMap: Map<string, string>): AgendaSession {
+  const category = resolveCategory(doc.session_type, doc.service_id);
+  const { hour, minute } = parseTime(doc.scheduled_time);
+  const migrantId = doc.migrant_id ?? '';
+  const personName = (nameMap.get(migrantId) || '').trim();
+  return {
+    id: doc.id,
+    migrantId,
+    personName,
+    category,
+    color: CATEGORY_COLOR[category],
+    serviceLabel: doc.service_label ?? null,
+    specialistName: doc.specialist_name ?? null,
+    status: doc.status ?? null,
+    meetingUrl: doc.meeting_url ?? null,
+    dateIso: normalizeIso(doc.scheduled_date),
+    timeLabel: (doc.scheduled_time ?? '').trim() || `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    startHour: hour,
+    startMinute: minute,
     durationHours: 1,
-    color: 'purple',
-  },
-];
+  };
+}
 
-const pendingRequests: PendingRequest[] = [
-  {
-    id: 'r1',
-    category: 'LEGAL',
-    categoryClassName: 'bg-blue-50 text-blue-600',
-    title: 'Residency Appeal Consult',
-    person: 'Ahmed K.',
-    team: 'Req. Front Desk',
-    when: 'Mon, Oct 30 • 10:00 AM',
-    timeAgo: '2h ago',
-    action: 'approve',
-  },
-  {
-    id: 'r2',
-    category: 'PSYCHOLOGY',
-    categoryClassName: 'bg-violet-50 text-violet-600',
-    title: 'Emergency Counseling',
-    person: 'Nia J.',
-    team: 'Req. Social Worker',
-    when: '',
-    timeAgo: '5h ago',
-    action: 'assign',
-    urgent: 'Urgent: ASAP',
-  },
-  {
-    id: 'r3',
-    category: 'MEDIATION',
-    categoryClassName: 'bg-emerald-50 text-emerald-600',
-    title: 'Conflict Resolution',
-    person: 'Marcus T.',
-    team: 'Req. Housing',
-    when: 'Wed, Nov 1 • 14:00 PM',
-    timeAgo: '1d ago',
-    action: 'approve',
-  },
-];
-
-function eventClass(color: CalendarEvent['color'], selected: boolean): string {
+function eventClass(color: SessionColor, selected: boolean): string {
   if (color === 'blue') return selected ? 'border-l-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-l-blue-500 bg-blue-50';
   if (color === 'green') return selected ? 'border-l-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-l-emerald-500 bg-emerald-50';
   return selected ? 'border-l-violet-500 bg-violet-50 ring-2 ring-violet-300' : 'border-l-violet-500 bg-violet-50';
 }
 
+function formatRelativeTimeLabel(from: Date, to: Date, t: { get: (key: string, params?: Record<string, string | number>) => string }): string {
+  const diffMs = Math.max(0, to.getTime() - from.getTime());
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return t.get('cpc.relative.minutes', { count: Math.max(1, mins) });
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t.get('cpc.relative.hours', { count: hours });
+  const days = Math.floor(hours / 24);
+  return t.get('cpc.relative.days', { count: days });
+}
+
+function formatPendingWhen(dateIso: string, timeLabel: string, locale: string): string {
+  const [y, m, d] = dateIso.split('-').map(Number);
+  const dateLabel = new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(
+    new Date(Date.UTC(y, m - 1, d, 12))
+  );
+  return `${dateLabel} • ${timeLabel}`;
+}
+
+function buildPendingRequest(
+  doc: SessionDoc,
+  nameMap: Map<string, string>,
+  locale: string,
+  t: { get: (key: string, params?: Record<string, string | number>) => string },
+  now: Date
+): PendingRequest {
+  const category = resolveCategory(doc.session_type, doc.service_id);
+  const migrantId = doc.migrant_id ?? '';
+  const personName = (nameMap.get(migrantId) || '').trim() || t.get('cpc.agenda.event.unknownPerson');
+  const createdAt = parseUnknownDate(doc.created_at) ?? now;
+  return {
+    id: doc.id,
+    category,
+    title: doc.service_label?.trim() || t.get(`cpc.agenda.sessionTypes.${category}`),
+    person: personName,
+    specialistName: doc.specialist_name?.trim() || null,
+    when: formatPendingWhen(normalizeIso(doc.scheduled_date), (doc.scheduled_time ?? '').trim() || '—', locale),
+    timeAgo: formatRelativeTimeLabel(createdAt, now, t),
+    createdAtMs: createdAt.getTime(),
+  };
+}
+
 export default function TeamAgendaPage() {
   const { t, language } = useLanguage();
+  const { user, profile } = useAuth();
   const [view, setView] = useState<'week' | 'month'>('week');
-  const [selectedEventId, setSelectedEventId] = useState<string>('follow-up');
-  const [requestStatus, setRequestStatus] = useState<Record<string, 'pending' | 'approved' | 'declined' | 'assigned'>>({});
+  const [anchorIso, setAnchorIso] = useState<string>(() => todayIsoAppCalendar());
+  const [sessions, setSessions] = useState<AgendaSession[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
+  const [cancelling, setCancelling] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | AgendaCategory>('all');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [eventInfoOpen, setEventInfoOpen] = useState(false);
   const [sessionRecordOpen, setSessionRecordOpen] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
@@ -176,6 +280,9 @@ export default function TeamAgendaPage() {
   const [immediateNextStep, setImmediateNextStep] = useState<string>('');
   const [lastAutosavedAt, setLastAutosavedAt] = useState<number | null>(Date.now() - 2 * 60 * 1000);
 
+  const todayIso = useMemo(() => todayIsoAppCalendar(), []);
+  const canModerateRequests = useMemo(() => canApproveSessionRequests(profile?.role), [profile?.role]);
+
   const locale = useMemo(() => {
     if (language === 'en') return 'en-GB';
     if (language === 'es') return 'es-ES';
@@ -183,24 +290,250 @@ export default function TeamAgendaPage() {
     return 'pt-PT';
   }, [language]);
 
-  const monthTitle = useMemo(() => {
-    return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(2023, 9, 1));
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingSessions(true);
+      try {
+        const raw = await queryDocuments<SessionDoc>('sessions', [], { field: 'scheduled_date', direction: 'asc' });
+        const rows = raw ?? [];
+        const ids = Array.from(new Set(rows.map((r) => r.migrant_id).filter((id): id is string => Boolean(id))));
+        const [profiles, users] = await Promise.all([
+          Promise.all(ids.map((id) => getDocument<{ name?: string | null }>('profiles', id).catch(() => null))),
+          Promise.all(ids.map((id) => getDocument<{ name?: string | null }>('users', id).catch(() => null))),
+        ]);
+        const nameMap = new Map<string, string>();
+        ids.forEach((id, index) => {
+          const name = (profiles[index]?.name?.trim() || users[index]?.name?.trim() || '').toString();
+          nameMap.set(id, name);
+        });
+        const now = new Date();
+        const pending = rows
+          .filter((r) => isSessionPendingApproval(r.status))
+          .map((r) => buildPendingRequest(r, nameMap, locale, t, now))
+          .sort((a, b) => b.createdAtMs - a.createdAtMs);
+        const mapped = rows
+          .filter((r) => shouldShowSessionOnAgenda(r.status))
+          .map((r) => buildAgendaSession(r, nameMap));
+        if (!cancelled) {
+          setPendingRequests(pending);
+          setSessions(mapped);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar sessões da agenda', error);
+        if (!cancelled) {
+          setSessions([]);
+          setPendingRequests([]);
+        }
+      } finally {
+        if (!cancelled) setLoadingSessions(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [locale]);
 
-  const weekdays = useMemo(
-    () => [
-      { short: t.get('cpc.agenda.weekdays.mon'), date: '23' },
-      { short: t.get('cpc.agenda.weekdays.tue'), date: '24' },
-      { short: t.get('cpc.agenda.weekdays.wed'), date: '25', isToday: true },
-      { short: t.get('cpc.agenda.weekdays.thu'), date: '26' },
-      { short: t.get('cpc.agenda.weekdays.fri'), date: '27' },
-      { short: t.get('cpc.agenda.weekdays.sat'), date: '28' },
-      { short: t.get('cpc.agenda.weekdays.sun'), date: '29' },
-    ],
-    [t]
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 60000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const week = useMemo(() => weekStartEndIsoMondayInAppCalendar(anchorIso), [anchorIso]);
+
+  const weekDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => {
+        const iso = addCalendarDaysIso(week.weekStart, i);
+        return {
+          iso,
+          key: WEEKDAY_KEYS[i],
+          short: t.get(`cpc.agenda.weekdays.${WEEKDAY_KEYS[i]}`),
+          dayNum: Number(iso.slice(8, 10)),
+          isToday: iso === todayIso,
+        };
+      }),
+    [week.weekStart, t, todayIso]
   );
 
-  const selectedEvent = useMemo(() => events.find((event) => event.id === selectedEventId) ?? null, [selectedEventId]);
+  const visibleSessions = useMemo(() => {
+    if (categoryFilter === 'all') return sessions;
+    return sessions.filter((session) => session.category === categoryFilter);
+  }, [sessions, categoryFilter]);
+
+  const sessionsByDay = useMemo(() => {
+    const map = new Map<string, AgendaSession[]>();
+    for (const session of visibleSessions) {
+      const list = map.get(session.dateIso) ?? [];
+      list.push(session);
+      map.set(session.dateIso, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.startHour * 60 + a.startMinute - (b.startHour * 60 + b.startMinute));
+    }
+    return map;
+  }, [visibleSessions]);
+
+  const monthCells = useMemo(() => buildMonthMatrix(anchorIso), [anchorIso]);
+  const anchorMonth = useMemo(() => Number(anchorIso.slice(5, 7)), [anchorIso]);
+
+  const periodTitle = useMemo(() => {
+    const [y, m] = anchorIso.split('-').map(Number);
+    return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
+  }, [anchorIso, locale]);
+
+  const showNowLine = todayIso >= week.weekStart && todayIso <= week.weekEnd;
+  const nowLineTop = useMemo(() => {
+    const { hour, minute } = appTimeHourMinute(new Date(nowTick));
+    return HEADER_HEIGHT + (hour + minute / 60 - START_HOUR) * ROW_HEIGHT;
+  }, [nowTick]);
+  const nowLineVisible = showNowLine && (() => {
+    const { hour } = appTimeHourMinute(new Date(nowTick));
+    return hour >= START_HOUR && hour <= END_HOUR;
+  })();
+
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
+    [sessions, selectedSessionId]
+  );
+
+  const selectedSessionTitle = useMemo(() => {
+    if (!selectedSession) return '';
+    return selectedSession.serviceLabel?.trim() || t.get(`cpc.agenda.sessionTypes.${selectedSession.category}`);
+  }, [selectedSession, t]);
+
+  const selectedSessionDateTime = useMemo(() => {
+    if (!selectedSession) return '';
+    const [y, m, d] = selectedSession.dateIso.split('-').map(Number);
+    const dateLabel = new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(
+      new Date(Date.UTC(y, m - 1, d, 12))
+    );
+    const endHour = Math.min(23, selectedSession.startHour + Math.floor(selectedSession.durationHours));
+    const endLabel = `${String(endHour).padStart(2, '0')}:${String(selectedSession.startMinute).padStart(2, '0')}`;
+    return `${dateLabel} • ${selectedSession.timeLabel} - ${endLabel}`;
+  }, [selectedSession, locale]);
+
+  function sessionStatusLabel(status: string | null): string {
+    const normalized = (status ?? '').toLowerCase();
+    if (isSessionPendingApproval(status)) return t.get('cpc.agenda.pending.statusLabel');
+    if (normalized.indexOf('cancel') !== -1) return t.get('cpc.sessions.status.cancelled');
+    if (normalized.indexOf('compl') !== -1 || normalized.indexOf('concl') !== -1 || normalized.indexOf('done') !== -1)
+      return t.get('cpc.sessions.status.completed');
+    if (normalized.indexOf('progress') !== -1 || normalized.indexOf('curso') !== -1) return t.get('cpc.sessions.status.in_progress');
+    return t.get('cpc.sessions.status.scheduled');
+  }
+
+  function openSession(id: string) {
+    setSelectedSessionId(id);
+    setEventInfoOpen(true);
+  }
+
+  function goToDay(iso: string) {
+    setAnchorIso(iso);
+    setView('week');
+  }
+
+  function shiftPeriod(direction: -1 | 1) {
+    setAnchorIso((prev) => (view === 'week' ? addCalendarDaysIso(prev, direction * 7) : addCalendarMonthsIso(prev, direction)));
+  }
+
+  function handleSessionCreated(payload: {
+    id: string;
+    migrantId: string;
+    personName: string;
+    category: CreateAgendaCategory;
+    serviceLabel: string;
+    specialistId: string | null;
+    specialistName: string | null;
+    dateIso: string;
+    timeLabel: string;
+  }) {
+    const { hour, minute } = parseTime(payload.timeLabel);
+    const color = CATEGORY_COLOR[payload.category];
+    setSessions((prev) => [
+      ...prev,
+      {
+        id: payload.id,
+        migrantId: payload.migrantId,
+        personName: payload.personName,
+        category: payload.category,
+        color,
+        serviceLabel: payload.serviceLabel,
+        specialistName: payload.specialistName,
+        status: 'Agendada',
+        meetingUrl: null,
+        dateIso: payload.dateIso,
+        timeLabel: payload.timeLabel,
+        startHour: hour,
+        startMinute: minute,
+        durationHours: 1,
+      },
+    ]);
+    setAnchorIso(payload.dateIso);
+    setView('week');
+  }
+
+  async function handleApprovePending(requestId: string) {
+    if (!canModerateRequests || processingRequestId) return;
+    const pending = pendingRequests.find((request) => request.id === requestId);
+    if (!pending) return;
+    setProcessingRequestId(requestId);
+    try {
+      await updateDocument('sessions', requestId, {
+        status: SESSION_STATUS_SCHEDULED,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user?.uid ?? null,
+      });
+      const approvedDoc = await getDocument<SessionDoc>('sessions', requestId);
+      if (approvedDoc) {
+        const nameMap = new Map<string, string>();
+        if (approvedDoc.migrant_id) nameMap.set(approvedDoc.migrant_id, pending.person);
+        setSessions((prev) => [...prev, buildAgendaSession({ ...approvedDoc, status: SESSION_STATUS_SCHEDULED }, nameMap)]);
+      }
+      setPendingRequests((prev) => prev.filter((request) => request.id !== requestId));
+      toast({ title: t.get('cpc.agenda.pending.approveSuccess') });
+    } catch (error) {
+      console.error('Erro ao aprovar pedido', error);
+      toast({ title: t.get('cpc.agenda.pending.approveError'), variant: 'destructive' });
+    } finally {
+      setProcessingRequestId(null);
+    }
+  }
+
+  async function handleDeclinePending(requestId: string) {
+    if (!canModerateRequests || processingRequestId) return;
+    setProcessingRequestId(requestId);
+    try {
+      await updateDocument('sessions', requestId, {
+        status: SESSION_STATUS_REJECTED,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user?.uid ?? null,
+      });
+      setPendingRequests((prev) => prev.filter((request) => request.id !== requestId));
+      toast({ title: t.get('cpc.agenda.pending.declineSuccess') });
+    } catch (error) {
+      console.error('Erro ao recusar pedido', error);
+      toast({ title: t.get('cpc.agenda.pending.declineError'), variant: 'destructive' });
+    } finally {
+      setProcessingRequestId(null);
+    }
+  }
+
+  async function handleCancelSession() {
+    if (!selectedSession || cancelling) return;
+    setCancelling(true);
+    try {
+      await updateDocument('sessions', selectedSession.id, { status: 'cancelled' });
+      setSessions((prev) => prev.filter((session) => session.id !== selectedSession.id));
+      setEventInfoOpen(false);
+      toast({ title: t.get('cpc.agenda.event.cancelSuccess') });
+    } catch (error) {
+      console.error('Erro ao cancelar sessão', error);
+      toast({ title: t.get('cpc.agenda.event.cancelError'), variant: 'destructive' });
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   useEffect(() => {
     if (!sessionRecordOpen) return;
@@ -237,7 +570,6 @@ export default function TeamAgendaPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm [overflow-wrap:anywhere]">
       <Dialog open={eventInfoOpen} onOpenChange={setEventInfoOpen}>
         <DialogContent
           hideClose
@@ -245,8 +577,10 @@ export default function TeamAgendaPage() {
         >
           <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
             <div className="min-w-0">
-              <Badge className="h-6 rounded-md bg-violet-50 px-2 text-[11px] font-semibold text-violet-600">{selectedEvent?.tag ?? ''}</Badge>
-              <h2 className="mt-2 text-lg font-semibold leading-tight text-slate-900">{t.get('cpc.agenda.popover.title')}</h2>
+              <Badge className={cn('h-6 rounded-md px-2 text-[11px] font-semibold', categoryBadgeClass(selectedSession?.category ?? 'collective'))}>
+                {t.get(`cpc.agenda.sessionTypes.${selectedSession?.category ?? 'collective'}`)}
+              </Badge>
+              <h2 className="mt-2 text-lg font-semibold leading-tight text-slate-900">{selectedSessionTitle}</h2>
             </div>
             <DialogClose
               aria-label={t.get('cpc.agenda.eventModal.close')}
@@ -259,31 +593,40 @@ export default function TeamAgendaPage() {
           <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-[15px] font-semibold text-slate-600">
-                {t.get('cpc.agenda.popover.person')
+                {(selectedSession?.personName || t.get('cpc.agenda.event.unknownPerson'))
                   .split(' ')
+                  .filter(Boolean)
                   .slice(0, 2)
                   .map((w) => w.charAt(0))
                   .join('')
                   .toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{t.get('cpc.agenda.popover.person')}</p>
+                <p className="text-sm font-semibold text-slate-900">{selectedSession?.personName || t.get('cpc.agenda.event.unknownPerson')}</p>
                 <p className="text-xs text-slate-500">
-                  {t.get('cpc.agenda.popover.personMetaPrefix')} • <span className="font-semibold text-emerald-600">{t.get('cpc.agenda.popover.personMetaStatus')}</span>
+                  <span className="font-semibold text-emerald-600">{sessionStatusLabel(selectedSession?.status ?? null)}</span>
                 </p>
               </div>
             </div>
 
             <div className="mt-4 space-y-2 text-sm text-slate-600">
               <p className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-slate-400" /> {t.get('cpc.agenda.popover.dateTime')}
+                <Clock3 className="h-4 w-4 text-slate-400" /> {selectedSessionDateTime}
               </p>
               <p className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-slate-400" /> {t.get('cpc.agenda.popover.specialist')}
+                <MapPin className="h-4 w-4 text-slate-400" />{' '}
+                {selectedSession?.specialistName?.trim() || t.get('cpc.agenda.event.noSpecialist')}
               </p>
-              <p className="flex items-start gap-2">
-                <CalendarDays className="mt-0.5 h-4 w-4 text-slate-400" /> {t.get('cpc.agenda.popover.notes')}
-              </p>
+              {selectedSession?.meetingUrl ? (
+                <a
+                  href={selectedSession.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 font-semibold text-blue-600 hover:underline"
+                >
+                  <ExternalLink className="h-4 w-4" /> {t.get('cpc.agenda.event.join')}
+                </a>
+              ) : null}
             </div>
           </div>
 
@@ -300,10 +643,13 @@ export default function TeamAgendaPage() {
                 {t.get('cpc.agenda.sessionRecord.open')}
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button variant="outline" className="h-9 flex-1 rounded-lg border-slate-200 text-sm font-semibold text-slate-700">
-                {t.get('cpc.agenda.actions.reschedule')}
-              </Button>
-              <Button variant="outline" className="h-9 flex-1 rounded-lg border-red-100 bg-red-50 text-sm font-semibold text-red-500 hover:bg-red-100">
+              <Button
+                variant="outline"
+                className="h-9 flex-1 rounded-lg border-red-100 bg-red-50 text-sm font-semibold text-red-500 hover:bg-red-100"
+                disabled={cancelling}
+                onClick={handleCancelSession}
+              >
+                {cancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {t.get('cpc.agenda.actions.cancel')}
               </Button>
             </div>
@@ -528,30 +874,120 @@ export default function TeamAgendaPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 border-r">
+      <div className="flex w-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm [overflow-wrap:anywhere]">
+      <section className="w-full shrink-0 border-b bg-white" data-testid="cpc-agenda-pending-section">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 md:px-5 md:py-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold leading-none text-slate-900 md:text-xl">{t.get('cpc.agenda.pending.title')}</h2>
+            {pendingRequests.length > 0 ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-100 px-1.5 text-xs font-semibold text-orange-700">
+                {pendingRequests.length}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {pendingRequests.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-slate-500 md:px-5">{t.get('cpc.agenda.pending.empty')}</div>
+        ) : (
+        <div className="grid w-full grid-cols-1 gap-4 p-4 md:p-5 lg:grid-cols-3">
+          {pendingRequests.map((request) => (
+              <article key={request.id} className="rounded-xl border p-3 shadow-sm transition-all hover:shadow-md break-words">
+                <div className="flex items-center justify-between">
+                  <Badge className={cn('rounded-md px-2 py-0.5 text-[11px] font-semibold', categoryBadgeClass(request.category))}>
+                    {t.get(`cpc.agenda.sessionTypes.${request.category}`)}
+                  </Badge>
+                  <span className="text-xs text-slate-400">{request.timeAgo}</span>
+                </div>
+                <h3 className="mt-2 text-[15px] font-semibold leading-snug text-slate-900 md:text-base">{request.title}</h3>
+                <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                  {request.person}{' '}
+                  <span className="text-slate-400">
+                    ({request.specialistName || t.get('cpc.agenda.pending.requestSource')})
+                  </span>
+                </p>
+                <p className="mt-3 text-xs text-slate-500 md:text-sm">{request.when}</p>
+                {canModerateRequests ? (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="h-8 flex-1 rounded-md text-xs font-semibold md:h-9 md:text-sm"
+                      disabled={processingRequestId === request.id}
+                      onClick={() => void handleDeclinePending(request.id)}
+                    >
+                      <X className="mr-1 h-4 w-4" />
+                      {t.get('cpc.agenda.actions.decline')}
+                    </Button>
+                    <Button
+                      className="h-8 flex-1 rounded-md bg-blue-600 text-xs font-semibold hover:bg-blue-700 md:h-9 md:text-sm"
+                      disabled={processingRequestId === request.id}
+                      onClick={() => void handleApprovePending(request.id)}
+                    >
+                      {processingRequestId === request.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                      {t.get('cpc.agenda.actions.approve')}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs font-medium text-slate-500">{t.get('cpc.agenda.pending.noPermission')}</p>
+                )}
+              </article>
+          ))}
+        </div>
+        )}
+      </section>
+
+      <div className="w-full min-w-0" data-testid="cpc-agenda-calendar-section">
           {/* Ajuste: topo sem scroll vertical e com layout estável por breakpoint (390/768/1366) */}
           <div className="overflow-hidden border-b px-3 py-3 sm:px-4 lg:px-5">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 md:flex-nowrap">
               <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-              <button className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100">
+              <button
+                aria-label={t.get('cpc.agenda.header.previous')}
+                onClick={() => shiftPeriod(-1)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <button className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100">
+              <button
+                aria-label={t.get('cpc.agenda.header.next')}
+                onClick={() => shiftPeriod(1)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100"
+              >
                 <ChevronRight className="h-4 w-4" />
               </button>
-                <h2 className="truncate text-lg font-semibold capitalize leading-none tracking-tight text-slate-900 sm:text-xl md:text-2xl">{monthTitle}</h2>
-                <Button variant="outline" className="h-8 rounded-lg border-slate-200 px-3.5 text-xs font-semibold md:h-9 md:text-sm">
+                <h2 className="truncate text-lg font-semibold capitalize leading-none tracking-tight text-slate-900 sm:text-xl md:text-2xl">{periodTitle}</h2>
+                <Button
+                  variant="outline"
+                  className="h-8 rounded-lg border-slate-200 px-3.5 text-xs font-semibold md:h-9 md:text-sm"
+                  onClick={() => setAnchorIso(todayIso)}
+                >
                   {t.get('cpc.agenda.header.today')}
                 </Button>
               </div>
 
               <div className="flex shrink-0 flex-wrap items-center gap-2 md:flex-nowrap">
-                <Button variant="outline" className="h-8 rounded-lg border-slate-200 px-3.5 text-xs font-semibold text-slate-700 md:h-9 md:text-sm">
-                  <Filter className="mr-2 h-3.5 w-3.5 md:h-4 md:w-4" />
-                  {t.get('cpc.agenda.header.filterBy')}
-                  <ChevronDown className="ml-2 h-3.5 w-3.5 md:h-4 md:w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-8 rounded-lg border-slate-200 px-3.5 text-xs font-semibold text-slate-700 md:h-9 md:text-sm">
+                      <Filter className="mr-2 h-3.5 w-3.5 md:h-4 md:w-4" />
+                      {categoryFilter === 'all'
+                        ? t.get('cpc.agenda.header.filterBy')
+                        : t.get(`cpc.agenda.sessionTypes.${categoryFilter}`)}
+                      <ChevronDown className="ml-2 h-3.5 w-3.5 md:h-4 md:w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel>{t.get('cpc.agenda.filter.title')}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as 'all' | AgendaCategory)}>
+                      <DropdownMenuRadioItem value="all">{t.get('cpc.agenda.filter.all')}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="legal">{t.get('cpc.agenda.sessionTypes.legal')}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="psychology">{t.get('cpc.agenda.sessionTypes.psychology')}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="mediation">{t.get('cpc.agenda.sessionTypes.mediation')}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="collective">{t.get('cpc.agenda.sessionTypes.collective')}</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <div className="inline-flex rounded-lg bg-slate-100 p-1">
                   <button
                     onClick={() => setView('week')}
@@ -572,7 +1008,10 @@ export default function TeamAgendaPage() {
                     {t.get('cpc.agenda.header.month')}
                   </button>
                 </div>
-                <Button className="h-8 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold hover:bg-blue-700 md:h-9 md:px-5 md:text-sm">
+                <Button
+                  className="h-8 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold hover:bg-blue-700 md:h-9 md:px-5 md:text-sm"
+                  onClick={() => setCreateDialogOpen(true)}
+                >
                   <Plus className="mr-1.5 h-3.5 w-3.5 md:h-4 md:w-4" />
                   {t.get('cpc.agenda.header.newSession')}
                 </Button>
@@ -580,7 +1019,12 @@ export default function TeamAgendaPage() {
             </div>
           </div>
 
-          {view === 'week' ? (
+          {loadingSessions ? (
+            <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm text-slate-500">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {t.get('cpc.agenda.calendar.loading')}
+            </div>
+          ) : view === 'week' ? (
             <div className="relative overflow-x-auto overflow-y-hidden">
               <div className="min-w-[980px]">
                 <div
@@ -590,8 +1034,8 @@ export default function TeamAgendaPage() {
                   }}
                 >
                   <div className="h-[72px] border-b border-r" />
-                  {weekdays.map((day) => (
-                    <div key={day.date} className="flex h-[72px] flex-col items-center justify-center border-b border-r">
+                  {weekDays.map((day) => (
+                    <div key={day.iso} className="flex h-[72px] flex-col items-center justify-center border-b border-r">
                       <span className="text-[11px] font-semibold tracking-wide text-slate-400">{day.short}</span>
                       <span
                         className={cn(
@@ -599,7 +1043,7 @@ export default function TeamAgendaPage() {
                           day.isToday && 'rounded-full bg-blue-600 px-2.5 py-1 text-white'
                         )}
                       >
-                        {day.date}
+                        {day.dayNum}
                       </span>
                     </div>
                   ))}
@@ -607,28 +1051,42 @@ export default function TeamAgendaPage() {
                   {hours.map((hour) => (
                     <div key={hour} className="contents">
                       <div className="h-[74px] border-b border-r px-2 py-3 text-right text-xs font-semibold text-slate-400">{hour}</div>
-                      {weekdays.map((day, dayIndex) => {
-                        const matches = events.filter((event) => event.dayIndex === dayIndex && event.startHour === Number(hour.slice(0, 2)));
+                      {weekDays.map((day) => {
+                        const hourNumber = Number(hour.slice(0, 2));
+                        const matches = (sessionsByDay.get(day.iso) ?? []).filter((session) => session.startHour === hourNumber);
                         return (
-                          <div key={`${hour}-${day.date}`} className="relative h-[74px] border-b border-r overflow-visible">
-                            {matches.map((event) => (
+                          <div key={`${hour}-${day.iso}`} className="relative h-[74px] border-b border-r overflow-hidden">
+                            {matches.map((session, matchIndex) => {
+                              const stackCount = matches.length;
+                              let eventTop = 2;
+                              let eventHeight = ROW_HEIGHT - 4;
+                              if (stackCount === 1) {
+                                eventTop = 2 + (session.startMinute / 60) * ROW_HEIGHT;
+                                eventHeight = Math.max(14, ROW_HEIGHT - 4 - (session.startMinute / 60) * ROW_HEIGHT);
+                              } else {
+                                const slotHeight = (ROW_HEIGHT - 4) / stackCount;
+                                eventTop = 2 + matchIndex * slotHeight;
+                                eventHeight = Math.max(14, slotHeight - 2);
+                              }
+                              return (
                               <button
-                                key={event.id}
-                                onClick={() => {
-                                  setSelectedEventId(event.id);
-                                  setEventInfoOpen(true);
-                                }}
+                                key={session.id}
+                                onClick={() => openSession(session.id)}
                                 className={cn(
-                                  'absolute left-1 right-1 z-20 rounded-md border-l-4 px-2 py-1.5 text-left text-xs transition-all hover:shadow-md break-words md:py-2',
-                                  eventClass(event.color, selectedEventId === event.id)
+                                  'absolute inset-x-0.5 z-20 overflow-hidden rounded border-l-[3px] px-1 py-0.5 text-left transition-all hover:z-30 hover:shadow-sm',
+                                  eventClass(session.color, selectedSessionId === session.id)
                                 )}
-                                style={{ top: 2, height: `${event.durationHours * 74 - 6}px` }}
+                                style={{ top: eventTop, height: `${eventHeight}px` }}
                               >
-                                <p className="text-[13px] font-semibold leading-snug text-slate-800 md:text-sm">{t.get(`cpc.agenda.events.${event.id}.title`)}</p>
-                                <p className="mt-0.5 truncate text-[11px] text-slate-600 md:mt-1 md:text-xs">{t.get(`cpc.agenda.events.${event.id}.subtitle`)}</p>
-                                <p className="mt-0.5 truncate text-[11px] text-slate-500 md:mt-1 md:text-xs">{event.specialist}</p>
+                                <p className="text-[10px] font-semibold leading-tight text-slate-800 line-clamp-1">
+                                  {session.serviceLabel?.trim() || t.get(`cpc.agenda.sessionTypes.${session.category}`)}
+                                </p>
+                                <p className="mt-0.5 truncate text-[9px] leading-tight text-slate-600">
+                                  {session.personName || session.timeLabel}
+                                </p>
                               </button>
-                            ))}
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -636,108 +1094,73 @@ export default function TeamAgendaPage() {
                   ))}
                 </div>
 
-                <div className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-red-500" style={{ top: 72 + ((13 - 8) * 74) + 16 }}>
-                  <span className="absolute -left-1 -top-[5px] inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
-                </div>
+                {nowLineVisible ? (
+                  <div className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-red-500" style={{ top: nowLineTop }}>
+                    <span className="absolute -left-1 -top-[5px] inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-500">
-                {[
-                  t.get('cpc.agenda.weekdays.mon'),
-                  t.get('cpc.agenda.weekdays.tue'),
-                  t.get('cpc.agenda.weekdays.wed'),
-                  t.get('cpc.agenda.weekdays.thu'),
-                  t.get('cpc.agenda.weekdays.fri'),
-                  t.get('cpc.agenda.weekdays.sat'),
-                  t.get('cpc.agenda.weekdays.sun'),
-                ].map((d) => (
-                  <div key={d} className="rounded-lg border bg-slate-50 py-2">{d}</div>
+                {WEEKDAY_KEYS.map((key) => (
+                  <div key={key} className="rounded-lg border bg-slate-50 py-2">{t.get(`cpc.agenda.weekdays.${key}`)}</div>
                 ))}
               </div>
               <div className="mt-2 grid grid-cols-7 gap-2">
-                {Array.from({ length: 35 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      'flex h-24 items-start justify-end rounded-lg border p-2 text-sm text-slate-600',
-                      index >= 22 && index <= 28 ? 'bg-white' : 'bg-slate-50'
-                    )}
-                  >
-                    {index >= 22 && index <= 28 ? index + 1 : ''}
-                  </div>
-                ))}
+                {monthCells.map((iso) => {
+                  const inMonth = Number(iso.slice(5, 7)) === anchorMonth;
+                  const isToday = iso === todayIso;
+                  const daySessions = sessionsByDay.get(iso) ?? [];
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      onClick={() => goToDay(iso)}
+                      className={cn(
+                        'flex h-24 flex-col rounded-lg border p-2 text-left text-sm transition-colors hover:border-blue-300 hover:bg-blue-50/40',
+                        inMonth ? 'bg-white text-slate-700' : 'bg-slate-50 text-slate-400'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'ml-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-sm font-semibold',
+                          isToday ? 'bg-blue-600 text-white' : ''
+                        )}
+                      >
+                        {Number(iso.slice(8, 10))}
+                      </span>
+                      <div className="mt-1 flex flex-col gap-1 overflow-hidden">
+                        {daySessions.slice(0, 2).map((session) => (
+                          <span key={session.id} className="flex items-center gap-1 truncate text-[10px] text-slate-600">
+                            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', categoryDotClass(session.category))} />
+                            <span className="truncate">
+                              <span className="font-medium">{session.timeLabel}</span>{' '}
+                              {session.personName || t.get(`cpc.agenda.sessionTypes.${session.category}`)}
+                            </span>
+                          </span>
+                        ))}
+                        {daySessions.length > 2 ? (
+                          <span className="text-[11px] font-semibold text-slate-400">
+                            {t.get('cpc.agenda.calendar.more', { count: daySessions.length - 2 })}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
-        </div>
-
-        <aside className="flex min-h-full flex-col bg-white break-words">
-          <div className="border-b px-4 py-4 md:px-5 md:py-5">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold leading-none text-slate-900 md:text-xl">{t.get('cpc.agenda.pending.title')}</h2>
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-100 px-1.5 text-xs font-semibold text-orange-700">3</span>
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 md:p-5">
-            {pendingRequests.map((request) => {
-              const status = requestStatus[request.id] ?? 'pending';
-              return (
-                <article key={request.id} className="rounded-xl border p-3 shadow-sm transition-all hover:shadow-md break-words">
-                  <div className="flex items-center justify-between">
-                    <Badge className={cn('rounded-md px-2 py-0.5 text-[11px] font-semibold', request.categoryClassName)}>{t.get(`cpc.agenda.requests.${request.id}.category`)}</Badge>
-                    <span className="text-xs text-slate-400">{t.get(`cpc.agenda.requests.${request.id}.timeAgo`)}</span>
-                  </div>
-                  <h3 className="mt-2 text-[15px] font-semibold leading-snug text-slate-900 md:text-base">{t.get(`cpc.agenda.requests.${request.id}.title`)}</h3>
-                  <p className="mt-1 text-xs text-slate-500 md:text-sm">
-                    {t.get(`cpc.agenda.requests.${request.id}.person`)} <span className="text-slate-400">({t.get(`cpc.agenda.requests.${request.id}.team`)})</span>
-                  </p>
-                  {request.urgent ? (
-                    <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-2 py-1 text-sm font-semibold text-red-600">
-                      <span className="inline-flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> {t.get(`cpc.agenda.requests.${request.id}.urgent`)}</span>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-xs text-slate-500 md:text-sm">{t.get(`cpc.agenda.requests.${request.id}.when`)}</p>
-                  )}
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-8 flex-1 rounded-md text-xs font-semibold md:h-9 md:text-sm"
-                      onClick={() => setRequestStatus((prev) => ({ ...prev, [request.id]: 'declined' }))}
-                    >
-                      <X className="mr-1 h-4 w-4" />
-                      {t.get('cpc.agenda.actions.decline')}
-                    </Button>
-                    <Button
-                      className="h-8 flex-1 rounded-md bg-blue-600 text-xs font-semibold hover:bg-blue-700 md:h-9 md:text-sm"
-                      onClick={() => setRequestStatus((prev) => ({ ...prev, [request.id]: request.action === 'assign' ? 'assigned' : 'approved' }))}
-                    >
-                      <Check className="mr-1 h-4 w-4" />
-                      {request.action === 'assign' ? t.get('cpc.agenda.actions.assignSlot') : t.get('cpc.agenda.actions.approve')}
-                    </Button>
-                  </div>
-                  {status !== 'pending' ? (
-                    <p className="mt-2 text-xs font-semibold text-slate-500">
-                      {status === 'approved' && t.get('cpc.agenda.status.approved')}
-                      {status === 'declined' && t.get('cpc.agenda.status.declined')}
-                      {status === 'assigned' && t.get('cpc.agenda.status.assigned')}
-                    </p>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="mt-auto border-t px-5 py-4">
-            <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700">
-              {t.get('cpc.agenda.pending.viewAll')}
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </aside>
       </div>
+
+      <CpcCreateSessionDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        defaultDateIso={anchorIso}
+        onCreated={handleSessionCreated}
+      />
     </div>
     </div>
   );

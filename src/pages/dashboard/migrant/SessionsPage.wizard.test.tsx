@@ -206,7 +206,8 @@ describe('SessionsPage - wizard de marcação', () => {
       service_id: 'legal',
       specialist_name: 'Dra. Sarah Miller',
       scheduled_date: '2099-10-11',
-      status: 'Agendada',
+      status: 'pending_approval',
+      requested_by: 'migrant',
       service_area_id: 'legal',
       duration_minutes: 30,
     });

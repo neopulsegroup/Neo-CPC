@@ -219,6 +219,22 @@
         { "fieldPath": "topics", "arrayConfig": "CONTAINS" },
         { "fieldPath": "startAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "migrant_id", "order": "ASCENDING" },
+        { "fieldPath": "scheduled_date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "migrant_id", "order": "ASCENDING" },
+        { "fieldPath": "scheduled_date", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

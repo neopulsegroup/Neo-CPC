@@ -14,7 +14,12 @@ function getSiteKey(): string {
   return String(env.VITE_RECAPTCHA_SITE_KEY || env.VITE_FIREBASE_APPCHECK_SITE_KEY || '').trim();
 }
 
-function loadRecaptchaScript(siteKey: string): Promise<void> {
+/** Indica se o browser tem chave pública reCAPTCHA configurada. */
+export function isRecaptchaSiteKeyConfigured(): boolean {
+  return getSiteKey().length > 0;
+}
+
+async function loadRecaptchaScript(siteKey: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   if (window.grecaptcha) return Promise.resolve();
   if (scriptLoadingPromise) return scriptLoadingPromise;
@@ -53,5 +58,21 @@ export async function getRecaptchaToken(action: string): Promise<string | null> 
   } catch {
     return null;
   }
+}
+
+/**
+ * Obtém token reCAPTCHA v3 para o registo.
+ * Quando a chave pública está configurada, falha com `CAPTCHA_REQUIRED` se o token
+ * não puder ser gerado (bloqueia submissões sem verificação server-side).
+ */
+export async function resolveRegisterRecaptchaToken(): Promise<string | undefined> {
+  if (!isRecaptchaSiteKeyConfigured()) {
+    return (await getRecaptchaToken('register')) ?? undefined;
+  }
+  const token = await getRecaptchaToken('register');
+  if (!token) {
+    throw new Error('CAPTCHA_REQUIRED');
+  }
+  return token;
 }
 

@@ -30,6 +30,7 @@ import {
   embedBrandingImagesForPdfLib,
 } from '@/lib/pdfLibDocumentBranding';
 import { APP_TIME_ZONE, todayIsoAppCalendar } from '@/lib/appCalendar';
+import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
 import { cepDigitsPortugal, formatPortugalCepDigits, lookupAddressFromPortugalCep } from '@/lib/portugalCepLookup';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser } from '@/features/activities/participantActivityList';
@@ -616,8 +617,11 @@ export default function ProfilePage() {
   }, [edit.contactPreference]);
 
   const upcomingSessions = useMemo(() => {
-    const now = todayIsoAppCalendar();
-    return sessionsSorted.filter((s) => s.scheduled_date >= now).slice(0, 3);
+    const today = todayIsoAppCalendar();
+    return sessionsSorted
+      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today))
+      .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.scheduled_time.localeCompare(b.scheduled_time))
+      .slice(0, 3);
   }, [sessionsSorted]);
 
   const featuredTrail = useMemo(() => {
@@ -2257,7 +2261,12 @@ export default function ProfilePage() {
                   <div key={s.id} className="flex items-center justify-between rounded-lg bg-background/70 border px-4 py-3">
                     <div>
                       <p className="font-medium text-sm">{s.session_type}</p>
-                      <p className="text-xs text-muted-foreground">Status: {s.status || '—'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Status:{' '}
+                        {isSessionPendingApproval(s.status)
+                          ? t.dashboard.status_pending
+                          : s.status || t.dashboard.status_scheduled}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">{new Date(s.scheduled_date).toLocaleDateString('pt-PT')}</p>

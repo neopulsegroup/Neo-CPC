@@ -170,8 +170,19 @@ async function assertRateLimit(ip: string, email: string, requestId: string) {
 }
 
 async function verifyCaptchaIfConfigured(captchaToken: unknown, requestId: string) {
-  const secret = process.env.RECAPTCHA_SECRET_KEY;
-  if (!secret) return;
+  const secret = process.env.RECAPTCHA_SECRET_KEY?.trim();
+  const captchaRequired = process.env.RECAPTCHA_REQUIRED !== 'false';
+
+  if (!secret) {
+    if (captchaRequired && process.env.NODE_ENV === 'production') {
+      logger.error('captcha_secret_missing_in_production', { requestId });
+      throw new HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
+        error: 'CAPTCHA_REQUIRED',
+        requestId,
+      });
+    }
+    return;
+  }
 
   const token = typeof captchaToken === 'string' ? captchaToken.trim() : '';
   if (!token) {
@@ -199,12 +210,21 @@ async function verifyCaptchaIfConfigured(captchaToken: unknown, requestId: strin
     });
   }
 
-  const body = (await response.json()) as { success?: boolean; score?: number };
+  const body = (await response.json()) as { success?: boolean; score?: number; action?: string };
   const minScore = Number(process.env.RECAPTCHA_MIN_SCORE || 0.5);
   const score = typeof body.score === 'number' ? body.score : 0;
+  const action = typeof body.action === 'string' ? body.action.trim() : '';
+
+  if (action && action !== 'register') {
+    logger.warn('captcha_action_mismatch', { requestId, action });
+    throw new HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
+      error: 'REGISTRATION_FAILED',
+      requestId,
+    });
+  }
 
   if (!body.success || score < minScore) {
-    logger.warn('captcha_failed', { requestId, score, minScore });
+    logger.warn('captcha_failed', { requestId, score, minScore, action: action || null });
     throw new HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
       error: 'REGISTRATION_FAILED',
       requestId,

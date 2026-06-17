@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { fetchMigrantProfile } from './migrantProfile';
+import { queryDocuments } from '@/integrations/firebase/firestore';
 
 vi.mock('@/integrations/firebase/auth', () => ({
   getUserProfile: vi.fn(async () => ({ email: 'a@b.com', name: 'Ana', role: 'migrant', createdAt: null, updatedAt: null })),
@@ -43,5 +44,9 @@ describe('fetchMigrantProfile', () => {
     expect(res.sessions).toHaveLength(1);
     expect(res.progress).toHaveLength(1);
     expect(res.trails.t1?.title).toBe('Trilha 1');
+    expect(queryDocuments).toHaveBeenCalledWith(
+      'sessions',
+      [{ field: 'migrant_id', operator: '==', value: 'u1' }]
+    );
   });
 });

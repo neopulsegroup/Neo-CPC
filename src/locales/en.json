@@ -305,6 +305,17 @@
     "accountCreated": "Account created successfully!",
     "backToSelection": "Back to profile selection",
     "registerAs": "Register as:",
+    "captcha": {
+      "label": "Security check",
+      "instruction": "Type the characters shown in the image",
+      "placeholder": "Code",
+      "imageAlt": "Image with verification code",
+      "refresh": "Generate a new code",
+      "hint": "This check protects against automated sign-ups and spam.",
+      "success": "Verification complete.",
+      "error": "The code does not match. Please try again.",
+      "required": "Complete the security check to continue."
+    },
     "loginError": "Incorrect email or password",
     "loginTryAgain": "Could not sign in. Check your details and try again.",
     "registerErrorGeneric": "Could not complete registration. Check your details or try again.",
@@ -833,6 +844,10 @@
     "write_message": "Write message",
     "send": "Send",
     "book_session_action": "Book Session",
+    "booking": {
+      "pendingSuccess": "Request submitted",
+      "pendingSuccessDesc": "The CPC team will review your booking request. You will receive confirmation after approval."
+    },
     "start_trail_action": "Start Training Trail",
     "complete_cv_action": "Complete CV",
     "history_reports": "History & Reports",
@@ -1938,10 +1953,53 @@
       },
       "header": {
         "today": "Today",
+        "previous": "Previous period",
+        "next": "Next period",
         "filterBy": "Filter by",
         "week": "Week",
         "month": "Month",
         "newSession": "New session"
+      },
+      "sessionTypes": {
+        "legal": "Legal Consultation",
+        "psychology": "Psychological Support",
+        "mediation": "Mediation",
+        "collective": "Group Session"
+      },
+      "calendar": {
+        "loading": "Loading sessions...",
+        "more": "+{count} more"
+      },
+      "filter": {
+        "title": "Category",
+        "all": "All categories"
+      },
+      "create": {
+        "title": "New session",
+        "category": "Category",
+        "migrant": "Migrant",
+        "migrantSearch": "Search migrant...",
+        "migrantPlaceholder": "Select migrant",
+        "loadingMigrants": "Loading migrants...",
+        "noMigrants": "No migrants found",
+        "specialist": "Specialist",
+        "specialistPlaceholder": "Select specialist",
+        "loadingSpecialists": "Loading specialists...",
+        "noSpecialists": "No specialists available for this category",
+        "date": "Date",
+        "time": "Time",
+        "cancel": "Cancel",
+        "submit": "Create session",
+        "success": "Session created successfully.",
+        "error": "Could not create the session.",
+        "validation": "Please fill in all required fields."
+      },
+      "event": {
+        "unknownPerson": "Migrant",
+        "noSpecialist": "Specialist to be assigned",
+        "join": "Join meeting",
+        "cancelSuccess": "Session cancelled.",
+        "cancelError": "Could not cancel the session."
       },
       "weekdays": {
         "mon": "MON",
@@ -2073,7 +2131,15 @@
       },
       "pending": {
         "title": "Pending Requests",
-        "viewAll": "View All Requests"
+        "viewAll": "View All Requests",
+        "empty": "No requests pending approval.",
+        "requestSource": "Migrant request",
+        "noPermission": "Only Consultants, Admins and Super Admins can approve requests.",
+        "statusLabel": "Pending approval",
+        "approveSuccess": "Request approved and session scheduled.",
+        "approveError": "Could not approve the request.",
+        "declineSuccess": "Request declined.",
+        "declineError": "Could not decline the request."
       },
       "status": {
         "approved": "Approved",

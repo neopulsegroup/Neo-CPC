@@ -158,7 +158,7 @@ async function enqueueEmail(args) {
  */
 async function enqueueAppNotification(args) {
     try {
-        const ref = await (0, admin_1.getFirestore)().collection('notifications').add({
+        const payload = {
             recipient_id: args.recipientId,
             title: args.title,
             body: args.body,
@@ -166,7 +166,25 @@ async function enqueueAppNotification(args) {
             href: args.href ?? null,
             created_by: args.createdBy ?? 'system',
             created_at: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(),
-        });
+        };
+        const collection = (0, admin_1.getFirestore)().collection('notifications');
+        const ref = args.documentId ? collection.doc(args.documentId) : collection.doc();
+        if (args.documentId) {
+            const existing = await ref.get();
+            if (existing.exists) {
+                firebase_functions_1.logger.info('app_notification_skipped_duplicate', {
+                    notificationId: ref.id,
+                    recipientId: args.recipientId,
+                    type: args.type,
+                    contextId: args.contextId ?? null,
+                });
+                return ref.id;
+            }
+            await ref.set(payload);
+        }
+        else {
+            await ref.set(payload);
+        }
         firebase_functions_1.logger.info('app_notification_enqueued', {
             notificationId: ref.id,
             recipientId: args.recipientId,
