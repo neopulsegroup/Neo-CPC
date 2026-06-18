@@ -1,4 +1,5 @@
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 import type { ActivityDoc, ActivityStatus, ActivityType, ActivityUpsertInput } from './model';
 import { buildSearchTokens, computeScheduleSlotsDurationMinutes, deriveScheduleBounds, resolveScheduleSlots } from './model';
@@ -287,6 +288,7 @@ function compactActivityForAudit(doc: Omit<ActivityDoc, 'id'> | ActivityDoc) {
 }
 
 export async function createActivity(args: { input: ActivityUpsertInput; actorId: string }): Promise<string> {
+  const startedAtMs = auditTimerStart();
   const persisted = toPersistedDoc(args.input);
   const id = await addDocument('activities', {
     ...persisted,
@@ -298,20 +300,22 @@ export async function createActivity(args: { input: ActivityUpsertInput; actorId
     deletedBy: null,
   });
 
-  await addDocument('audit_logs', {
+  await writeAuditLog({
     action: 'activities.create',
     actor_id: args.actorId,
     entity_type: 'activity',
     entity_id: id,
+    context: 'activities',
     before: null,
     after: compactActivityForAudit(persisted),
-    createdAt: serverTimestamp(),
+    startedAtMs,
   });
 
   return id;
 }
 
 export async function updateActivity(args: { activityId: string; input: ActivityUpsertInput; actorId: string }): Promise<void> {
+  const startedAtMs = auditTimerStart();
   const existing = await getActivity(args.activityId);
   const persisted = toPersistedDoc(args.input);
   await updateDocument('activities', args.activityId, {
@@ -319,27 +323,30 @@ export async function updateActivity(args: { activityId: string; input: Activity
     updatedBy: args.actorId,
   });
 
-  await addDocument('audit_logs', {
+  await writeAuditLog({
     action: 'activities.update',
     actor_id: args.actorId,
     entity_type: 'activity',
     entity_id: args.activityId,
+    context: 'activities',
     before: existing ? compactActivityForAudit(existing) : null,
     after: compactActivityForAudit(persisted),
-    createdAt: serverTimestamp(),
+    startedAtMs,
   });
 }
 
 export async function deleteActivity(args: { activityId: string; actorId: string }): Promise<void> {
+  const startedAtMs = auditTimerStart();
   const existing = await getActivity(args.activityId);
   await deleteDocument('activities', args.activityId);
-  await addDocument('audit_logs', {
+  await writeAuditLog({
     action: 'activities.delete',
     actor_id: args.actorId,
     entity_type: 'activity',
     entity_id: args.activityId,
+    context: 'activities',
     before: existing ? compactActivityForAudit(existing) : null,
     after: null,
-    createdAt: serverTimestamp(),
+    startedAtMs,
   });
 }

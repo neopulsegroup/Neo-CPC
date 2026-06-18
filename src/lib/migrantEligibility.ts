@@ -1,4 +1,5 @@
-import { addDocument, deleteDocument, getDocument, serverTimestamp, setDocument } from '@/integrations/firebase/firestore';
+import { deleteDocument, getDocument, serverTimestamp, setDocument } from '@/integrations/firebase/firestore';
+import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 
 /**
  * Classificação interna de migrantes (uso exclusivo da equipa de gestão CPC).
@@ -64,13 +65,14 @@ export async function saveMigrantEligibilityClassification(input: {
   }
 
   if (actorId) {
-    await addDocument('audit_logs', {
+    const startedAtMs = auditTimerStart();
+    await writeAuditLog({
       action: next === null ? 'migrant.eligibility_cleared' : 'migrant.eligibility_set',
       actor_id: actorId,
       target_id: userId,
       context: 'migrant_profile',
       detail: next ?? 'cleared',
-      createdAt: serverTimestamp(),
+      startedAtMs,
     });
   }
 }

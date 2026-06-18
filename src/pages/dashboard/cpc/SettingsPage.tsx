@@ -11,17 +11,36 @@ import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { addDocument, getDocument, setDocument, serverTimestamp } from '@/integrations/firebase/firestore';
+import { getDocument, setDocument, serverTimestamp } from '@/integrations/firebase/firestore';
+import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/integrations/firebase/functionsClient';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
-import { Settings } from 'lucide-react';
+import { Settings, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { canManageTeamMembers } from '@/lib/cpcRoles';
+import { clearRecaptchaPublicSettingsCache } from '@/lib/recaptcha';
+import {
+  DEFAULT_RECAPTCHA_MIN_SCORE,
+  RECAPTCHA_MIN_SCORE_OPTIONS,
+  parseRecaptchaMinScore,
+  validateRecaptchaSettingsDraft,
+  type RecaptchaSettingsDraft,
+} from '@/lib/recaptchaConfig';
 
 import { COMMUNICATION_DEFAULTS } from '@/lib/communicationDefaults';
 import { isValidEmail, normalizeEmail, parsePort, redactSettingsForAudit, sanitizeHost, sanitizeUsername, type CpcSystemSettings, type SmtpSecurity } from './settingsUtils';
 
 type ContactSettingsDoc = { id: string; notificationEmail?: string | null };
+type RecaptchaPublicSettingsDoc = {
+  id: string;
+  siteKey?: string | null;
+  minScore?: number | null;
+};
+type RecaptchaSecretSettingsDoc = {
+  id: string;
+  secretKeySet?: boolean | null;
+};
 type SmtpSettingsDoc = {
   id: string;
   host?: string | null;
@@ -177,7 +196,7 @@ export default function CPCSettingsPage() {
   const { t } = useLanguage();
   const { toast } = useToast();
 
-  const isAdmin = profile?.role === 'admin';
+  const canManageSettings = canManageTeamMembers(profile?.role);
 
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Draft>({
@@ -200,6 +219,28 @@ export default function CPCSettingsPage() {
   const saveSeqRef = useRef(0);
   const [branding, setBranding] = useState<BrandingSettings>(defaultBranding());
   const [loadedBranding, setLoadedBranding] = useState<BrandingSettings>(defaultBranding());
+  const [recaptchaDraft, setRecaptchaDraft] = useState<RecaptchaSettingsDraft>({
+    siteKey: '',
+    secretKey: '',
+    minScore: DEFAULT_RECAPTCHA_MIN_SCORE,
+  });
+  const [loadedRecaptcha, setLoadedRecaptcha] = useState<RecaptchaSettingsDraft & { secretKeySet: boolean }>({
+    siteKey: '',
+    secretKey: '',
+    minScore: DEFAULT_RECAPTCHA_MIN_SCORE,
+    secretKeySet: false,
+  });
+  const [showRecaptchaSecret, setShowRecaptchaSecret] = useState(false);
+  const [applyingRecaptcha, setApplyingRecaptcha] = useState(false);
+
+  const recaptchaValidation = useMemo(
+    () =>
+      validateRecaptchaSettingsDraft(recaptchaDraft, {
+        secretKeySet: loadedRecaptcha.secretKeySet,
+        requireSecret: !loadedRecaptcha.secretKeySet,
+      }),
+    [loadedRecaptcha.secretKeySet, recaptchaDraft]
+  );
 
   const validation = useMemo(() => {
     const errors: Record<string, string> = {};
@@ -251,17 +292,19 @@ export default function CPCSettingsPage() {
     return base !== next || passwordChanged || brandingChanged;
   }, [branding, desiredSettings, draft.smtpPassword, loaded, loadedBranding]);
 
-  const canAutosave = isAdmin && !loading && validation.ok && hasChanges && emailChangePending === null;
+  const canAutosave = canManageSettings && !loading && validation.ok && hasChanges && emailChangePending === null;
 
   useEffect(() => {
     let ignore = false;
     async function load() {
       setLoading(true);
       try {
-        const [contactDoc, smtpDoc, brandingDoc] = await Promise.all([
+        const [contactDoc, smtpDoc, brandingDoc, recaptchaPublicDoc, recaptchaSecretDoc] = await Promise.all([
           getDocument<ContactSettingsDoc>('system_settings', 'contact'),
           getDocument<SmtpSettingsDoc>('system_settings', 'smtp'),
           getDocument<BrandingSettingsDoc>('system_settings', 'document_branding'),
+          getDocument<RecaptchaPublicSettingsDoc>('system_settings', 'recaptcha_public'),
+          getDocument<RecaptchaSecretSettingsDoc>('system_settings', 'recaptcha'),
         ]);
         if (ignore) return;
 
@@ -317,6 +360,22 @@ export default function CPCSettingsPage() {
         const normalizedBranding = normalizeBranding(brandingDoc);
         setBranding(normalizedBranding);
         setLoadedBranding(normalizedBranding);
+
+        const nextRecaptcha: RecaptchaSettingsDraft & { secretKeySet: boolean } = {
+          siteKey:
+            typeof recaptchaPublicDoc?.siteKey === 'string' && recaptchaPublicDoc.siteKey.trim()
+              ? recaptchaPublicDoc.siteKey.trim()
+              : '',
+          secretKey: '',
+          minScore: parseRecaptchaMinScore(recaptchaPublicDoc?.minScore ?? DEFAULT_RECAPTCHA_MIN_SCORE),
+          secretKeySet: recaptchaSecretDoc?.secretKeySet === true,
+        };
+        setLoadedRecaptcha(nextRecaptcha);
+        setRecaptchaDraft({
+          siteKey: nextRecaptcha.siteKey,
+          secretKey: '',
+          minScore: nextRecaptcha.minScore,
+        });
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -355,7 +414,7 @@ export default function CPCSettingsPage() {
   }
 
   async function handleBrandingUpload(zone: BrandingZone, section: BrandingSection, file: File | null) {
-    if (!file || !user || !isAdmin) return;
+    if (!file || !user || !canManageSettings) return;
     if (!file.type.startsWith('image/')) {
       toast({ title: 'Identidade Visual', description: 'Selecione um ficheiro de imagem válido.', variant: 'destructive' });
       return;
@@ -396,8 +455,56 @@ export default function CPCSettingsPage() {
     }
   }
 
+  async function applyRecaptchaSettings() {
+    if (!user || !canManageSettings) return;
+    if (!recaptchaValidation.ok) return;
+
+    setApplyingRecaptcha(true);
+    const startedAtMs = auditTimerStart();
+    try {
+      const call = httpsCallable<
+        { siteKey: string; secretKey?: string; minScore: number },
+        { ok?: boolean; secretKeySet?: boolean; minScore?: number }
+      >(functions, 'applyRecaptchaSettings');
+      await call({
+        siteKey: recaptchaDraft.siteKey.trim(),
+        ...(recaptchaDraft.secretKey.trim() ? { secretKey: recaptchaDraft.secretKey.trim() } : {}),
+        minScore: recaptchaDraft.minScore,
+      });
+
+      const nextLoaded = {
+        siteKey: recaptchaDraft.siteKey.trim(),
+        secretKey: '',
+        minScore: recaptchaDraft.minScore,
+        secretKeySet: true,
+      };
+      setLoadedRecaptcha(nextLoaded);
+      setRecaptchaDraft((current) => ({ ...current, secretKey: '' }));
+      clearRecaptchaPublicSettingsCache();
+
+      await writeAuditLog({
+        action: 'recaptcha_settings_updated',
+        actor_id: user.uid,
+        context: 'cpc_settings',
+        after: {
+          siteKeyConfigured: Boolean(nextLoaded.siteKey),
+          minScore: nextLoaded.minScore,
+          secretKeySet: true,
+        },
+        startedAtMs,
+      });
+
+      toast({ title: t.get('cpc.pages.settings.recaptcha.toast.appliedTitle'), description: t.get('cpc.pages.settings.recaptcha.toast.appliedDescription') });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t.get('cpc.pages.settings.recaptcha.toast.applyError');
+      toast({ title: t.get('cpc.pages.settings.recaptcha.toast.applyErrorTitle'), description: message, variant: 'destructive' });
+    } finally {
+      setApplyingRecaptcha(false);
+    }
+  }
+
   async function saveSettings() {
-    if (!user || !isAdmin) return;
+    if (!user || !canManageSettings) return;
     if (!validation.ok) return;
 
     const nextEmail = normalizeEmail(draft.notificationEmail);
@@ -409,6 +516,7 @@ export default function CPCSettingsPage() {
     }
 
     const seq = (saveSeqRef.current += 1);
+    const startedAtMs = auditTimerStart();
     setSaving({ open: true, progress: 10, message: 'A guardar configurações...' });
     try {
       const nextPort = parsePort(draft.smtpPort);
@@ -457,15 +565,15 @@ export default function CPCSettingsPage() {
       const beforeBranding = brandingSnapshot(loadedBranding);
       const afterBranding = brandingSnapshot(branding);
 
-      await addDocument('audit_logs', {
+      await writeAuditLog({
         action: 'system_settings_updated',
         actor_id: user.uid,
         context: 'cpc_settings',
-        createdAt: serverTimestamp(),
         before,
         after,
         beforeBranding,
         afterBranding,
+        startedAtMs,
       });
 
       if (seq !== saveSeqRef.current) return;
@@ -496,24 +604,25 @@ export default function CPCSettingsPage() {
   }
 
   async function handleTestSmtp() {
-    if (!user || !isAdmin) return;
+    if (!user || !canManageSettings) return;
     if (!validation.ok) {
       toast({ title: 'Teste SMTP', description: 'Corrija os campos obrigatórios antes de testar.', variant: 'destructive' });
       return;
     }
     setSaving({ open: true, progress: 10, message: 'A testar ligação SMTP...' });
+    const startedAtMs = auditTimerStart();
     try {
       const call = httpsCallable(functions, 'testSmtpConnection');
       const result = await call();
       const data = result.data as { ok?: boolean; message?: string } | null;
       const ok = data?.ok === true;
       if (ok) {
-        await addDocument('audit_logs', { action: 'smtp_test_ok', actor_id: user.uid, context: 'cpc_settings', createdAt: serverTimestamp() });
+        await writeAuditLog({ action: 'smtp_test_ok', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
         setSaving({ open: true, progress: 100, message: 'Ligação SMTP OK.' });
         window.setTimeout(() => setSaving(null), 500);
         toast({ title: 'Teste SMTP', description: 'Ligação SMTP estabelecida com sucesso.' });
       } else {
-        await addDocument('audit_logs', { action: 'smtp_test_error', actor_id: user.uid, context: 'cpc_settings', createdAt: serverTimestamp() });
+        await writeAuditLog({ action: 'smtp_test_error', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
         const message = typeof data?.message === 'string' && data.message ? data.message : 'Falha na ligação SMTP.';
         setSaving(null);
         toast({ title: 'Teste SMTP', description: message, variant: 'destructive' });
@@ -532,12 +641,13 @@ export default function CPCSettingsPage() {
 
   useEffect(() => {
     if (!user || !profile) return;
-    if (profile.role === 'admin') return;
-    void addDocument('audit_logs', {
+    if (canManageTeamMembers(profile.role)) return;
+    const startedAtMs = auditTimerStart();
+    void writeAuditLog({
       action: 'unauthorized_attempt',
       actor_id: user.uid,
       context: 'cpc_settings',
-      createdAt: serverTimestamp(),
+      startedAtMs,
     });
   }, [profile, user]);
 
@@ -557,7 +667,7 @@ export default function CPCSettingsPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canManageSettings) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -848,6 +958,102 @@ export default function CPCSettingsPage() {
         <div className="flex justify-end">
           <Button variant="outline" onClick={handleTestSmtp} disabled={loading || !validation.ok}>
             Testar SMTP
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            {t.get('cpc.pages.settings.recaptcha.title')}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.subtitle')}</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="recaptcha-site-key">{t.get('cpc.pages.settings.recaptcha.siteKeyLabel')}</Label>
+            <Input
+              id="recaptcha-site-key"
+              value={recaptchaDraft.siteKey}
+              onChange={(e) => setRecaptchaDraft((current) => ({ ...current, siteKey: e.target.value }))}
+              placeholder={t.get('cpc.pages.settings.recaptcha.siteKeyPlaceholder')}
+              disabled={loading || applyingRecaptcha}
+              autoComplete="off"
+            />
+            {recaptchaValidation.errors.siteKey ? (
+              <p className="text-sm font-medium text-destructive">{recaptchaValidation.errors.siteKey}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="recaptcha-secret-key">{t.get('cpc.pages.settings.recaptcha.secretKeyLabel')}</Label>
+            <div className="relative">
+              <Input
+                id="recaptcha-secret-key"
+                type={showRecaptchaSecret ? 'text' : 'password'}
+                value={recaptchaDraft.secretKey}
+                onChange={(e) => setRecaptchaDraft((current) => ({ ...current, secretKey: e.target.value }))}
+                placeholder={
+                  loadedRecaptcha.secretKeySet
+                    ? t.get('cpc.pages.settings.recaptcha.secretKeyConfiguredPlaceholder')
+                    : t.get('cpc.pages.settings.recaptcha.secretKeyPlaceholder')
+                }
+                disabled={loading || applyingRecaptcha}
+                autoComplete="new-password"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowRecaptchaSecret((current) => !current)}
+                aria-label={showRecaptchaSecret ? t.get('cpc.pages.settings.recaptcha.hideSecret') : t.get('cpc.pages.settings.recaptcha.showSecret')}
+              >
+                {showRecaptchaSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {recaptchaValidation.errors.secretKey ? (
+              <p className="text-sm font-medium text-destructive">{recaptchaValidation.errors.secretKey}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="recaptcha-min-score">{t.get('cpc.pages.settings.recaptcha.minScoreLabel')}</Label>
+            <Select
+              value={String(recaptchaDraft.minScore)}
+              onValueChange={(value) =>
+                setRecaptchaDraft((current) => ({
+                  ...current,
+                  minScore: parseRecaptchaMinScore(Number(value)),
+                }))
+              }
+              disabled={loading || applyingRecaptcha}
+            >
+              <SelectTrigger id="recaptcha-min-score">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RECAPTCHA_MIN_SCORE_OPTIONS.map((score) => (
+                  <SelectItem key={score} value={String(score)}>
+                    {score === DEFAULT_RECAPTCHA_MIN_SCORE
+                      ? t.get('cpc.pages.settings.recaptcha.minScoreDefault', { score: String(score) })
+                      : String(score)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.minScoreHelp')}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            onClick={() => void applyRecaptchaSettings()}
+            disabled={loading || applyingRecaptcha || !recaptchaValidation.ok}
+          >
+            {applyingRecaptcha ? t.get('cpc.pages.settings.recaptcha.applying') : t.get('cpc.pages.settings.recaptcha.apply')}
           </Button>
         </div>
       </Card>

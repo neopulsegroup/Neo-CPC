@@ -7,6 +7,7 @@ exports.loadSmtpSettings = loadSmtpSettings;
 exports.processMailDocument = processMailDocument;
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const admin_1 = require("./admin");
+const auditLogHelpers_1 = require("./auditLogHelpers");
 const smtp_1 = require("./smtp");
 function safeString(value) {
     return typeof value === 'string' ? value : '';
@@ -73,6 +74,7 @@ async function processMailDocument(mailId) {
     const smtp = await loadSmtpSettings();
     const transporter = (0, smtp_1.createTransport)(smtp);
     const from = safeString(docData.message?.from).trim() || smtp.fromEmail;
+    const sendStartedAt = Date.now();
     try {
         await transporter.sendMail({
             to,
@@ -82,6 +84,7 @@ async function processMailDocument(mailId) {
             text: text || undefined,
             html: html || undefined,
         });
+        const durationMs = Date.now() - sendStartedAt;
         await ref.set({ status: 'sent', sentAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(), errorMessage: null }, { merge: true });
         await auditRef.add({
             action: 'mail_sent',
@@ -89,9 +92,11 @@ async function processMailDocument(mailId) {
             context: 'mail_processor',
             target_id: mailId,
             createdAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(),
+            ...(0, auditLogHelpers_1.buildServerAuditLogContext)({ durationMs }),
         });
     }
     catch (error) {
+        const durationMs = Date.now() - sendStartedAt;
         const msg = error instanceof Error ? error.message : 'Erro no envio SMTP.';
         await ref.set({ status: 'error', errorMessage: truncate(msg, 800) }, { merge: true });
         await auditRef.add({
@@ -101,6 +106,7 @@ async function processMailDocument(mailId) {
             target_id: mailId,
             createdAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(),
             error: truncate(msg, 800),
+            ...(0, auditLogHelpers_1.buildServerAuditLogContext)({ durationMs }),
         });
     }
 }
