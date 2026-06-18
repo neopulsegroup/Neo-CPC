@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { addDocument, deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { deleteDocument, getDocument, queryDocuments, serverTimestamp, updateDocument } from '@/integrations/firebase/firestore';
+import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -710,6 +711,7 @@ export default function MigrantsAdminPage() {
     const current = rows.find((r) => r.user_id === uid)?.blocked === true;
     const next = !current;
     setBlockingUserId(uid);
+    const startedAtMs = auditTimerStart();
     try {
       await updateDocument('users', uid, {
         blocked: next,
@@ -717,11 +719,12 @@ export default function MigrantsAdminPage() {
         blockedBy: next ? (user?.uid ?? null) : null,
       });
       if (user?.uid) {
-        await addDocument('audit_logs', {
+        await writeAuditLog({
           action: next ? 'user.blocked' : 'user.unblocked',
           actor_id: user.uid,
           target_id: uid,
-          createdAt: serverTimestamp(),
+          context: 'migrant_admin',
+          startedAtMs,
         });
       }
       setRows((prev) => prev.map((r) => (r.user_id === uid ? { ...r, blocked: next } : r)));

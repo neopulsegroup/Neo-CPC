@@ -1658,7 +1658,7 @@
       "messages": "Mensagens",
       "administrationSection": "Administração",
       "settingsSection": "Definições",
-      "eventLog": "Log de Eventos"
+      "eventLog": "Logs de Auditoria"
     },
     "profile": {
       "title": "Perfil",
@@ -2645,22 +2645,46 @@
       },
       "settings": {
         "title": "Configurações",
-        "subtitle": "Gestão de notificações, SMTP e identidade visual dos documentos exportados.",
+        "subtitle": "Gestão de notificações, SMTP, reCAPTCHA e identidade visual dos documentos exportados.",
         "loginRequired": "Inicie sessão para aceder.",
-        "noPermission": "Sem permissão para aceder a esta secção."
+        "noPermission": "Sem permissão para aceder a esta secção. Apenas Super Admin e Admin.",
+        "recaptcha": {
+          "title": "Configuração de reCAPTCHA",
+          "subtitle": "Defina as chaves do Google reCAPTCHA v3 utilizadas no registo público.",
+          "siteKeyLabel": "VITE_RECAPTCHA_SITE_KEY",
+          "siteKeyPlaceholder": "6Lc...",
+          "secretKeyLabel": "RECAPTCHA_SECRET_KEY",
+          "secretKeyPlaceholder": "Cole a secret key",
+          "secretKeyConfiguredPlaceholder": "•••••••• (configurada — deixe vazio para manter)",
+          "showSecret": "Mostrar secret key",
+          "hideSecret": "Ocultar secret key",
+          "minScoreLabel": "RECAPTCHA_MIN_SCORE",
+          "minScoreDefault": "{score} (predefinido)",
+          "minScoreHelp": "Pontuação mínima aceite pelo servidor (0.0 a 1.0). Valor predefinido: 0.5.",
+          "apply": "Aplicar configuração",
+          "applying": "A aplicar...",
+          "toast": {
+            "appliedTitle": "reCAPTCHA atualizado",
+            "appliedDescription": "As definições de reCAPTCHA foram guardadas com sucesso.",
+            "applyErrorTitle": "reCAPTCHA",
+            "applyError": "Não foi possível aplicar a configuração de reCAPTCHA."
+          }
+        }
       },
       "eventLog": {
-        "title": "Log de Eventos",
-        "subtitle": "Histórico de ações e eventos registados na plataforma.",
+        "title": "Logs de Auditoria",
+        "subtitle": "Registo do sistema de cada ação com autor, criticidade e resultado.",
         "loginRequired": "Inicie sessão para aceder.",
         "noPermission": "Sem permissão para aceder a esta secção. Apenas Super Admin.",
-        "loadError": "Não foi possível carregar o log de eventos.",
-        "empty": "Sem eventos registados.",
-        "searchPlaceholder": "Pesquisar por ação, utilizador, contexto ou alvo...",
-        "searchFilter": {
-          "label": "Pesquisa"
-        },
-        "count": "{count} evento(s)",
+        "loadError": "Não foi possível carregar os logs de auditoria.",
+        "empty": "Sem registos de auditoria.",
+        "searchPlaceholder": "Pesquisar por email do autor, ação, recurso...",
+        "refresh": "Atualizar",
+        "total": "Total",
+        "pageSize": "{count} linhas",
+        "showing": "A mostrar {from}-{to} de {total}",
+        "prevPage": "Página anterior",
+        "nextPage": "Página seguinte",
         "unknownActor": "Utilizador desconhecido",
         "scopeFilter": {
           "label": "Filtrar por tipo de utilizador",
@@ -2671,20 +2695,69 @@
             "cpc": "CPC"
           }
         },
-        "userFilter": {
-          "label": "Utilizador",
-          "all": "Todos os utilizadores"
+        "filters": {
+          "action": "Ação",
+          "criticality": "Criticidade",
+          "result": "Resultado",
+          "origin": "Origem",
+          "allActions": "Todas as ações",
+          "allCriticality": "Todas as criticidades",
+          "allResults": "Todos os resultados",
+          "allOrigins": "Todas as origens"
         },
         "dateFilter": {
-          "from": "Data inicial",
-          "to": "Data final"
+          "from": "De",
+          "to": "Até"
         },
         "columns": {
-          "date": "Data",
+          "when": "Quando",
+          "author": "Autor",
           "action": "Ação",
-          "actor": "Utilizador",
-          "context": "Contexto",
-          "target": "Alvo"
+          "criticality": "Criticidade",
+          "result": "Resultado",
+          "request": "Pedido"
+        },
+        "criticality": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        },
+        "results": {
+          "success": "OK",
+          "warning": "Aviso",
+          "error": "Erro"
+        },
+        "origins": {
+          "app": "app",
+          "http": "http",
+          "function": "function"
+        },
+        "actionKinds": {
+          "read": "Read",
+          "create": "Create",
+          "update": "Update",
+          "delete": "Delete",
+          "execute": "Execute",
+          "access": "Access",
+          "other": "Other"
+        },
+        "detail": {
+          "title": "Registo de auditoria #{id}",
+          "action": "Ação",
+          "resource": "Recurso",
+          "origin": "Origem",
+          "createdAt": "Criado em",
+          "authorEmail": "Email do autor",
+          "authorRole": "Função do autor",
+          "userId": "ID do utilizador",
+          "companyId": "ID da empresa",
+          "http": "HTTP",
+          "httpStatus": "Estado HTTP",
+          "ipAddress": "Endereço IP",
+          "requestId": "ID do pedido",
+          "durationMs": "Duração (ms)",
+          "userAgent": "User agent",
+          "metadata": "Metadados"
         },
         "actions": {
           "unauthorized_attempt": "Tentativa de acesso não autorizado",

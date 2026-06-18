@@ -9,6 +9,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const admin_1 = require("./admin");
+const recaptchaSettings_1 = require("./recaptchaSettings");
 const ALLOWED_ROLES = [
     'migrant',
     'company',
@@ -171,7 +172,8 @@ async function assertRateLimit(ip, email, requestId) {
     });
 }
 async function verifyCaptchaIfConfigured(captchaToken, requestId) {
-    const secret = process.env.RECAPTCHA_SECRET_KEY?.trim();
+    const runtime = await (0, recaptchaSettings_1.loadRecaptchaRuntimeConfig)();
+    const secret = runtime.secretKey;
     const captchaRequired = process.env.RECAPTCHA_REQUIRED !== 'false';
     if (!secret) {
         if (captchaRequired && process.env.NODE_ENV === 'production') {
@@ -206,7 +208,7 @@ async function verifyCaptchaIfConfigured(captchaToken, requestId) {
         });
     }
     const body = (await response.json());
-    const minScore = Number(process.env.RECAPTCHA_MIN_SCORE || 0.5);
+    const minScore = runtime.minScore;
     const score = typeof body.score === 'number' ? body.score : 0;
     const action = typeof body.action === 'string' ? body.action.trim() : '';
     if (action && action !== 'register') {

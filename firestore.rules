@@ -612,18 +612,36 @@ service cloud.firestore {
 
     match /audit_logs/{logId} {
       allow read: if isAccountEnabled() && hasRole('admin');
+      function isAuditRequestContextValid() {
+        return (!('ip_address' in request.resource.data) || request.resource.data.ip_address is string)
+          && (!('user_agent' in request.resource.data) || request.resource.data.user_agent is string)
+          && (!('duration_ms' in request.resource.data) || request.resource.data.duration_ms is number)
+          && (!('origin' in request.resource.data) || request.resource.data.origin is string);
+      }
       function isUnauthorizedAttemptLog() {
         return isAuthenticated()
           && request.resource.data.action == 'unauthorized_attempt'
           && request.resource.data.actor_id == request.auth.uid
           && request.resource.data.keys().hasAll(['action', 'actor_id', 'context', 'createdAt'])
-          && request.resource.data.keys().hasOnly(['action', 'actor_id', 'context', 'createdAt', 'target_id'])
+          && request.resource.data.keys().hasOnly([
+            'action',
+            'actor_id',
+            'context',
+            'createdAt',
+            'target_id',
+            'ip_address',
+            'user_agent',
+            'duration_ms',
+            'origin'
+          ])
           && (request.resource.data.context is string)
-          && request.resource.data.context.size() <= 200;
+          && request.resource.data.context.size() <= 200
+          && isAuditRequestContextValid();
       }
 
       allow create: if isAuthenticated()
         && request.resource.data.actor_id == request.auth.uid
+        && isAuditRequestContextValid()
         && (
           isCpcStaff() ||
           isUnauthorizedAttemptLog()
@@ -632,8 +650,10 @@ service cloud.firestore {
     }
 
     match /system_settings/{docId} {
-      allow read: if (docId == 'contact') || (isAccountEnabled() && hasRole('admin'));
-      allow create, update, delete: if isAccountEnabled() && hasRole('admin');
+      allow read: if (docId == 'contact')
+        || (docId == 'recaptcha_public')
+        || (isAccountEnabled() && userRole() in ['admin', 'manager']);
+      allow create, update, delete: if isAccountEnabled() && userRole() in ['admin', 'manager'];
     }
 
     match /contact_messages/{messageId} {

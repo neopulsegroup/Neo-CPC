@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { getFirestore } from './admin';
+import { buildServerAuditLogContext } from './auditLogHelpers';
 import { createTransport, type SmtpSettings } from './smtp';
 
 type MailDoc = {
@@ -88,6 +89,8 @@ export async function processMailDocument(mailId: string): Promise<void> {
   const transporter = createTransport(smtp);
   const from = safeString(docData.message?.from).trim() || smtp.fromEmail;
 
+  const sendStartedAt = Date.now();
+
   try {
     await transporter.sendMail({
       to,
@@ -97,6 +100,7 @@ export async function processMailDocument(mailId: string): Promise<void> {
       text: text || undefined,
       html: html || undefined,
     });
+    const durationMs = Date.now() - sendStartedAt;
     await ref.set({ status: 'sent', sentAt: admin.firestore.FieldValue.serverTimestamp(), errorMessage: null }, { merge: true });
     await auditRef.add({
       action: 'mail_sent',
@@ -104,8 +108,10 @@ export async function processMailDocument(mailId: string): Promise<void> {
       context: 'mail_processor',
       target_id: mailId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...buildServerAuditLogContext({ durationMs }),
     });
   } catch (error: unknown) {
+    const durationMs = Date.now() - sendStartedAt;
     const msg = error instanceof Error ? error.message : 'Erro no envio SMTP.';
     await ref.set({ status: 'error', errorMessage: truncate(msg, 800) }, { merge: true });
     await auditRef.add({
@@ -115,6 +121,7 @@ export async function processMailDocument(mailId: string): Promise<void> {
       target_id: mailId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       error: truncate(msg, 800),
+      ...buildServerAuditLogContext({ durationMs }),
     });
   }
 }

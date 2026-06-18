@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_SCHEMAS } from '@/features/cms/pageSchemas';
-import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 import { registerUser } from '@/integrations/firebase/auth';
 import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
 import {
@@ -308,13 +309,14 @@ export default function CPCDashboard() {
     async function logUnauthorizedAttempt(context: string, targetId?: string) {
       const actorId = user?.uid;
       if (!actorId) return;
+      const startedAtMs = auditTimerStart();
       try {
-        await addDocument('audit_logs', {
+        await writeAuditLog({
           action: 'unauthorized_attempt',
           actor_id: actorId,
           target_id: targetId ?? null,
           context,
-          createdAt: serverTimestamp(),
+          startedAtMs,
         });
       } catch {
         return;
@@ -458,6 +460,7 @@ export default function CPCDashboard() {
       }
       setActionLoadingId(teamUser.id);
       setFormError('');
+      const startedAtMs = auditTimerStart();
       try {
         await updateDocument('users', teamUser.id, {
           active: !teamUser.active,
@@ -465,11 +468,12 @@ export default function CPCDashboard() {
         });
         const actorId = user?.uid;
         if (actorId) {
-          await addDocument('audit_logs', {
+          await writeAuditLog({
             action: teamUser.active ? 'user.deactivated' : 'user.reactivated',
             actor_id: actorId,
             target_id: teamUser.id,
-            createdAt: serverTimestamp(),
+            context: 'cpc_team',
+            startedAtMs,
           });
         }
         await loadTeam();

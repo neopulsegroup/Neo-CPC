@@ -53,6 +53,10 @@ vi.mock('firebase/functions', () => ({
   httpsCallable: () => mockCallable,
 }));
 
+vi.mock('@/lib/cpcRoles', () => ({
+  canManageTeamMembers: (role?: string | null) => role === 'admin' || role === 'manager',
+}));
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: stableUser,
@@ -63,10 +67,17 @@ vi.mock('@/contexts/AuthContext', () => ({
 describe('CPCSettingsPage (dashboard/cpc/configuracoes)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ip: '203.0.113.10' }),
+    }));
+    vi.stubGlobal('navigator', { userAgent: 'vitest-agent' });
     mockGetDocument.mockImplementation(async (collectionName: string, docId: string) => {
       if (collectionName === 'system_settings' && docId === 'contact') return { id: 'contact', notificationEmail: 'notificacoes@cpc.pt' };
       if (collectionName === 'system_settings' && docId === 'smtp')
         return { id: 'smtp', host: 'smtp.exemplo.com', port: 587, security: 'tls', username: 'user', passwordSet: true, fromEmail: 'no-reply@cpc.pt' };
+      if (collectionName === 'system_settings' && docId === 'recaptcha_public') return { id: 'recaptcha_public', siteKey: '', minScore: 0.5 };
+      if (collectionName === 'system_settings' && docId === 'recaptcha') return { id: 'recaptcha', secretKeySet: false };
       return null;
     });
   });
@@ -82,7 +93,15 @@ describe('CPCSettingsPage (dashboard/cpc/configuracoes)', () => {
 
     await waitFor(() => {
       expect(mockCallable).toHaveBeenCalled();
-      expect(mockAddDocument).toHaveBeenCalledWith('audit_logs', expect.objectContaining({ action: 'smtp_test_ok' }));
+      expect(mockAddDocument).toHaveBeenCalledWith(
+        'audit_logs',
+        expect.objectContaining({
+          action: 'smtp_test_ok',
+          ip_address: expect.any(String),
+          user_agent: expect.any(String),
+          duration_ms: expect.any(Number),
+        })
+      );
     });
   });
 });

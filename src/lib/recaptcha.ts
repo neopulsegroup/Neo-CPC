@@ -1,3 +1,6 @@
+import { getRecaptchaSiteKeyFromEnv } from '@/lib/recaptchaConfig';
+import { loadRecaptchaPublicSettings, resolveRecaptchaSiteKey } from '@/lib/recaptchaRuntime';
+
 let scriptLoadingPromise: Promise<void> | null = null;
 
 declare global {
@@ -9,14 +12,16 @@ declare global {
   }
 }
 
-function getSiteKey(): string {
-  const env = import.meta.env as unknown as Record<string, string | boolean | undefined>;
-  return String(env.VITE_RECAPTCHA_SITE_KEY || env.VITE_FIREBASE_APPCHECK_SITE_KEY || '').trim();
+/** Indica se existe site key (Firestore ou variável de ambiente). */
+export function isRecaptchaSiteKeyConfigured(): boolean {
+  const envKey = getRecaptchaSiteKeyFromEnv();
+  return envKey.length > 0;
 }
 
-/** Indica se o browser tem chave pública reCAPTCHA configurada. */
-export function isRecaptchaSiteKeyConfigured(): boolean {
-  return getSiteKey().length > 0;
+/** Indica se há site key já carregada em runtime (inclui Firestore). */
+export async function isRecaptchaSiteKeyConfiguredAsync(): Promise<boolean> {
+  const siteKey = await resolveRecaptchaSiteKey();
+  return siteKey.length > 0;
 }
 
 async function loadRecaptchaScript(siteKey: string): Promise<void> {
@@ -46,7 +51,7 @@ async function loadRecaptchaScript(siteKey: string): Promise<void> {
 }
 
 export async function getRecaptchaToken(action: string): Promise<string | null> {
-  const siteKey = getSiteKey();
+  const siteKey = await resolveRecaptchaSiteKey();
   if (!siteKey) return null;
 
   try {
@@ -66,7 +71,8 @@ export async function getRecaptchaToken(action: string): Promise<string | null> 
  * não puder ser gerado (bloqueia submissões sem verificação server-side).
  */
 export async function resolveRegisterRecaptchaToken(): Promise<string | undefined> {
-  if (!isRecaptchaSiteKeyConfigured()) {
+  const configured = await isRecaptchaSiteKeyConfiguredAsync();
+  if (!configured) {
     return (await getRecaptchaToken('register')) ?? undefined;
   }
   const token = await getRecaptchaToken('register');
@@ -76,3 +82,4 @@ export async function resolveRegisterRecaptchaToken(): Promise<string | undefine
   return token;
 }
 
+export { loadRecaptchaPublicSettings, clearRecaptchaPublicSettingsCache } from '@/lib/recaptchaRuntime';

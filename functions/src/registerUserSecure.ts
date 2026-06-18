@@ -4,6 +4,7 @@ import { logger } from 'firebase-functions';
 import admin from 'firebase-admin';
 
 import { getAdminApp, getFirestore } from './admin';
+import { loadRecaptchaRuntimeConfig } from './recaptchaSettings';
 
 type RegisterRole =
   | 'migrant'
@@ -216,7 +217,8 @@ async function assertRateLimit(ip: string, email: string, requestId: string) {
 }
 
 async function verifyCaptchaIfConfigured(captchaToken: unknown, requestId: string) {
-  const secret = process.env.RECAPTCHA_SECRET_KEY?.trim();
+  const runtime = await loadRecaptchaRuntimeConfig();
+  const secret = runtime.secretKey;
   const captchaRequired = process.env.RECAPTCHA_REQUIRED !== 'false';
 
   if (!secret) {
@@ -257,7 +259,7 @@ async function verifyCaptchaIfConfigured(captchaToken: unknown, requestId: strin
   }
 
   const body = (await response.json()) as { success?: boolean; score?: number; action?: string };
-  const minScore = Number(process.env.RECAPTCHA_MIN_SCORE || 0.5);
+  const minScore = runtime.minScore;
   const score = typeof body.score === 'number' ? body.score : 0;
   const action = typeof body.action === 'string' ? body.action.trim() : '';
 
