@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firest
 import { auth, db } from './client';
 import { functions } from './functionsClient';
 import { isRecaptchaSiteKeyConfigured, resolveRegisterRecaptchaToken } from '@/lib/recaptcha';
+import { normalizeRegisterEmail } from '@/lib/normalizeRegisterEmail';
 import { resolvePasswordResetContinueUrl } from '@/lib/passwordResetContinueUrl';
 const env = import.meta.env as unknown as Record<string, string | boolean | undefined>;
 
@@ -205,6 +206,8 @@ export async function registerUser(
     role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'consultant' | 'coordinator' | 'trainer' = 'migrant',
     additionalData?: { nif?: string; activityArea?: string }
 ) {
+    const normalizedEmail = normalizeRegisterEmail(email);
+    const trimmedName = name.trim();
     try {
         const callRegister = httpsCallable<
             {
@@ -223,16 +226,16 @@ export async function registerUser(
             if (!allowClientRegisterFallback()) {
                 throw new Error('CAPTCHA_REQUIRED');
             }
-            return await registerUserWithClientFallback(email, password, name, role, additionalData);
+            return await registerUserWithClientFallback(normalizedEmail, password, trimmedName, role, additionalData);
         }
 
         try {
             const captchaToken = await resolveRegisterRecaptchaToken();
 
             await callRegister({
-                email,
+                email: normalizedEmail,
                 password,
-                name,
+                name: trimmedName,
                 role,
                 ...(captchaToken ? { captchaToken } : {}),
                 ...(additionalData?.nif ? { nif: additionalData.nif } : {}),
@@ -243,15 +246,15 @@ export async function registerUser(
                 throw functionError;
             }
             console.warn('registerUserSecure indisponível. A usar fallback de cadastro no cliente.');
-            return await registerUserWithClientFallback(email, password, name, role, additionalData);
+            return await registerUserWithClientFallback(normalizedEmail, password, trimmedName, role, additionalData);
         }
 
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
         const user = userCredential.user;
         const profile = await getUserProfile(user.uid);
         const userProfile: UserProfile = profile ?? {
-            email,
-            name,
+            email: normalizedEmail,
+            name: trimmedName,
             role,
             active: true,
             disabledAt: null,

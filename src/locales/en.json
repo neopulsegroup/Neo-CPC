@@ -319,7 +319,7 @@
     "loginError": "Incorrect email or password",
     "loginTryAgain": "Could not sign in. Check your details and try again.",
     "registerErrorGeneric": "Could not complete registration. Check your details or try again.",
-    "registerErrorEmailInUse": "This email is already registered. Sign in or reset your password.",
+    "registerErrorEmailInUse": "This email is already linked to an account. Sign in or use a different email.",
     "networkError": "Connection issue. Check your internet and try again.",
     "tooManyAttempts": "Too many attempts in a short time. Please wait a few minutes and try again.",
     "serviceUnavailable": "Service temporarily unavailable. Please try again shortly.",
@@ -1750,7 +1750,8 @@
         "completed": "Completed",
         "cancelled": "Cancelled",
         "in_progress": "In progress",
-        "scheduled": "Scheduled"
+        "scheduled": "Scheduled",
+        "pending_approval": "Pending approval"
       }
     },
     "activities": {
@@ -2802,6 +2803,14 @@
       "logoSection": "LOGO",
       "logoRecommendation": "Recommended: SVG or transparent PNG (512×512px).",
       "changeLogo": "Change logo",
+      "logo": {
+        "uploading": "Uploading logo...",
+        "updatedTitle": "Logo updated",
+        "updatedDescription": "Your company logo was saved successfully.",
+        "uploadError": "Could not upload the logo. Please try again.",
+        "invalidFormat": "Invalid format. Use PNG, JPG, WEBP, SVG, or GIF.",
+        "tooLarge": "The file must be 5 MB or smaller."
+      },
       "accountVerification": {
         "title": "Account verification",
         "description": "Legal information (Name and Tax ID) can only be changed by contacting support to ensure fiscal security."

@@ -21,7 +21,7 @@ const t = {
 };
 
 describe('mapAuthErrorToMessage', () => {
-  it('não expõe erro técnico de provider no registo', () => {
+  it('informa quando o e-mail já está registado', () => {
     const message = mapAuthErrorToMessage({
       error: new Error('Firebase: Error (auth/email-already-in-use).'),
       mode: 'register',
@@ -29,7 +29,7 @@ describe('mapAuthErrorToMessage', () => {
       secureRegistrationMessage: true,
     });
 
-    expect(message).toBe('Não foi possível concluir o cadastro');
+    expect(message).toBe('Este e-mail já está cadastrado');
     expect(message.toLowerCase()).not.toContain('firebase');
     expect(message.toLowerCase()).not.toContain('auth/');
   });

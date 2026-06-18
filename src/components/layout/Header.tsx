@@ -4,6 +4,7 @@ import { Menu, X, Globe, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 import logo from '@/assets/logo.png';
 import {
   DropdownMenu,
@@ -16,24 +17,9 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { profile, triage, user, isAuthenticated, logout } = useAuth();
+  const displayName = useDashboardDisplayName();
   const location = useLocation();
   const navigate = useNavigate();
-
-  const deriveNameFromEmail = (email?: string | null) => {
-    if (!email) return '';
-    const local = email.split('@')[0] ?? '';
-    const parts = local.split(/[._-]+/g).filter(Boolean);
-    if (parts.length === 0) return '';
-    return parts.map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join(' ');
-  };
-
-  const displayName = (() => {
-    const name = typeof profile?.name === 'string' ? profile.name.trim() : '';
-    const email = (typeof profile?.email === 'string' ? profile.email.trim() : '') || (typeof user?.email === 'string' ? user.email.trim() : '');
-    const normalizedName = name.toLowerCase();
-    if (!name || normalizedName === 'cpc') return deriveNameFromEmail(email) || '';
-    return name;
-  })();
 
   const navLinks = [
     { href: '/', label: t.nav.home },

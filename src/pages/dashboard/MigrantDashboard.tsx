@@ -42,7 +42,7 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
 import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
 import { computeMigrantProfileCompletenessPercent } from '@/lib/migrantProfileCompleteness';
-import { resolveMigrantRegisteredName } from '@/lib/migrantProfileDisplay';
+import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 import {
   computeMigrantOverallProgressPercent,
   computeMigrantSessionsProgressPercent,
@@ -1033,15 +1033,8 @@ function MigrantHome() {
 export default function MigrantDashboard() {
   const location = useLocation();
   const { t } = useLanguage();
-  const { profile, profileData } = useAuth();
-  const migrantDisplayName = useMemo(
-    () =>
-      resolveMigrantRegisteredName({
-        profileDocName: profileData?.name,
-        userProfileName: profile?.name,
-      }),
-    [profile?.name, profileData?.name]
-  );
+  const { profile } = useAuth();
+  const migrantDisplayName = useDashboardDisplayName();
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
   const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';

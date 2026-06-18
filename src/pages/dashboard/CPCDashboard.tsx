@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_SCHEMAS } from '@/features/cms/pageSchemas';
 import { addDocument, countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { registerUser } from '@/integrations/firebase/auth';
+import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
 import {
   Building2,
   Users,
@@ -64,6 +65,18 @@ import {
   normalizeCpcTeamRole,
   type CpcTeamRole,
 } from '@/lib/cpcRoles';
+import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
+import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
+
+type CpcDashboardSessionDoc = {
+  id: string;
+  scheduled_date: string;
+  status: string | null;
+  session_type: string;
+  scheduled_time: string;
+  migrant_id: string;
+  service_label?: string | null;
+};
 
 type RecentMigrantProfileDoc = MigrantProfileFieldsForCompleteness & {
   email?: string | null;
@@ -179,30 +192,13 @@ function CpcServiceAreasAdminRoute({ children }: { children: React.ReactNode }) 
 }
 
 export default function CPCDashboard() {
-  const { profile, profileData, user } = useAuth();
+  const { profile, user } = useAuth();
   const { t, language } = useLanguage();
   const location = useLocation();
   const isCpcAdmin = isCpcAdminRole(profile?.role);
   const canAccessServiceAreas = canManageServiceAreas(profile?.role);
 
-  const cpcDisplayName = useMemo(() => {
-    const profileDocName = typeof profileData?.name === 'string' ? profileData.name.trim() : '';
-    const userDocName = typeof profile?.name === 'string' ? profile.name.trim() : '';
-    const authName = typeof user?.displayName === 'string' ? user.displayName.trim() : '';
-    const rawName = profileDocName || userDocName || authName;
-    const rawEmail = typeof profile?.email === 'string' ? profile.email.trim() : '';
-    const authEmail = typeof user?.email === 'string' ? user.email.trim() : '';
-    const email = rawEmail || authEmail;
-    const derivedFromEmail = deriveNameFromEmail(email);
-    const normalizedName = normalizeText(rawName);
-    const normalizedRole = normalizeText(profile?.role ?? null);
-    const isGeneric =
-      normalizedName.length === 0 ||
-      normalizedName === 'cpc' ||
-      normalizedName === normalizedRole ||
-      ['admin', 'administrador', 'equipa', 'staff', 'team'].includes(normalizedName);
-    return isGeneric ? (derivedFromEmail || t.get('cpc.menu.user_fallback')) : rawName;
-  }, [profile?.email, profile?.name, profile?.role, profileData?.name, t, user?.displayName, user?.email]);
+  const cpcDisplayName = useDashboardDisplayName();
 
   const [loading, setLoading] = useState(true);
   const [period] = useState<'today' | 'week' | 'month'>('week');
@@ -227,8 +223,8 @@ export default function CPCDashboard() {
   const [recentMigrants, setRecentMigrants] = useState<
     Array<{ id: string; name: string; subtitle: string; statusLabel: string; statusClassName: string; dateLabel: string }>
   >([]);
-  const [todaySessions, setTodaySessions] = useState<
-    Array<{ id: string; migrant: string; type: string; time: string; status: string; statusRaw?: string | null }>
+  const [upcomingSessions, setUpcomingSessions] = useState<
+    Array<{ id: string; migrant: string; type: string; timeLabel: string; status: string; statusRaw?: string | null }>
   >([]);
   const [messagesPending, setMessagesPending] = useState(0);
   const [sidebarAccordionValue, setSidebarAccordionValue] = useState<string>('');
@@ -251,10 +247,19 @@ export default function CPCDashboard() {
   );
 
   function formatSessionStatusLabel(status?: string | null): string {
+    if (isSessionPendingApproval(status)) return t.get('cpc.sessions.status.pending_approval');
     if (isCompletedSessionStatus(status)) return t.get('cpc.sessions.status.completed');
     if (isCancelledSessionStatus(status)) return t.get('cpc.sessions.status.cancelled');
     if (isInProgressSessionStatus(status)) return t.get('cpc.sessions.status.in_progress');
     return t.get('cpc.sessions.status.scheduled');
+  }
+
+  function formatSessionTimeLabel(scheduledDateIso: string, scheduledTime: string, todayIso: string): string {
+    if (scheduledDateIso === todayIso) return scheduledTime;
+    const [year, month, day] = scheduledDateIso.split('-').map(Number);
+    if (!year || !month || !day) return scheduledTime;
+    const date = new Date(year, month - 1, day);
+    return `${shortDateFormatter.format(date)} · ${scheduledTime}`;
   }
 
   function formatKpiChange(current: number, prev: number): { label: string; className: string } {
@@ -379,7 +384,11 @@ export default function CPCDashboard() {
         setRole('mediator');
         await loadTeam();
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : t.get('cpc.team.errors.create_failed');
+        const message = mapAuthErrorToMessage({
+          error,
+          mode: 'register',
+          t,
+        });
         setFormError(message);
       } finally {
         setSaving(false);
@@ -1044,13 +1053,8 @@ export default function CPCDashboard() {
         const prevStartISO = period === 'today' ? prevDayIso : period === 'week' ? prevWeekStartIso : prevMonthStartIso;
         const prevEndISO = period === 'today' ? prevDayIso : period === 'week' ? prevWeekEndIso : prevMonthEndIso;
 
-        const [firebaseMigrants, allSessionsRaw, companiesTotalCount, offersActiveCount, offersPendingCount, applicationsTotalCount, progressRaw, triageRaw, applicationsPeriodCountRaw, applicationsPrevCountRaw] = await Promise.all([
+        const [firebaseMigrants, companiesTotalCount, offersActiveCount, offersPendingCount, applicationsTotalCount, progressRaw, triageRaw, applicationsPeriodCountRaw, applicationsPrevCountRaw] = await Promise.all([
           queryDocuments<FirebaseUserDoc>('users', [{ field: 'role', operator: 'in', value: ['migrant', 'Migrant', 'MIGRANT'] }]),
-          queryDocuments<{ id: string; scheduled_date: string; status: string | null; session_type: string; scheduled_time: string; migrant_id: string }>(
-            'sessions',
-            [],
-            { field: 'scheduled_date', direction: 'asc' }
-          ),
           countDocuments('companies', []),
           countDocuments('job_offers', [{ field: 'status', operator: '==', value: 'active' }]),
           countDocuments('job_offers', [{ field: 'status', operator: '==', value: 'pending_review' }]),
@@ -1066,6 +1070,17 @@ export default function CPCDashboard() {
             { field: 'created_at', operator: '<=', value: prevEndISO },
           ]),
         ]);
+
+        let allSessionsRaw: CpcDashboardSessionDoc[] = [];
+        try {
+          allSessionsRaw = await queryDocuments<CpcDashboardSessionDoc>('sessions', []);
+          allSessionsRaw = allSessionsRaw.slice().sort((a, b) => {
+            const byDate = a.scheduled_date.localeCompare(b.scheduled_date);
+            return byDate !== 0 ? byDate : a.scheduled_time.localeCompare(b.scheduled_time);
+          });
+        } catch (sessionsError) {
+          console.error('Failed to load CPC dashboard sessions:', sessionsError);
+        }
 
         const migrantDates = firebaseMigrants
           .map((u) => parseUnknownDate(u.createdAt))
@@ -1153,10 +1168,10 @@ export default function CPCDashboard() {
         });
         setRecentMigrants(recentList);
 
-        const todaySessTyped = allSessions
-          .filter((s) => s.scheduled_date === todayISO)
-          .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
-        const migrantIds = Array.from(new Set(todaySessTyped.map(s => s.migrant_id).filter(Boolean)));
+        const upcomingSessTyped = allSessions
+          .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, todayISO))
+          .slice(0, 6);
+        const migrantIds = Array.from(new Set(upcomingSessTyped.map((s) => s.migrant_id).filter(Boolean)));
         const migrantMap: Record<string, string> = {};
         if (migrantIds.length) {
           const migrantProfiles = await Promise.all(migrantIds.map((id) => getDocument<{ name?: string | null }>('profiles', id)));
@@ -1164,15 +1179,15 @@ export default function CPCDashboard() {
             migrantMap[id] = migrantProfiles[idx]?.name || id;
           });
         }
-        const todayList = todaySessTyped.map((s) => ({
+        const upcomingList = upcomingSessTyped.map((s) => ({
           id: s.id,
           migrant: migrantMap[s.migrant_id] || s.migrant_id,
-          type: s.session_type,
-          time: s.scheduled_time,
+          type: (typeof s.service_label === 'string' && s.service_label.trim()) || s.session_type,
+          timeLabel: formatSessionTimeLabel(s.scheduled_date, s.scheduled_time, todayISO),
           status: formatSessionStatusLabel(s.status),
           statusRaw: s.status,
         }));
-        setTodaySessions(todayList);
+        setUpcomingSessions(upcomingList);
 
         try {
           let pendingChats = 0;
@@ -1276,6 +1291,7 @@ export default function CPCDashboard() {
   ]);
 
   const getStatusColor = (status?: string | null) => {
+    if (isSessionPendingApproval(status)) return 'bg-amber-100 text-amber-800';
     if (isCompletedSessionStatus(status)) return 'bg-green-100 text-green-700';
     if (isInProgressSessionStatus(status)) return 'bg-blue-100 text-blue-700';
     if (isCancelledSessionStatus(status)) return 'bg-rose-100 text-rose-700';
@@ -1515,7 +1531,7 @@ export default function CPCDashboard() {
                           </Link>
                         </div>
 
-                        {todaySessions.length === 0 ? (
+                        {upcomingSessions.length === 0 ? (
                           <div className="mt-6 rounded-2xl bg-muted/40 p-8 flex items-center justify-between gap-6">
                             <div className="flex items-center gap-4 min-w-0">
                               <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -1532,14 +1548,14 @@ export default function CPCDashboard() {
                           </div>
                         ) : (
                           <div className="mt-4 space-y-3">
-                            {todaySessions.map((session) => (
+                            {upcomingSessions.map((session) => (
                               <div key={session.id} className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-muted/40">
                                 <div className="min-w-0">
                                   <p className="font-semibold truncate">{session.migrant}</p>
                                   <p className="text-sm text-muted-foreground truncate">{session.type}</p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <p className="font-semibold">{session.time}</p>
+                                  <p className="font-semibold">{session.timeLabel}</p>
                                   <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(session.statusRaw)}`}>{session.status}</span>
                                 </div>
                               </div>

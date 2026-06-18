@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, Link, NavLink, useLocation } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,8 +9,10 @@ import { PhoneInput, companyPhoneForPayload, formatPhoneValueForDisplay } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { getDocument, queryDocuments, setDocument, subscribeDocument, updateDocument } from '@/integrations/firebase/firestore';
-import { Building2, Briefcase, Check, MapPin, Users, FileText, Plus, ChevronRight, Eye, CheckCircle, TrendingUp, User } from 'lucide-react';
+import { getDocument, queryDocuments, setDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { storage } from '@/integrations/firebase/client';
+import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
+import { Building2, Briefcase, Check, ImageIcon, Loader2, MapPin, Users, FileText, Plus, ChevronRight, Eye, CheckCircle, TrendingUp, User } from 'lucide-react';
 
 // Sub-pages
 import CreateJobPage from './company/CreateJobPage';
@@ -23,7 +25,9 @@ import CompanyMessagesPage from './company/MessagesPage';
 import { ApplicantProfileUnavailableBadge } from './company/ApplicantProfileUnavailableBadge';
 import { bootstrapCompanyJobOfferScope, fetchCompanyHomeSnapshot, type CompanyHomeSnapshot } from './company/companyDashboardHomeData';
 import { useCompanyVerification } from '@/hooks/useCompanyVerification';
+import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 import { CompanyVerificationBanner } from '@/components/company/CompanyVerificationBanner';
+import { CompanySectionHeader } from '@/components/company/CompanySectionHeader';
 
 function normalizeText(value?: string | null): string {
   if (!value) return '';
@@ -58,12 +62,33 @@ function formatNifPtDisplay(digits: string): string {
   return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
 }
 
+const COMPANY_LOGO_MAX_BYTES = 5 * 1024 * 1024;
+const COMPANY_LOGO_ALLOWED_MIME = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/svg+xml',
+  'image/gif',
+]);
+
+function resolveCompanyLogoUrl(legacy: Record<string, unknown> | null | undefined): string {
+  const candidates = [legacy?.logo_url, legacy?.logoUrl];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function CompanyProfilePage() {
   const { user, profile, profileData } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
 
   const [companyDocExists, setCompanyDocExists] = useState(false);
   const [form, setForm] = useState({
@@ -147,6 +172,7 @@ function CompanyProfilePage() {
         };
         if (!cancelled) {
           setCompanyDocExists(!!direct);
+          setLogoUrl(resolveCompanyLogoUrl(legacy));
           setForm(next);
           setInitialForm(next);
         }
@@ -169,6 +195,79 @@ function CompanyProfilePage() {
       cancelled = true;
     };
   }, [profile?.email, profile?.name, profileData?.name, profileData?.nif, t, toast, user?.email, user?.uid]);
+
+  async function persistCompanyLogo(url: string, path: string) {
+    const uid = user?.uid;
+    if (!uid) return;
+
+    const payload: Record<string, unknown> = {
+      user_id: uid,
+      logo_url: url,
+      logo_path: path,
+    };
+
+    if (companyDocExists) {
+      await updateDocument('companies', uid, payload);
+    } else {
+      await setDocument(
+        'companies',
+        uid,
+        {
+          ...payload,
+          verified: false,
+          createdAt: new Date().toISOString(),
+        },
+        true
+      );
+      setCompanyDocExists(true);
+    }
+  }
+
+  async function handleLogoPick(file: File) {
+    const uid = user?.uid;
+    if (!uid) return;
+
+    if (!COMPANY_LOGO_ALLOWED_MIME.has(file.type)) {
+      toast({
+        title: t.get('company.profile.toast.errorTitle'),
+        description: t.get('company.profile.logo.invalidFormat'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (file.size > COMPANY_LOGO_MAX_BYTES) {
+      toast({
+        title: t.get('company.profile.toast.errorTitle'),
+        description: t.get('company.profile.logo.tooLarge'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `company_logos/${uid}/logo_${Date.now()}_${safeName}`;
+      const storageRef = makeStorageRef(storage, path);
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      const url = await getDownloadURL(storageRef);
+      await persistCompanyLogo(url, path);
+      setLogoUrl(url);
+      toast({
+        title: t.get('company.profile.logo.updatedTitle'),
+        description: t.get('company.profile.logo.updatedDescription'),
+      });
+    } catch (error) {
+      console.error('Error uploading company logo:', error);
+      toast({
+        title: t.get('company.profile.toast.errorTitle'),
+        description: t.get('company.profile.logo.uploadError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
 
   async function handleSave() {
     const uid = user?.uid;
@@ -226,32 +325,50 @@ function CompanyProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 text-xs font-semibold tracking-widest text-muted-foreground">
-          <span>{t.get('company.profile.breadcrumbs.settings')}</span>
-          <span className="text-muted-foreground/60">›</span>
-          <span className="text-primary">{t.get('company.profile.breadcrumbs.companyProfile')}</span>
-        </div>
-
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-4">{t.get('company.profile.title')}</h1>
-        <p className="text-muted-foreground mt-2">
-          {t.get('company.profile.description')}
-        </p>
-      </div>
+      <CompanySectionHeader
+        icon={Building2}
+        title={t.get('company.profile.title')}
+        subtitle={t.get('company.profile.description')}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-6">
           <div className="cpc-card p-6">
             <p className="text-xs font-semibold tracking-widest text-muted-foreground text-center">{t.get('company.profile.logoSection')}</p>
             <div className="mt-6">
-              <div className="mx-auto h-40 w-40 rounded-2xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 flex items-center justify-center">
-                <div className="h-24 w-24 rounded-xl bg-background shadow-sm border" />
+              <div className="mx-auto h-40 w-40 rounded-2xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 flex items-center justify-center overflow-hidden p-3">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={form.legalName || t.get('company.profile.logoSection')}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
+                )}
               </div>
               <p className="text-sm text-muted-foreground mt-6 text-center">
                 {t.get('company.profile.logoRecommendation')}
               </p>
-              <button type="button" className="mt-4 w-full text-sm font-medium text-primary hover:underline">
-                {t.get('company.profile.changeLogo')}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void handleLogoPick(file);
+                }}
+              />
+              <button
+                type="button"
+                className="mt-4 w-full text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:no-underline inline-flex items-center justify-center gap-2"
+                disabled={loading || uploadingLogo}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {uploadingLogo ? t.get('company.profile.logo.uploading') : t.get('company.profile.changeLogo')}
               </button>
             </div>
           </div>
@@ -646,84 +763,10 @@ function CompanyHome({ canPublish }: { canPublish: boolean }) {
 
 export default function CompanyDashboard() {
   const location = useLocation();
-  const { profile, profileData, user } = useAuth();
   const { language, t } = useLanguage();
   const { status, canPublish, loading: verificationLoading } = useCompanyVerification();
+  const displayName = useDashboardDisplayName();
   const isHome = location.pathname === '/dashboard/empresa' || location.pathname === '/dashboard/empresa/';
-  const [namePreference, setNamePreference] = useState<{
-    legalName: string;
-    userName: string;
-    showUserName: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    const uid = user?.uid;
-    if (!uid) return;
-    const applyPreference = (doc: Record<string, unknown> | null) => {
-      const legalName =
-        (typeof doc?.company_name === 'string' && doc.company_name.trim()) ||
-        (typeof doc?.legal_name === 'string' && doc.legal_name.trim()) ||
-        '';
-      const userName =
-        (typeof doc?.user_display_name === 'string' && doc.user_display_name.trim()) ||
-        '';
-      const showUserName = doc?.show_user_name === true;
-      setNamePreference({ legalName, userName, showUserName });
-    };
-
-    const unsubscribe = subscribeDocument<Record<string, unknown>>({
-      collectionName: 'companies',
-      documentId: uid,
-      onNext: (doc) => {
-        if (doc) {
-          applyPreference(doc);
-        } else {
-          void (async () => {
-            try {
-              const legacy = await queryDocuments<Record<string, unknown> & { id: string }>(
-                'companies',
-                [{ field: 'user_id', operator: '==', value: uid }],
-                undefined,
-                1
-              );
-              applyPreference(legacy[0] || null);
-            } catch (error) {
-              console.error('Error loading legacy company name preference:', error);
-            }
-          })();
-        }
-      },
-      onError: (error) => {
-        console.error('Error subscribing company name preference:', error);
-      },
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [user?.uid]);
-
-  const displayName = (() => {
-    const preferredUserName = namePreference?.userName?.trim() || '';
-    const preferredLegalName = namePreference?.legalName?.trim() || '';
-    if (namePreference?.showUserName && preferredUserName) return preferredUserName;
-    if (!namePreference?.showUserName && preferredLegalName) return preferredLegalName;
-
-    const rawName =
-      (typeof profileData?.name === 'string' && profileData.name.trim()) ||
-      (typeof profile?.name === 'string' ? profile.name.trim() : '');
-    const rawEmail = typeof profile?.email === 'string' ? profile.email.trim() : '';
-    const authEmail = typeof user?.email === 'string' ? user.email.trim() : '';
-    const email = rawEmail || authEmail;
-    const derivedFromEmail = deriveNameFromEmail(email);
-    const normalizedName = normalizeText(rawName);
-    const normalizedRole = normalizeText(profile?.role ?? null);
-    const isGeneric =
-      normalizedName.length === 0 ||
-      normalizedName === normalizedRole ||
-      ['empresa', 'company', 'utilizador', 'user', 'admin'].includes(normalizedName);
-    return isGeneric ? (derivedFromEmail || t.get('company.menu.user_fallback')) : rawName;
-  })();
 
   const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
   const longDateFormatter = new Intl.DateTimeFormat(locale);

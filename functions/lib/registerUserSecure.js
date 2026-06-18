@@ -51,6 +51,51 @@ function getClientIp(rawRequest) {
 function hashValue(value) {
     return (0, node_crypto_1.createHash)('sha256').update(value).digest('hex').slice(0, 24);
 }
+function registeredEmailDocId(email) {
+    return hashValue(email);
+}
+async function assertEmailNotAlreadyRegistered(email, requestId) {
+    const auth = (0, admin_1.getAdminApp)().auth();
+    try {
+        await auth.getUserByEmail(email);
+        firebase_functions_1.logger.warn('register_email_exists_auth', { requestId });
+        throw new https_1.HttpsError('already-exists', 'Não foi possível concluir o cadastro.', {
+            error: 'USER_ALREADY_EXISTS',
+            requestId,
+        });
+    }
+    catch (error) {
+        if (error instanceof https_1.HttpsError)
+            throw error;
+        const code = error.code;
+        if (code === 'auth/user-not-found') {
+            // E-mail disponível no Firebase Auth.
+        }
+        else if (code === 'auth/invalid-email') {
+            throw new https_1.HttpsError('invalid-argument', 'Não foi possível concluir o cadastro.', {
+                error: 'VALIDATION_FAILED',
+                requestId,
+            });
+        }
+        else {
+            throw error;
+        }
+    }
+    const db = (0, admin_1.getFirestore)();
+    const registryRef = db.collection('registered_emails').doc(registeredEmailDocId(email));
+    const [registrySnap, usersSnap, profilesSnap] = await Promise.all([
+        registryRef.get(),
+        db.collection('users').where('email', '==', email).limit(1).get(),
+        db.collection('profiles').where('email', '==', email).limit(1).get(),
+    ]);
+    if (registrySnap.exists || !usersSnap.empty || !profilesSnap.empty) {
+        firebase_functions_1.logger.warn('register_email_exists_firestore', { requestId });
+        throw new https_1.HttpsError('already-exists', 'Não foi possível concluir o cadastro.', {
+            error: 'USER_ALREADY_EXISTS',
+            requestId,
+        });
+    }
+}
 function normalizeEmail(value) {
     return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
@@ -231,6 +276,7 @@ exports.registerUserSecure = (0, https_1.onCall)({
         const { email, name, password, role, nif, activityArea } = validatePayload(payload, requestId);
         await assertRateLimit(ip, email, requestId);
         await verifyCaptchaIfConfigured(payload.captchaToken, requestId);
+        await assertEmailNotAlreadyRegistered(email, requestId);
         const auth = (0, admin_1.getAdminApp)().auth();
         const created = await auth.createUser({
             email,
@@ -268,6 +314,12 @@ exports.registerUserSecure = (0, https_1.onCall)({
         const batch = db.batch();
         batch.set(db.doc(`users/${created.uid}`), userDoc, { merge: false });
         batch.set(db.doc(`profiles/${created.uid}`), profileDoc, { merge: true });
+        batch.set(db.doc(`registered_emails/${registeredEmailDocId(email)}`), {
+            email,
+            uid: created.uid,
+            role,
+            createdAt: now,
+        }, { merge: false });
         if (role === 'company') {
             batch.set(db.doc(`companies/${created.uid}`), {
                 user_id: created.uid,
