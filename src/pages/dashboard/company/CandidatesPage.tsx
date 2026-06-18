@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CompanySectionHeader } from '@/components/company/CompanySectionHeader';
 import { Slider } from '@/components/ui/slider';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -30,6 +31,7 @@ import {
   Eye,
   FileText,
   ChevronDown,
+  Users,
 } from 'lucide-react';
 import {
   CandidateFormValues,
@@ -714,38 +716,36 @@ export default function CandidatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="text-sm text-muted-foreground">
-            {t.get('company.candidates.breadcrumbs.root')} /{' '}
-            <span className="text-foreground">{t.get('company.candidates.breadcrumbs.current')}</span>
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight">{t.get('company.candidates.title')}</h1>
-        </div>
+      <CompanySectionHeader
+        icon={Users}
+        title={t.get('company.candidates.title')}
+        subtitle={t.get('company.candidates.subtitle')}
+        backHref="/dashboard/empresa"
+        backLabel={t.get('company.offers.backToDashboard')}
+      />
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="cpc-card px-5 py-4">
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.total')}</p>
-            <div className="mt-2 flex items-baseline gap-3">
-              <p className="text-3xl font-bold">{numberFormatter.format(stats.total)}</p>
-              <span className="text-sm font-semibold text-emerald-600">
-                +{Math.min(99, Math.max(0, Math.round((stats.newMonth / Math.max(1, stats.total)) * 100)))}%
-              </span>
-            </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="cpc-card px-5 py-4">
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.total')}</p>
+          <div className="mt-2 flex items-baseline gap-3">
+            <p className="text-3xl font-bold">{numberFormatter.format(stats.total)}</p>
+            <span className="text-sm font-semibold text-emerald-600">
+              +{Math.min(99, Math.max(0, Math.round((stats.newMonth / Math.max(1, stats.total)) * 100)))}%
+            </span>
           </div>
-          <div className="cpc-card px-5 py-4">
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.newMonth')}</p>
-            <div className="mt-2 flex items-baseline gap-3">
-              <p className="text-3xl font-bold">{numberFormatter.format(stats.newMonth)}</p>
-              <span className="text-sm font-semibold text-primary">Fase 1</span>
-            </div>
+        </div>
+        <div className="cpc-card px-5 py-4">
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.newMonth')}</p>
+          <div className="mt-2 flex items-baseline gap-3">
+            <p className="text-3xl font-bold">{numberFormatter.format(stats.newMonth)}</p>
+            <span className="text-sm font-semibold text-primary">Fase 1</span>
           </div>
-          <div className="cpc-card px-5 py-4">
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.ideal')}</p>
-            <div className="mt-2 flex items-baseline gap-3">
-              <p className="text-3xl font-bold">{numberFormatter.format(stats.ideal)}</p>
-              <span className="text-sm font-semibold text-primary">★ Top Tier</span>
-            </div>
+        </div>
+        <div className="cpc-card px-5 py-4">
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground">{t.get('company.candidates.kpis.ideal')}</p>
+          <div className="mt-2 flex items-baseline gap-3">
+            <p className="text-3xl font-bold">{numberFormatter.format(stats.ideal)}</p>
+            <span className="text-sm font-semibold text-primary">★ Top Tier</span>
           </div>
         </div>
       </div>

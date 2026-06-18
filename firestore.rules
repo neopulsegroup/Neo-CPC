@@ -693,6 +693,11 @@ service cloud.firestore {
       allow create, update, delete: if canManageTeamUsers();
     }
 
+    // Registo único por e-mail (escrita apenas via Admin SDK nas Cloud Functions).
+    match /registered_emails/{emailId} {
+      allow read, write: if false;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

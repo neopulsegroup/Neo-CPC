@@ -319,7 +319,7 @@
     "loginError": "Contraseña o correo electrónico incorrectos",
     "loginTryAgain": "No fue posible iniciar sesión. Verifica los datos e inténtalo de nuevo.",
     "registerErrorGeneric": "No fue posible completar el registro. Verifica los datos o inténtalo de nuevo.",
-    "registerErrorEmailInUse": "Este correo ya está registrado. Inicia sesión o recupera tu contraseña.",
+    "registerErrorEmailInUse": "Este correo ya está asociado a una suscripción. Inicia sesión o utiliza otro correo.",
     "networkError": "Problema de conexión. Verifica tu internet e inténtalo de nuevo.",
     "tooManyAttempts": "Demasiados intentos en poco tiempo. Espera unos minutos y vuelve a intentarlo.",
     "serviceUnavailable": "Servicio temporalmente no disponible. Inténtalo de nuevo en unos instantes.",
@@ -1750,7 +1750,8 @@
         "completed": "Concluída",
         "cancelled": "Cancelada",
         "in_progress": "Em curso",
-        "scheduled": "Agendada"
+        "scheduled": "Agendada",
+        "pending_approval": "Pendiente de aprobación"
       }
     },
     "activities": {
@@ -2802,6 +2803,14 @@
       "logoSection": "LOGOTIPO",
       "logoRecommendation": "Recomendado: SVG o PNG transparente (512×512px).",
       "changeLogo": "Cambiar logotipo",
+      "logo": {
+        "uploading": "Subiendo logotipo...",
+        "updatedTitle": "Logotipo actualizado",
+        "updatedDescription": "El logotipo de la empresa se guardó correctamente.",
+        "uploadError": "No se pudo subir el logotipo. Inténtelo de nuevo.",
+        "invalidFormat": "Formato no válido. Use PNG, JPG, WEBP, SVG o GIF.",
+        "tooLarge": "El archivo debe tener como máximo 5 MB."
+      },
       "accountVerification": {
         "title": "Verificación de cuenta",
         "description": "La información legal (Nombre y NIF) solo puede modificarse contactando con soporte para garantizar la seguridad fiscal."

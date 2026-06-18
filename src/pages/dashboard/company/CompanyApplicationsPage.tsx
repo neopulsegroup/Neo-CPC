@@ -9,7 +9,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Briefcase, CheckCircle, Eye, FileText, Mail, Search, User } from 'lucide-react';
+import { CompanySectionHeader } from '@/components/company/CompanySectionHeader';
+import { Briefcase, CheckCircle, Eye, FileText, Mail, Search, User } from 'lucide-react';
 
 type ApplicationStatus = 'submitted' | 'reviewing' | 'interview' | 'accepted' | 'rejected';
 type StatusFilter = 'all' | ApplicationStatus;
@@ -398,19 +399,13 @@ export default function CompanyApplicationsPage() {
 
   return (
     <div>
-      <Link to="/dashboard/empresa" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        {t.get('company.applicationsHub.backToDashboard')}
-      </Link>
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-            <FileText className="h-7 w-7 text-primary" /> {t.get('company.applicationsHub.title')}
-          </h1>
-          <p className="text-muted-foreground mt-1">{t.get('company.applicationsHub.subtitle')}</p>
-        </div>
-      </div>
+      <CompanySectionHeader
+        icon={FileText}
+        title={t.get('company.applicationsHub.title')}
+        subtitle={t.get('company.applicationsHub.subtitle')}
+        backHref="/dashboard/empresa"
+        backLabel={t.get('company.applicationsHub.backToDashboard')}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="cpc-card p-5 border-l-4 border-l-slate-400">

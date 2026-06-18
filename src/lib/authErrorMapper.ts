@@ -45,7 +45,7 @@ export function mapAuthErrorToMessage(args: MapAuthErrorArgs): string {
     case 'INVALID_CREDENTIALS':
       return t.get('auth.loginError');
     case 'USER_ALREADY_EXISTS':
-      return secureRegistrationMessage ? t.get('auth.registerErrorGeneric') : t.get('auth.registerErrorEmailInUse');
+      return t.get('auth.registerErrorEmailInUse');
     case 'WEAK_PASSWORD':
       return t.get('auth.passwordLengthError');
     case 'VALIDATION_FAILED':

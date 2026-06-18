@@ -319,7 +319,7 @@
     "loginError": "Email ou mot de passe incorrect",
     "loginTryAgain": "Impossible d'entrer. Vérifiez les données et réessayez.",
     "registerErrorGeneric": "Impossible de finaliser l'inscription. Vérifiez les données ou réessayez.",
-    "registerErrorEmailInUse": "Cet e-mail est déjà enregistré. Connectez-vous ou récupérez votre mot de passe.",
+    "registerErrorEmailInUse": "Cet e-mail est déjà associé à un compte. Connectez-vous ou utilisez un autre e-mail.",
     "networkError": "Problème de connexion. Vérifiez Internet et réessayez.",
     "tooManyAttempts": "De nombreuses tentatives en peu de temps. Attendez quelques minutes et réessayez.",
     "serviceUnavailable": "Service temporairement indisponible. Veuillez réessayer dans un instant.",
@@ -1750,7 +1750,8 @@
         "completed": "Complété",
         "cancelled": "Annulé",
         "in_progress": "En cours",
-        "scheduled": "Programmé"
+        "scheduled": "Programmé",
+        "pending_approval": "En attente d'approbation"
       }
     },
     "activities": {
@@ -2802,6 +2803,14 @@
       "logoSection": "LOGO",
       "logoRecommendation": "Recommandé : SVG ou PNG transparent (512×512px).",
       "changeLogo": "Changer de logo",
+      "logo": {
+        "uploading": "Téléversement du logo...",
+        "updatedTitle": "Logo mis à jour",
+        "updatedDescription": "Le logo de l'entreprise a été enregistré avec succès.",
+        "uploadError": "Impossible de téléverser le logo. Réessayez.",
+        "invalidFormat": "Format invalide. Utilisez PNG, JPG, WEBP, SVG ou GIF.",
+        "tooLarge": "Le fichier doit faire 5 Mo maximum."
+      },
       "accountVerification": {
         "title": "Vérification du compte",
         "description": "Les informations légales (Nom et NIF) ne peuvent être modifiées qu'en contactant le support pour garantir la sécurité fiscale."

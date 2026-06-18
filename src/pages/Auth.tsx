@@ -89,6 +89,25 @@ export default function Auth() {
   const { login, register, isAuthenticated, profile, triage, isLoading: authLoading, accessIssue, clearAccessIssue } = useAuth();
   const navigate = useNavigate();
 
+  // /entrar e /registar partilham este componente — sincronizar estado com a URL.
+  useEffect(() => {
+    const onRegisterPath = location.pathname === '/registar';
+    const registerFromQuery = searchParams.get('mode') === 'register';
+    const nextMode: AuthMode = onRegisterPath || registerFromQuery ? 'register' : 'login';
+    setMode(nextMode);
+
+    if (nextMode === 'register') {
+      const roleParam = searchParams.get('role');
+      if (roleParam === 'migrant' || roleParam === 'company') {
+        setSelectedRole(roleParam);
+      } else if (onRegisterPath) {
+        setSelectedRole(null);
+      }
+    } else {
+      setSelectedRole(null);
+    }
+  }, [location.pathname, searchParams]);
+
   useEffect(() => {
     if (isAuthenticated && profile && !authLoading) {
       // Determine where to redirect based on role and triage status
@@ -255,7 +274,8 @@ export default function Auth() {
             <p className="text-center text-sm text-muted-foreground">
               {t.auth.hasAccount}{' '}
               <button
-                onClick={() => setMode('login')}
+                type="button"
+                onClick={() => navigate('/entrar')}
                 className="text-primary hover:underline font-medium"
               >
                 {t.auth.login}
@@ -454,10 +474,8 @@ export default function Auth() {
                 <>
                   {t.auth.noAccount}{' '}
                   <button
-                    onClick={() => {
-                      setMode('register');
-                      setSelectedRole(null);
-                    }}
+                    type="button"
+                    onClick={() => navigate('/registar')}
                     className="text-primary hover:underline font-medium"
                   >
                     {t.auth.register}
@@ -467,7 +485,8 @@ export default function Auth() {
                 <>
                   {t.auth.hasAccount}{' '}
                   <button
-                    onClick={() => setMode('login')}
+                    type="button"
+                    onClick={() => navigate('/entrar')}
                     className="text-primary hover:underline font-medium"
                   >
                     {t.auth.login}

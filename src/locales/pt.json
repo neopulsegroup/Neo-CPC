@@ -319,7 +319,7 @@
     "loginError": "Email ou palavra-passe incorretos",
     "loginTryAgain": "Não foi possível entrar. Verifique os dados e tente novamente.",
     "registerErrorGeneric": "Não foi possível concluir o cadastro. Verifique os dados ou tente novamente.",
-    "registerErrorEmailInUse": "Este e-mail já está cadastrado. Faça login ou recupere sua senha.",
+    "registerErrorEmailInUse": "Este e-mail já está associado a uma subscrição. Inicie sessão ou utilize outro e-mail.",
     "networkError": "Problema de ligação. Verifique a internet e tente novamente.",
     "tooManyAttempts": "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.",
     "serviceUnavailable": "Serviço temporariamente indisponível. Tente novamente em instantes.",
@@ -1750,7 +1750,8 @@
         "completed": "Concluída",
         "cancelled": "Cancelada",
         "in_progress": "Em curso",
-        "scheduled": "Agendada"
+        "scheduled": "Agendada",
+        "pending_approval": "Em aprovação"
       }
     },
     "activities": {
@@ -2269,6 +2270,7 @@
         "name_required": "Nome é obrigatório.",
         "load_failed": "Erro ao carregar utilizadores.",
         "create_failed": "Erro ao criar utilizador.",
+        "email_in_use": "Este e-mail já está associado a uma subscrição.",
         "update_failed": "Erro ao atualizar utilizador.",
         "update_state_failed": "Erro ao atualizar estado do utilizador.",
         "no_permission": "Sem permissão para gerir utilizadores. Apenas Super Admin e Admin.",
@@ -2803,6 +2805,14 @@
       "logoSection": "LOGOTIPO",
       "logoRecommendation": "Recomendado: SVG ou PNG transparente (512×512px).",
       "changeLogo": "Alterar Logotipo",
+      "logo": {
+        "uploading": "A carregar logotipo...",
+        "updatedTitle": "Logotipo atualizado",
+        "updatedDescription": "O logotipo da empresa foi guardado com sucesso.",
+        "uploadError": "Não foi possível carregar o logotipo. Tente novamente.",
+        "invalidFormat": "Formato inválido. Utilize PNG, JPG, WEBP, SVG ou GIF.",
+        "tooLarge": "O ficheiro deve ter no máximo 5 MB."
+      },
       "accountVerification": {
         "title": "Verificação de Conta",
         "description": "As informações legais (Nome e NIF) só podem ser alteradas mediante contacto com o suporte para garantir a segurança fiscal."
