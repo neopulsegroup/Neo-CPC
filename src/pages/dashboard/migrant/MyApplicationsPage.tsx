@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { getDocument, queryDocuments } from '@/integrations/firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -88,7 +89,8 @@ const STATUS_BADGE_ICON: Record<KnownStatus, React.ComponentType<{ className?: s
 
 export default function MyApplicationsPage() {
   const { user } = useAuth();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<EnrichedApplication[]>([]);
@@ -186,22 +188,9 @@ export default function MyApplicationsPage() {
     return applications.filter((a) => a.status === statusFilter);
   }, [applications, statusFilter]);
 
-  const locale = useMemo(() => {
-    if (language === 'en') return 'en-GB';
-    if (language === 'es') return 'es-ES';
-    if (language === 'fr') return 'fr-FR';
-    return 'pt-PT';
-  }, [language]);
 
-  const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' }),
-    [locale]
-  );
-
-  function formatDate(iso: string): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '—' : dateFormatter.format(d);
+  function formatApplicationDate(iso: string): string {
+    return formatDate(iso);
   }
 
   function renderStatusBadge(status: string | null | undefined) {
@@ -315,7 +304,7 @@ export default function MyApplicationsPage() {
                         ) : null}
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(app.created_at_iso)}
+                          {formatApplicationDate(app.created_at_iso)}
                         </span>
                       </div>
                     </div>

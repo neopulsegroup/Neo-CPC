@@ -1,6 +1,7 @@
 /**
  * Calendário e “dia civil” de referência da aplicação: Lisboa (Portugal).
  * Usar para datas YYYY-MM-DD, filtros por mês/semana e comparações com o “hoje” do CPC.
+ * Para formatação na UI (data/hora apresentada ao utilizador), usar `@/lib/appDateTime`.
  */
 export const APP_TIME_ZONE = 'Europe/Lisbon';
 

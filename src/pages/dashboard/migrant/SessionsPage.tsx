@@ -12,7 +12,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { getCalendarDateIsoInTimeZone, todayIsoAppCalendar } from '@/lib/appCalendar';
+import { formatAppDate, formatAppDateLong } from '@/lib/appDateTime';
+import { dedupeSessionsByAppointment } from '@/lib/cpcSessions';
 import { isMigrantHistorySession, isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
+import {
+  isRejectedSupportRequestStatus,
+  mergeRejectedSupportRequestsIntoMigrantHistory,
+  type SupportRequestDoc,
+} from '@/lib/supportRequests';
 import BookingSessionWizardDialog, {
   BOOKING_SERVICES,
   BOOKING_SPECIALISTS,
@@ -40,6 +47,7 @@ type SessionItem = {
   specialist_id?: string;
   specialist_name?: string;
   meeting_url?: string;
+  support_request_id?: string;
 };
 
 function getInitials(name: string) {
@@ -48,7 +56,7 @@ function getInitials(name: string) {
 }
 
 function formatPtDate(date: Date) {
-  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+  return formatAppDateLong(date);
 }
 
 function sessionStatusUi(status: SessionItem['status']) {
@@ -57,6 +65,10 @@ function sessionStatusUi(status: SessionItem['status']) {
 
   if (!normalized) {
     return { label: 'Confirmado', className: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  }
+
+  if (normalized.includes('recus') || normalized === 'rejected') {
+    return { label: 'Recusado', className: 'bg-rose-50 text-rose-700 border-rose-100' };
   }
 
   if (normalized.includes('cancel') || normalized === 'canceled' || normalized === 'cancelled') {
@@ -93,10 +105,110 @@ function serviceDescription(serviceId: BookingServiceId | null) {
   return BOOKING_SERVICES.find((s) => s.id === serviceId)?.description ?? '';
 }
 
+function serviceAccentClass(serviceId: BookingServiceId | null) {
+  if (serviceId === 'legal') return 'bg-blue-50';
+  if (serviceId === 'psychology') return 'bg-violet-50';
+  return 'bg-cyan-50';
+}
+
+function resolveSessionTitle(session: SessionItem, serviceId: BookingServiceId | null) {
+  return session.service_label ?? (serviceId ? (BOOKING_SERVICES.find((x) => x.id === serviceId)?.title ?? session.session_type) : session.session_type);
+}
+
+type SessionBookingCardProps = {
+  session: SessionItem;
+  variant: 'upcoming' | 'history';
+  onReschedule?: (session: SessionItem, serviceId: BookingServiceId | null) => void;
+  onCancel?: (sessionId: string) => void;
+};
+
+function SessionBookingCard({ session, variant, onReschedule, onCancel }: SessionBookingCardProps) {
+  const svcId = resolveServiceIdFromSession(session);
+  const statusUi = sessionStatusUi(session.status);
+  const title = resolveSessionTitle(session, svcId);
+  const isPending = isSessionPendingApproval(session.status);
+  const isScheduled = (session.status ?? 'Agendada') === 'Agendada' || (session.status ?? '').toLowerCase() === 'scheduled';
+  const canJoin = !!session.meeting_url && isScheduled && !isPending;
+  const canReschedule = variant === 'upcoming' && isScheduled && !isPending;
+  const canCancel = variant === 'upcoming' && (isScheduled || isPending);
+
+  return (
+    <article className="flex h-full flex-col rounded-2xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl', serviceAccentClass(svcId))}>
+          {serviceIcon(svcId)}
+        </div>
+        <span className={cn('inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold', statusUi.className)}>
+          {statusUi.label}
+        </span>
+      </div>
+
+      <h3 className="mt-3 text-sm font-semibold leading-snug text-slate-900 line-clamp-2">{title}</h3>
+
+      {variant === 'upcoming' && serviceDescription(svcId) ? (
+        <p className="mt-1 text-xs leading-relaxed text-slate-600 line-clamp-2">{serviceDescription(svcId)}</p>
+      ) : null}
+
+      <div className="mt-3 space-y-1.5 text-xs text-slate-600">
+        <p className="inline-flex items-center gap-2">
+          <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
+          {formatAppDate(session.scheduled_date)}
+        </p>
+        <p className="inline-flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-slate-400" />
+          {session.scheduled_time}
+        </p>
+        {session.specialist_name ? (
+          <p className="inline-flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-slate-400" />
+            <span className="line-clamp-1">{session.specialist_name}</span>
+          </p>
+        ) : null}
+      </div>
+
+      {variant === 'upcoming' && (canReschedule || canJoin || canCancel) ? (
+        <div className="mt-auto flex flex-col gap-2 pt-4">
+          {canReschedule ? (
+            <Button
+              variant="outline"
+              className="h-9 w-full rounded-xl text-xs font-semibold"
+              onClick={() => onReschedule?.(session, svcId)}
+            >
+              Reagendar
+            </Button>
+          ) : null}
+
+          {canJoin ? (
+            <Button
+              className="h-9 w-full rounded-xl text-xs font-semibold"
+              onClick={() => window.open(session.meeting_url as string, '_blank', 'noopener,noreferrer')}
+            >
+              <Video className="mr-2 h-3.5 w-3.5" />
+              Entrar em vídeo
+            </Button>
+          ) : canCancel ? (
+            <Button
+              variant="outline"
+              className="h-9 w-full rounded-xl text-xs font-semibold"
+              onClick={() => onCancel?.(session.id)}
+            >
+              <XCircle className="mr-2 h-3.5 w-3.5" />
+              Cancelar
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+const SESSIONS_GRID_CLASS = 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+
 export default function SessionsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<Array<SessionItem>>([]);
+  const [supportRequests, setSupportRequests] = useState<SupportRequestDoc[]>([]);
   const [bookOpen, setBookOpen] = useState(false);
   const [bookingPreset, setBookingPreset] = useState<BookingWizardPreset>({});
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -108,16 +220,22 @@ export default function SessionsPage() {
       if (!user) return;
       setLoading(true);
       try {
-        const typed = await queryDocuments<SessionItem>(
+        const [typed, requestRows] = await Promise.all([
+          queryDocuments<SessionItem>(
           'sessions',
           [{ field: 'migrant_id', operator: '==', value: user.uid }]
-        );
-        const sorted = (typed || []).slice().sort((a, b) => {
+        ),
+          queryDocuments<SupportRequestDoc>('support_requests', [
+            { field: 'migrant_id', operator: '==', value: user.uid },
+          ]),
+        ]);
+        const sorted = dedupeSessionsByAppointment(typed || []).slice().sort((a, b) => {
           const byDate = a.scheduled_date.localeCompare(b.scheduled_date);
           if (byDate !== 0) return byDate;
           return a.scheduled_time.localeCompare(b.scheduled_time);
         });
         setSessions(sorted);
+        setSupportRequests(requestRows ?? []);
       } finally {
         setLoading(false);
       }
@@ -151,16 +269,21 @@ export default function SessionsPage() {
 
   const upcomingSessions = useMemo(() => {
     const today = todayIsoAppCalendar();
-    return filtered.filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today));
+    return filtered.filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today, s.scheduled_time));
   }, [filtered]);
 
   const pastSessions = useMemo(() => {
     const today = todayIsoAppCalendar();
-    return filtered
-      .filter((s) => isMigrantHistorySession(s.status, s.scheduled_date, today))
+    const fromSessions = filtered
+      .filter((s) => isMigrantHistorySession(s.status, s.scheduled_date, today, s.scheduled_time))
       .slice()
       .sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date) || b.scheduled_time.localeCompare(a.scheduled_time));
-  }, [filtered]);
+
+    const rejectedRequests = supportRequests.filter((request) => isRejectedSupportRequestStatus(request.status));
+    return mergeRejectedSupportRequestsIntoMigrantHistory(fromSessions, rejectedRequests)
+      .slice()
+      .sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date) || b.scheduled_time.localeCompare(a.scheduled_time));
+  }, [filtered, supportRequests]);
 
 
   async function updateStatus(id: string, status: 'Concluída' | 'Cancelada') {
@@ -244,88 +367,26 @@ export default function SessionsPage() {
               </button>
             </div>
 
-            <div className="grid gap-4">
+            <div className={SESSIONS_GRID_CLASS}>
               {upcomingSessions.length > 0 ? (
-                upcomingSessions.map((s) => {
-                  const svcId = resolveServiceIdFromSession(s);
-                  const statusUi = sessionStatusUi(s.status);
-                  const isPending = isSessionPendingApproval(s.status);
-                  const isScheduled = (s.status ?? 'Agendada') === 'Agendada' || (s.status ?? '').toLowerCase() === 'scheduled';
-                  const canJoin = !!s.meeting_url && isScheduled && !isPending;
-                  const canReschedule = isScheduled && !isPending;
-                  const canCancel = isScheduled || isPending;
-                  const title = s.service_label ?? (svcId ? (BOOKING_SERVICES.find((x) => x.id === svcId)?.title ?? s.session_type) : s.session_type);
-
-                  return (
-                    <div key={s.id} className="rounded-2xl border bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className={cn('flex h-16 w-16 items-center justify-center rounded-2xl', svcId === 'legal' ? 'bg-blue-50' : svcId === 'psychology' ? 'bg-violet-50' : 'bg-cyan-50')}>
-                            {serviceIcon(svcId)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-lg font-semibold text-slate-900">{title}</p>
-                              <span className={cn('inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold', statusUi.className)}>
-                                {statusUi.label}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-600">{serviceDescription(svcId)}</p>
-                            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                              <span className="inline-flex items-center gap-2">
-                                <CalendarIcon className="h-4 w-4 text-slate-400" />
-                                {new Date(s.scheduled_date).toLocaleDateString('pt-PT', { year: 'numeric', month: 'short', day: '2-digit' })}
-                              </span>
-                              <span className="inline-flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-slate-400" />
-                                {s.scheduled_time}
-                              </span>
-                              {s.specialist_name ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Users className="h-4 w-4 text-slate-400" />
-                                  {s.specialist_name}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          {canReschedule ? (
-                            <Button
-                              variant="outline"
-                              className="h-10 rounded-xl px-5 text-sm font-semibold"
-                              onClick={() => openBookingWizard({ step: 3, serviceId: svcId ?? undefined, specialistId: s.specialist_id, rescheduleFromId: s.id })}
-                            >
-                              Reagendar
-                            </Button>
-                          ) : null}
-
-                          {canJoin ? (
-                            <Button
-                              className="h-10 rounded-xl px-5 text-sm font-semibold"
-                              onClick={() => window.open(s.meeting_url as string, '_blank', 'noopener,noreferrer')}
-                            >
-                              <Video className="mr-2 h-4 w-4" />
-                              Entrar em vídeo
-                            </Button>
-                          ) : canCancel ? (
-                            <Button
-                              variant="outline"
-                              className="h-10 rounded-xl px-5 text-sm font-semibold"
-                              onClick={() => updateStatus(s.id, 'Cancelada')}
-                            >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Cancelar
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                upcomingSessions.map((s) => (
+                  <SessionBookingCard
+                    key={s.id}
+                    session={s}
+                    variant="upcoming"
+                    onReschedule={(session, serviceId) =>
+                      openBookingWizard({
+                        step: 3,
+                        serviceId: serviceId ?? undefined,
+                        specialistId: session.specialist_id,
+                        rescheduleFromId: session.id,
+                      })
+                    }
+                    onCancel={(sessionId) => void updateStatus(sessionId, 'Cancelada')}
+                  />
+                ))
               ) : (
-                <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600">Sem sessões futuras.</div>
+                <div className="col-span-full rounded-2xl border bg-white p-6 text-sm text-slate-600">Sem sessões futuras.</div>
               )}
             </div>
           </section>
@@ -335,43 +396,11 @@ export default function SessionsPage() {
               <h2 className="text-xl font-bold text-slate-900">Histórico</h2>
             </div>
 
-            <div className="grid gap-3">
+            <div className={SESSIONS_GRID_CLASS}>
               {pastSessions.length > 0 ? (
-                pastSessions.map((s) => {
-                  const svcId = resolveServiceIdFromSession(s);
-                  const statusUi = sessionStatusUi(s.status);
-                  const title = s.service_label ?? (svcId ? (BOOKING_SERVICES.find((x) => x.id === svcId)?.title ?? s.session_type) : s.session_type);
-                  return (
-                    <div key={s.id} className="rounded-2xl border bg-white p-4 shadow-sm">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{title}</p>
-                          <span className={cn('inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold', statusUi.className)}>
-                            {statusUi.label}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                          <span className="inline-flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4 text-slate-400" />
-                            {new Date(s.scheduled_date).toLocaleDateString('pt-PT', { year: 'numeric', month: 'short', day: '2-digit' })}
-                          </span>
-                          <span className="inline-flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-slate-400" />
-                            {s.scheduled_time}
-                          </span>
-                          {s.specialist_name ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Users className="h-4 w-4 text-slate-400" />
-                              {s.specialist_name}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                pastSessions.map((s) => <SessionBookingCard key={s.id} session={s} variant="history" />)
               ) : (
-                <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600">Sem histórico.</div>
+                <div className="col-span-full rounded-2xl border bg-white p-6 text-sm text-slate-600">Sem histórico.</div>
               )}
             </div>
           </section>

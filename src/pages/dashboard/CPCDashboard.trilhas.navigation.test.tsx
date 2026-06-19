@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import ptJson from '@/locales/pt.json';
+import { resetAuditLogCachesForTests } from '@/lib/auditLog';
 
 import CPCDashboard from './CPCDashboard';
 
@@ -65,10 +66,16 @@ vi.mock('@/integrations/firebase/firestore', () => ({
 
 describe('CPCDashboard - navegação (inclui Trilhas)', () => {
   beforeEach(() => {
+    resetAuditLogCachesForTests();
     authState = {
       profile: { name: 'Ana', role: 'admin', email: 'ana@teste.com' },
       user: { uid: 'u-admin', email: 'ana@teste.com', displayName: 'Ana' },
     };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ip: '203.0.113.10' }),
+    }));
+    vi.stubGlobal('navigator', { userAgent: 'vitest-agent' });
     mockQueryDocuments.mockReset().mockResolvedValue([]);
     mockCountDocuments.mockReset().mockResolvedValue(0);
     mockGetDocument.mockReset().mockResolvedValue(null);
@@ -76,6 +83,10 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     mockAddDocument.mockReset().mockResolvedValue('log1');
     mockServerTimestamp.mockReset().mockReturnValue('ts');
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('mostra o nome do utilizador no "Bem-vindo(a)" (fallback para email se o nome for genérico)', async () => {
@@ -128,6 +139,8 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
           action: 'unauthorized_attempt',
           actor_id: 'u-maria',
           context: 'cpc.team.page_access',
+          ip_address: expect.any(String),
+          user_agent: expect.any(String),
           createdAt: 'ts',
         })
       );
@@ -176,6 +189,8 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
           action: 'user.deactivated',
           actor_id: 'u-admin',
           target_id: 'u2',
+          ip_address: expect.any(String),
+          user_agent: expect.any(String),
           createdAt: 'ts',
         })
       );
@@ -229,7 +244,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     const links = Array.from(nav.querySelectorAll('a'))
       .map((a) => a.textContent?.trim() ?? '')
       .filter(Boolean);
-    expect(links.at(-3)).toBe('Log de Eventos');
+    expect(links.at(-3)).toBe('Logs de Auditoria');
     expect(links.at(-2)).toBe('Perfil');
     expect(links.at(-1)).toBe('Configurações');
 
@@ -251,7 +266,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     const links2 = Array.from(nav2.querySelectorAll('a'))
       .map((a) => a.textContent?.trim() ?? '')
       .filter(Boolean);
-    expect(links2.at(-3)).toBe('Log de Eventos');
+    expect(links2.at(-3)).toBe('Logs de Auditoria');
     expect(links2.at(-2)).toBe('Perfil');
     expect(links2.at(-1)).toBe('Configurações');
   });
@@ -272,7 +287,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
 
     expect(await screen.findByText('Definições')).toBeInTheDocument();
     expect(screen.queryByText('Administração')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Log de Eventos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Logs de Auditoria' })).not.toBeInTheDocument();
   });
 
   it('redireciona não Admin que acede diretamente a /log-eventos', async () => {
@@ -290,7 +305,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     );
 
     expect(await screen.findByRole('heading', { name: /Bem-vindo/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Log de Eventos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Logs de Auditoria' })).not.toBeInTheDocument();
   });
 
   it('inclui "Atividades" imediatamente após "Migrantes" no menu principal', async () => {
@@ -318,6 +333,17 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
   });
 
   it('mantém "Trilhas" como ativo ao abrir o editor /trilhas/:trailId', async () => {
+    mockGetDocument.mockResolvedValueOnce({
+      id: 't1',
+      title: 'Trilha 1',
+      description: 'Descrição',
+      category: 'work',
+      difficulty: 'beginner',
+      duration_minutes: 0,
+      modules_count: 0,
+      is_active: true,
+    });
+
     render(
       <MemoryRouter initialEntries={['/dashboard/cpc/trilhas/t1']}>
         <Routes>
@@ -326,7 +352,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Trilha não encontrada')).toBeInTheDocument();
+    expect(await screen.findByText('Editar Trilha')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trilhas' }).className).toContain('bg-primary');
   });
 });

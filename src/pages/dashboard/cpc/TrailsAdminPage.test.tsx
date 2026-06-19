@@ -10,13 +10,36 @@ import TrailsAdminPage from './TrailsAdminPage';
 const mockQueryDocuments = vi.fn();
 const mockAddDocument = vi.fn();
 const mockUpdateDocument = vi.fn();
+const mockNavigate = vi.fn();
+const mockUploadBytes = vi.fn();
+const mockGetDownloadURL = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { uid: 'u-admin', email: 'admin@teste.com' } }),
+}));
+
+vi.mock('@/integrations/firebase/client', () => ({
+  storage: {},
+}));
+
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn((_storage: unknown, path: string) => ({ path })),
+  uploadBytes: (...args: unknown[]) => mockUploadBytes(...args),
+  getDownloadURL: (...args: unknown[]) => mockGetDownloadURL(...args),
+}));
 
 vi.mock('@/components/layout/Layout', () => ({
   Layout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-// Mock LanguageContext devolvendo traduções reais do pt.json via t.get(...).
-// Os testes asseguram texto específico em PT; mock simples (return key) falharia.
 vi.mock('@/contexts/LanguageContext', () => {
   function tGet(path: string): string {
     const value = path.split('.').reduce<unknown>((acc, key) => {
@@ -52,7 +75,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-describe('TrailsAdminPage (CPC) - conteúdos de demonstração', () => {
+describe('TrailsAdminPage (CPC)', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -60,14 +83,17 @@ describe('TrailsAdminPage (CPC) - conteúdos de demonstração', () => {
     localStorage.clear();
     mockQueryDocuments.mockReset();
     mockAddDocument.mockReset();
-    mockUpdateDocument.mockReset();
+    mockUpdateDocument.mockReset().mockResolvedValue(undefined);
+    mockNavigate.mockReset();
+    mockUploadBytes.mockReset().mockResolvedValue(undefined);
+    mockGetDownloadURL.mockReset().mockResolvedValue('https://example.com/cover.jpg');
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('permite alternar a exibição de conteúdos de demonstração', async () => {
+  it('não mostra opções de demonstração', async () => {
     mockQueryDocuments.mockResolvedValueOnce([]);
 
     render(
@@ -76,22 +102,71 @@ describe('TrailsAdminPage (CPC) - conteúdos de demonstração', () => {
       </MemoryRouter>
     );
 
-    // TASK-TESTS: título do header migrou para chave i18n cpc.pages.trails.title = "Trilhas".
-    // O texto original ("Gerir Trilhas Formativas") foi substituído ao migrar para i18n; teste atualizado.
     await screen.findByRole('heading', { level: 1, name: 'Trilhas' });
-    await screen.findByText('Nenhuma trilha criada ainda.');
+    expect(screen.queryByRole('button', { name: 'Criar trilhas demo' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mostrar demonstração' })).toBeNull();
+    expect(screen.queryByText('Conteúdos de demonstração')).toBeNull();
+    expect(screen.queryByText('Nova Trilha')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Criar Trilha' })).toBeInTheDocument();
+  });
 
+  it('abre popup de criação com os campos necessários', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([]);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Mostrar demonstração' }));
 
-    expect(await screen.findByText('Conteúdos de demonstração')).toBeInTheDocument();
-    expect(screen.getAllByText('Demo').length).toBeGreaterThan(0);
-    expect(screen.getByText('Direitos Laborais em Portugal')).toBeInTheDocument();
+    render(
+      <MemoryRouter>
+        <TrailsAdminPage />
+      </MemoryRouter>
+    );
 
-    await user.click(screen.getByRole('button', { name: 'Ocultar demonstração' }));
-    await waitFor(() => {
-      expect(screen.queryByText('Conteúdos de demonstração')).toBeNull();
-    });
+    await screen.findByRole('heading', { level: 1, name: 'Trilhas' });
+    await user.click(screen.getByRole('button', { name: 'Criar Trilha' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Imagem de capa *')).toBeInTheDocument();
+    expect(screen.getByLabelText('Título *')).toBeInTheDocument();
+    expect(screen.getByLabelText('Descrição')).toBeInTheDocument();
+    expect(screen.getByLabelText('Categoria')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nível')).toBeInTheDocument();
+  });
+
+  it('oculta trilhas de demonstração vindas da base de dados', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([
+      {
+        id: 'real-1',
+        title: 'Integração Profissional no Algarve',
+        description: 'Real',
+        category: 'work',
+        difficulty: 'beginner',
+        duration_minutes: 10,
+        modules_count: 1,
+        is_active: true,
+        created_at: '2025-01-01T00:00:00.000Z',
+        image_url: null,
+      },
+      {
+        id: 'demo-1',
+        title: 'Situação Legal',
+        description: 'Demo',
+        category: 'rights',
+        difficulty: 'beginner',
+        duration_minutes: 10,
+        modules_count: 1,
+        is_active: true,
+        created_at: '2025-01-01T00:00:00.000Z',
+        image_url: null,
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <TrailsAdminPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Integração Profissional no Algarve')).toBeInTheDocument();
+    expect(screen.queryByText('Situação Legal')).toBeNull();
   });
 
   it('usa cache local para renderizar rapidamente e atualiza em background', async () => {
@@ -135,7 +210,39 @@ describe('TrailsAdminPage (CPC) - conteúdos de demonstração', () => {
     });
   });
 
-  it('exibe erro e permite alternar para demonstração quando falha a carga', async () => {
+  it('alterna trilha entre ativa e inativa', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([
+      {
+        id: 't1',
+        title: 'Trilha 1',
+        description: 'Descrição',
+        category: 'work',
+        difficulty: 'beginner',
+        duration_minutes: 10,
+        modules_count: 1,
+        is_active: true,
+        created_at: '2025-01-01T00:00:00.000Z',
+        image_url: null,
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <TrailsAdminPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Trilha 1')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: 'Desativar trilha' }));
+
+    await waitFor(() => {
+      expect(mockUpdateDocument).toHaveBeenCalledWith('trails', 't1', { is_active: false });
+    });
+    expect(screen.getByText('Inativa')).toBeInTheDocument();
+  });
+
+  it('exibe erro e permite tentar novamente quando falha a carga', async () => {
     mockQueryDocuments.mockRejectedValueOnce(new Error('fail'));
 
     render(
@@ -145,12 +252,15 @@ describe('TrailsAdminPage (CPC) - conteúdos de demonstração', () => {
     );
 
     expect(await screen.findByText('Ocorreu um problema')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver demonstração' })).toBeNull();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Ver demonstração' }));
+    mockQueryDocuments.mockResolvedValueOnce([]);
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
 
-    expect(await screen.findByText('Conteúdos de demonstração')).toBeInTheDocument();
-    expect(screen.getByText('Direitos Laborais em Portugal')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma trilha criada ainda.')).toBeInTheDocument();
+    });
   });
 });
 

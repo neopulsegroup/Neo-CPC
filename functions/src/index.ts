@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 import { canManageSystemSettings } from './systemSettingsPermissions';
 import { loadSmtpSettings } from './mailProcessor';
+import { loadResendSettings, verifyResendConnection } from './resendMail';
 import { createTransport } from './smtp';
 import { processMailDocument } from './mailProcessor';
 import { registerUserSecure } from './registerUserSecure';
@@ -25,11 +26,32 @@ import { onJobOfferCreated } from './onJobOfferCreated';
 // scheduledReminders: cron 15min processa flags e envia 24h/1h antes.
 import { onSessionCreated } from './onSessionCreated';
 import { scheduledReminders } from './scheduledReminders';
+import { onContactMessageCreated } from './onContactMessageCreated';
 import { applyRecaptchaSettings } from './applyRecaptchaSettings';
 
 export const onMailCreated = onDocumentCreated('mail/{mailId}', async (event) => {
   const mailId = event.params.mailId;
   await processMailDocument(mailId);
+});
+
+export const testResendConnection = onCall(async (request) => {
+  const uid = request.auth?.uid ?? null;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sessão inválida.');
+  const ok = await canManageSystemSettings(uid);
+  if (!ok) throw new HttpsError('permission-denied', 'Sem permissão.');
+
+  try {
+    const resend = await loadResendSettings();
+    await verifyResendConnection(resend);
+    return { ok: true };
+  } catch (error: unknown) {
+    if (error instanceof HttpsError) throw error;
+    const raw = error instanceof Error ? error.message : 'Falha na ligação ao Resend.';
+    const message = raw.includes('em falta')
+      ? 'Configuração Resend incompleta. Guarde a API key e o remetente antes de testar.'
+      : raw;
+    return { ok: false, message };
+  }
 });
 
 export const testSmtpConnection = onCall(async (request) => {
@@ -65,4 +87,4 @@ export {
 };
 
 // TASK-07 — exports dos triggers de lembretes de sessão.
-export { onSessionCreated, scheduledReminders };
+export { onSessionCreated, scheduledReminders, onContactMessageCreated };

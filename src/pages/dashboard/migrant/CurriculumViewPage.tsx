@@ -5,6 +5,7 @@ import { getDocument } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { splitCsvLike } from '@/components/curriculum/CurriculumTagAutocomplete';
+import { formatAppMonthYear } from '@/lib/appDateTime';
 
 type ProfileDoc = Record<string, unknown>;
 
@@ -86,20 +87,10 @@ function hasEducationContent(entry: CvEducationEntry): boolean {
   return [entry.course, entry.institution, entry.description].some((v) => v.trim().length > 0);
 }
 
-function formatMonthYear(ym: string, locale: string): string {
+function formatMonthYear(ym: string, language: string): string {
   const m = ym.match(/^(\d{4})-(\d{2})$/);
   if (!m) return '';
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  if (mo < 0 || mo > 11) return '';
-  return new Date(y, mo, 1).toLocaleDateString(locale, { month: 'short', year: 'numeric' });
-}
-
-function localeForLanguage(language: string): string {
-  if (language === 'pt') return 'pt-PT';
-  if (language === 'es') return 'es-ES';
-  if (language === 'fr') return 'fr-FR';
-  return 'en-US';
+  return formatAppMonthYear(`${m[1]}-${m[2]}-01`, { locale: language });
 }
 
 export default function CurriculumViewPage() {
@@ -149,8 +140,6 @@ export default function CurriculumViewPage() {
   const phone = asString(profileDoc?.phone) || '+351 000 000 000';
   const location = asString(profileDoc?.currentLocation) || asString(profileDoc?.address) || 'Lisboa, Portugal';
   const summary = asString(profileDoc?.cvSummary) || t.get('migrant.curriculum.preview.summaryFallback');
-
-  const locale = localeForLanguage(language);
 
   const experienceEntriesRaw = profileDoc?.cvExperienceEntries;
   const experiences = Array.isArray(experienceEntriesRaw)
@@ -208,8 +197,8 @@ export default function CurriculumViewPage() {
           ) : (
             <div className="mt-2 space-y-4">
               {experiences.map((exp) => {
-                const start = formatMonthYear(exp.startDate, locale);
-                const end = exp.currentRole ? t.get('migrant.curriculum.preview.present') : formatMonthYear(exp.endDate, locale);
+                const start = formatMonthYear(exp.startDate, language);
+                const end = exp.currentRole ? t.get('migrant.curriculum.preview.present') : formatMonthYear(exp.endDate, language);
                 const range = [start, end].filter(Boolean).join(' — ');
                 const modeLabel = exp.workMode ? t.get(`migrant.curriculum.workMode.${exp.workMode}`) : '';
                 const meta = [exp.organization, exp.location, modeLabel].filter(Boolean).join(' · ');
@@ -235,8 +224,8 @@ export default function CurriculumViewPage() {
           ) : (
             <div className="mt-2 space-y-4">
               {educations.map((edu) => {
-                const start = formatMonthYear(edu.startDate, locale);
-                const end = edu.inProgress ? t.get('migrant.curriculum.preview.inProgress') : formatMonthYear(edu.endDate, locale);
+                const start = formatMonthYear(edu.startDate, language);
+                const end = edu.inProgress ? t.get('migrant.curriculum.preview.inProgress') : formatMonthYear(edu.endDate, language);
                 const range = [start, end].filter(Boolean).join(' — ');
                 const degreeLabel = edu.degreeLevel ? t.get(`migrant.curriculum.degreeLevel.${edu.degreeLevel}`) : '';
                 const headline = edu.course || edu.institution || degreeLabel || '—';

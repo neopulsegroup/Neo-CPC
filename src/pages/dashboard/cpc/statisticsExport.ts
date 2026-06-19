@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 import type { EligibilityFilter } from '@/lib/migrantEligibility';
+import { formatAppDateTime } from '@/lib/appDateTime';
 import type { BrandingSettings } from '@/lib/documentBranding';
 import { defaultBranding, fetchDocumentBranding } from '@/lib/documentBranding';
 import {
@@ -289,7 +290,7 @@ export async function exportStatisticsPdf(
   };
 
   drawText('Relatório de Estatísticas — CPC', 18, true);
-  drawText(`Gerado em: ${new Date(report.generatedAtISO).toLocaleString('pt-PT')}`, 10, false, rgb(0.35, 0.35, 0.35));
+  drawText(`Gerado em: ${formatAppDateTime(report.generatedAtISO)}`, 10, false, rgb(0.35, 0.35, 0.35));
   cursorY -= 6;
   drawLine(cursorY);
   cursorY -= 10;
@@ -365,7 +366,7 @@ export async function exportStatisticsXlsx(
 
   const summaryRows: (string | number)[][] = [
     ['Relatório de Estatísticas — CPC'],
-    ['Gerado em', new Date(report.generatedAtISO).toLocaleString('pt-PT')],
+    ['Gerado em', formatAppDateTime(report.generatedAtISO)],
     ['Ano', report.year],
     ['Período', report.period.toUpperCase()],
     ['Intervalo', `${report.dateRange.startISO.slice(0, 10)} a ${report.dateRange.endISO.slice(0, 10)}`],
@@ -455,7 +456,7 @@ export async function exportStatisticsDocx(
   });
 
   const meta = [
-    ['Gerado em', new Date(report.generatedAtISO).toLocaleString('pt-PT')],
+    ['Gerado em', formatAppDateTime(report.generatedAtISO)],
     ['Ano', String(report.year)],
     ['Período', report.period.toUpperCase()],
     ['Intervalo', `${report.dateRange.startISO.slice(0, 10)} a ${report.dateRange.endISO.slice(0, 10)}`],

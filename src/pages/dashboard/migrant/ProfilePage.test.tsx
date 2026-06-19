@@ -30,7 +30,12 @@ vi.mock('@/integrations/firebase/auth', () => ({
 }));
 
 vi.mock('@/integrations/firebase/client', () => ({
+  default: {},
   storage: {},
+}));
+
+vi.mock('@/integrations/firebase/functionsClient', () => ({
+  functions: {},
 }));
 
 vi.mock('@/hooks/use-toast', () => ({
@@ -40,11 +45,16 @@ vi.mock('@/hooks/use-toast', () => ({
 const mockStorageRef = vi.fn();
 const mockUploadBytes = vi.fn();
 const mockGetDownloadURL = vi.fn();
+const mockDeleteObject = vi.fn();
 
 vi.mock('firebase/storage', () => ({
-  ref: (...args: unknown[]) => mockStorageRef(...args),
+  ref: (_storage: unknown, path: string) => {
+    mockStorageRef(_storage, path);
+    return { path };
+  },
   uploadBytes: (...args: unknown[]) => mockUploadBytes(...args),
   getDownloadURL: (...args: unknown[]) => mockGetDownloadURL(...args),
+  deleteObject: (...args: unknown[]) => mockDeleteObject(...args),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -87,6 +97,7 @@ describe('ProfilePage (dashboard/migrante)', () => {
     vi.clearAllMocks();
     mockFetchMigrantProfile.mockReset();
     mockQueryDocuments.mockResolvedValue([]);
+    mockDeleteObject.mockResolvedValue(undefined);
     stableUser.uid = 'u1';
     (stableAuthProfile as { role: string }).role = 'migrant';
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -551,9 +562,84 @@ describe('ProfilePage (dashboard/migrante)', () => {
     await user.upload(fileInput as HTMLInputElement, file);
 
     await waitFor(() => {
+      expect(mockStorageRef).toHaveBeenCalledWith({}, 'profile_photos/u1');
       expect(mockUploadBytes).toHaveBeenCalled();
       expect(mockGetDownloadURL).toHaveBeenCalled();
       expect(mockUpdateDocument).toHaveBeenCalledWith('profiles', 'u1', expect.objectContaining({ photoUrl: 'https://exemplo.com/foto.png' }));
+    });
+  });
+
+  it('apaga foto anterior do storage ao substituir avatar legado', async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    const legacyUrl =
+      'https://firebasestorage.googleapis.com/v0/b/app/o/profile_photos%2Fu1%2Fold.png?alt=media';
+
+    mockStorageRef.mockReturnValueOnce({ key: 'ref1' });
+    mockUploadBytes.mockResolvedValueOnce(undefined);
+    mockGetDownloadURL.mockResolvedValueOnce('https://exemplo.com/foto-nova.png');
+
+    mockFetchMigrantProfile.mockResolvedValueOnce({
+      userProfile: { email: 'ana@exemplo.com', name: 'Ana', role: 'migrant', createdAt: null, updatedAt: null },
+      profile: { id: 'u1', name: 'Ana', email: 'ana@exemplo.com', phone: null, photoUrl: legacyUrl },
+      triage: null,
+      sessions: [],
+      progress: [],
+      trails: {},
+    });
+
+    mockUpdateDocument.mockResolvedValueOnce(undefined);
+    mockRefreshProfile.mockResolvedValueOnce(undefined);
+
+    render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>
+    );
+    await screen.findByText('Informação Pessoal');
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const file = new File(['abc'], 'foto.png', { type: 'image/png' });
+    await user.upload(fileInput as HTMLInputElement, file);
+
+    await waitFor(() => {
+      expect(mockDeleteObject).toHaveBeenCalledWith({ path: 'profile_photos/u1/old.png' });
+      expect(mockUpdateDocument).toHaveBeenCalledWith(
+        'profiles',
+        'u1',
+        expect.objectContaining({ photoUrl: 'https://exemplo.com/foto-nova.png' })
+      );
+    });
+  });
+
+  it('remove foto do storage ao clicar em Remover foto', async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    const photoUrl = 'https://firebasestorage.googleapis.com/v0/b/app/o/profile_photos%2Fu1?alt=media';
+
+    mockFetchMigrantProfile.mockResolvedValueOnce({
+      userProfile: { email: 'ana@exemplo.com', name: 'Ana', role: 'migrant', createdAt: null, updatedAt: null },
+      profile: { id: 'u1', name: 'Ana', email: 'ana@exemplo.com', phone: null, photoUrl },
+      triage: null,
+      sessions: [],
+      progress: [],
+      trails: {},
+    });
+
+    mockUpdateDocument.mockResolvedValueOnce(undefined);
+    mockRefreshProfile.mockResolvedValueOnce(undefined);
+
+    render(
+      <MemoryRouter>
+        <ProfilePage />
+      </MemoryRouter>
+    );
+    await screen.findByText('Informação Pessoal');
+    await user.click(screen.getByRole('button', { name: 'Remover foto' }));
+
+    await waitFor(() => {
+      expect(mockDeleteObject).toHaveBeenCalledWith({ path: 'profile_photos/u1' });
+      expect(mockUpdateDocument).toHaveBeenCalledWith('profiles', 'u1', { photoUrl: null });
     });
   });
 

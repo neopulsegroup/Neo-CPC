@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -17,7 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/integrations/firebase/functionsClient';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
-import { Settings, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { Settings, ShieldCheck, Eye, EyeOff, Mail } from 'lucide-react';
 import { canManageTeamMembers } from '@/lib/cpcRoles';
 import { clearRecaptchaPublicSettingsCache } from '@/lib/recaptcha';
 import {
@@ -50,6 +51,13 @@ type SmtpSettingsDoc = {
   password?: string | null;
   passwordSet?: boolean | null;
   fromEmail?: string | null;
+};
+type ResendSettingsDoc = {
+  id: string;
+  apiKey?: string | null;
+  apiKeySet?: boolean | null;
+  fromEmail?: string | null;
+  enabled?: boolean | null;
 };
 
 type BrandingSection = 'left' | 'center' | 'right';
@@ -203,8 +211,8 @@ export default function CPCSettingsPage() {
     notificationEmail: '',
     notificationEmailConfirm: '',
     smtpHost: '',
-    smtpPort: '587',
-    smtpSecurity: 'tls',
+    smtpPort: '465',
+    smtpSecurity: 'ssl',
     smtpUsername: '',
     smtpPassword: '',
     smtpFromEmail: '',
@@ -232,17 +240,13 @@ export default function CPCSettingsPage() {
   });
   const [showRecaptchaSecret, setShowRecaptchaSecret] = useState(false);
   const [applyingRecaptcha, setApplyingRecaptcha] = useState(false);
+  const [resendDraft, setResendDraft] = useState({ apiKey: '', fromEmail: '', enabled: false });
+  const [loadedResend, setLoadedResend] = useState({ apiKeySet: false, fromEmail: '', enabled: false });
+  const [showResendApiKey, setShowResendApiKey] = useState(false);
+  const [applyingResend, setApplyingResend] = useState(false);
+  const [applyingSmtp, setApplyingSmtp] = useState(false);
 
-  const recaptchaValidation = useMemo(
-    () =>
-      validateRecaptchaSettingsDraft(recaptchaDraft, {
-        secretKeySet: loadedRecaptcha.secretKeySet,
-        requireSecret: !loadedRecaptcha.secretKeySet,
-      }),
-    [loadedRecaptcha.secretKeySet, recaptchaDraft]
-  );
-
-  const validation = useMemo(() => {
+  const contactValidation = useMemo(() => {
     const errors: Record<string, string> = {};
     const email = draft.notificationEmail.trim();
     if (!email) errors.notificationEmail = 'O email de notificações é obrigatório.';
@@ -252,6 +256,11 @@ export default function CPCSettingsPage() {
     if (!emailConfirm) errors.notificationEmailConfirm = 'Confirme o email.';
     else if (normalizeEmail(emailConfirm) !== normalizeEmail(email)) errors.notificationEmailConfirm = 'Os emails não coincidem.';
 
+    return { ok: Object.keys(errors).length === 0, errors };
+  }, [draft.notificationEmail, draft.notificationEmailConfirm]);
+
+  const smtpValidation = useMemo(() => {
+    const errors: Record<string, string> = {};
     const host = sanitizeHost(draft.smtpHost);
     if (!host) errors.smtpHost = 'O servidor SMTP é obrigatório.';
 
@@ -266,42 +275,67 @@ export default function CPCSettingsPage() {
     else if (!isValidEmail(fromEmail)) errors.smtpFromEmail = 'Indique um email de remetente válido.';
 
     return { ok: Object.keys(errors).length === 0, errors };
-  }, [draft.notificationEmail, draft.notificationEmailConfirm, draft.smtpFromEmail, draft.smtpHost, draft.smtpPort, draft.smtpUsername]);
+  }, [draft.smtpFromEmail, draft.smtpHost, draft.smtpPort, draft.smtpUsername]);
 
-  const desiredSettings = useMemo<CpcSystemSettings>(() => {
+  const resendValidation = useMemo(() => {
+    const errors: Record<string, string> = {};
+    if (!resendDraft.enabled) {
+      return { ok: true, errors };
+    }
+
+    const fromEmail = resendDraft.fromEmail.trim();
+    if (!fromEmail) errors.fromEmail = t.get('cpc.pages.settings.resend.fromEmailRequired');
+    else if (!isValidEmail(fromEmail)) errors.fromEmail = t.get('cpc.pages.settings.resend.fromEmailInvalid');
+
+    if (!loadedResend.apiKeySet && !resendDraft.apiKey.trim()) {
+      errors.apiKey = t.get('cpc.pages.settings.resend.apiKeyRequired');
+    }
+
+    return { ok: Object.keys(errors).length === 0, errors };
+  }, [loadedResend.apiKeySet, resendDraft.apiKey, resendDraft.enabled, resendDraft.fromEmail, t]);
+
+  const recaptchaValidation = useMemo(
+    () =>
+      validateRecaptchaSettingsDraft(recaptchaDraft, {
+        secretKeySet: loadedRecaptcha.secretKeySet,
+        requireSecret: !loadedRecaptcha.secretKeySet,
+      }),
+    [loadedRecaptcha.secretKeySet, recaptchaDraft]
+  );
+
+  const smtpHasChanges = useMemo(() => {
+    if (!loaded) return false;
     const port = parsePort(draft.smtpPort);
-    return {
-      contactNotificationEmail: normalizeEmail(draft.notificationEmail),
-      smtp: {
-        host: sanitizeHost(draft.smtpHost),
-        port: port || 0,
-        security: draft.smtpSecurity,
-        username: sanitizeUsername(draft.smtpUsername),
-        passwordSet: loaded?.smtp.passwordSet === true || draft.smtpPassword.trim().length > 0,
-        fromEmail: normalizeEmail(draft.smtpFromEmail),
-      },
-    };
-  }, [draft.notificationEmail, draft.smtpFromEmail, draft.smtpHost, draft.smtpPassword, draft.smtpPort, draft.smtpSecurity, draft.smtpUsername, loaded?.smtp.passwordSet]);
+    const passwordChanged = draft.smtpPassword.trim().length > 0;
+    return (
+      sanitizeHost(draft.smtpHost) !== loaded.smtp.host ||
+      port !== loaded.smtp.port ||
+      draft.smtpSecurity !== loaded.smtp.security ||
+      sanitizeUsername(draft.smtpUsername) !== loaded.smtp.username ||
+      normalizeEmail(draft.smtpFromEmail) !== loaded.smtp.fromEmail ||
+      passwordChanged
+    );
+  }, [draft.smtpFromEmail, draft.smtpHost, draft.smtpPassword, draft.smtpPort, draft.smtpSecurity, draft.smtpUsername, loaded]);
 
   const hasChanges = useMemo(() => {
     if (!loaded) return true;
-    const base = JSON.stringify({ ...loaded, updatedAt: undefined, updatedBy: undefined });
-    const next = JSON.stringify({ ...desiredSettings, updatedAt: undefined, updatedBy: undefined });
+    const contactChanged =
+      normalizeEmail(draft.notificationEmail) !== normalizeEmail(loaded.contactNotificationEmail || '');
     const brandingChanged = JSON.stringify(loadedBranding) !== JSON.stringify(branding);
-    const passwordChanged = draft.smtpPassword.trim().length > 0;
-    return base !== next || passwordChanged || brandingChanged;
-  }, [branding, desiredSettings, draft.smtpPassword, loaded, loadedBranding]);
+    return contactChanged || brandingChanged;
+  }, [branding, draft.notificationEmail, loaded, loadedBranding]);
 
-  const canAutosave = canManageSettings && !loading && validation.ok && hasChanges && emailChangePending === null;
+  const canAutosave = canManageSettings && !loading && contactValidation.ok && hasChanges && emailChangePending === null;
 
   useEffect(() => {
     let ignore = false;
     async function load() {
       setLoading(true);
       try {
-        const [contactDoc, smtpDoc, brandingDoc, recaptchaPublicDoc, recaptchaSecretDoc] = await Promise.all([
+        const [contactDoc, smtpDoc, resendDoc, brandingDoc, recaptchaPublicDoc, recaptchaSecretDoc] = await Promise.all([
           getDocument<ContactSettingsDoc>('system_settings', 'contact'),
           getDocument<SmtpSettingsDoc>('system_settings', 'smtp'),
+          getDocument<ResendSettingsDoc>('system_settings', 'resend'),
           getDocument<BrandingSettingsDoc>('system_settings', 'document_branding'),
           getDocument<RecaptchaPublicSettingsDoc>('system_settings', 'recaptcha_public'),
           getDocument<RecaptchaSecretSettingsDoc>('system_settings', 'recaptcha'),
@@ -333,9 +367,21 @@ export default function CPCSettingsPage() {
             ? smtpDoc.fromEmail
             : COMMUNICATION_DEFAULTS.smtp.fromEmail;
         const passwordSet = smtpDoc?.passwordSet === true || typeof smtpDoc?.password === 'string';
+        const resendFromEmail =
+          typeof resendDoc?.fromEmail === 'string' && resendDoc.fromEmail.trim()
+            ? resendDoc.fromEmail
+            : '';
+        const resendApiKeySet = resendDoc?.apiKeySet === true || typeof resendDoc?.apiKey === 'string';
+        const resendEnabled =
+          typeof resendDoc?.enabled === 'boolean' ? resendDoc.enabled : resendApiKeySet;
 
         const merged: CpcSystemSettings = {
           contactNotificationEmail: notificationEmail || '',
+          resend: {
+            apiKeySet: resendApiKeySet,
+            fromEmail: resendFromEmail,
+            enabled: resendEnabled,
+          },
           smtp: {
             host: smtpHost || '',
             port: parsePort(smtpPort) || 0,
@@ -351,7 +397,7 @@ export default function CPCSettingsPage() {
           notificationEmail: merged.contactNotificationEmail || '',
           notificationEmailConfirm: merged.contactNotificationEmail || '',
           smtpHost: merged.smtp.host || '',
-          smtpPort: merged.smtp.port ? String(merged.smtp.port) : '587',
+          smtpPort: merged.smtp.port ? String(merged.smtp.port) : String(COMMUNICATION_DEFAULTS.smtp.port),
           smtpSecurity: merged.smtp.security,
           smtpUsername: merged.smtp.username || '',
           smtpPassword: '',
@@ -376,6 +422,8 @@ export default function CPCSettingsPage() {
           secretKey: '',
           minScore: nextRecaptcha.minScore,
         });
+        setLoadedResend({ apiKeySet: resendApiKeySet, fromEmail: resendFromEmail, enabled: resendEnabled });
+        setResendDraft({ apiKey: '', fromEmail: resendFromEmail, enabled: resendEnabled });
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -398,7 +446,7 @@ export default function CPCSettingsPage() {
     return () => {
       if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
     };
-  }, [branding, canAutosave, desiredSettings, draft.smtpPassword, loaded]);
+  }, [branding, canAutosave, loaded]);
 
   function updateBrandingMode(section: BrandingSection, mode: BrandingContentType) {
     setBranding((prev) => ({
@@ -455,6 +503,132 @@ export default function CPCSettingsPage() {
     }
   }
 
+  async function applyResendSettings(): Promise<boolean> {
+    if (!user || !canManageSettings || !resendValidation.ok) return false;
+
+    setApplyingResend(true);
+    const startedAtMs = auditTimerStart();
+    try {
+      const apiKeyChanged = resendDraft.apiKey.trim().length > 0;
+      const resendUpdate: Record<string, unknown> = {
+        enabled: resendDraft.enabled,
+        fromEmail: resendDraft.fromEmail.trim() ? normalizeEmail(resendDraft.fromEmail) : '',
+        apiKeySet: loadedResend.apiKeySet || apiKeyChanged,
+        updatedBy: user.uid,
+        updatedAt: serverTimestamp(),
+      };
+      if (apiKeyChanged) {
+        resendUpdate.apiKey = resendDraft.apiKey.trim();
+      }
+
+      await setDocument('system_settings', 'resend', resendUpdate, true);
+
+      const nextLoaded = {
+        apiKeySet: resendUpdate.apiKeySet === true,
+        fromEmail: resendDraft.fromEmail.trim() ? normalizeEmail(resendDraft.fromEmail) : '',
+        enabled: resendDraft.enabled,
+      };
+      setLoadedResend(nextLoaded);
+      setResendDraft((current) => ({ ...current, apiKey: '' }));
+
+      await writeAuditLog({
+        action: 'resend_settings_updated',
+        actor_id: user.uid,
+        context: 'cpc_settings',
+        after: {
+          fromEmail: nextLoaded.fromEmail,
+          apiKeySet: nextLoaded.apiKeySet,
+          enabled: nextLoaded.enabled,
+        },
+        startedAtMs,
+      });
+
+      toast({
+        title: t.get('cpc.pages.settings.resend.toast.appliedTitle'),
+        description: t.get('cpc.pages.settings.resend.toast.appliedDescription'),
+      });
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t.get('cpc.pages.settings.resend.toast.applyError');
+      toast({
+        title: t.get('cpc.pages.settings.resend.toast.applyErrorTitle'),
+        description: message,
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setApplyingResend(false);
+    }
+  }
+
+  async function handleTestResend() {
+    if (!user || !canManageSettings) return;
+    if (!resendDraft.enabled) {
+      toast({
+        title: t.get('cpc.pages.settings.resend.testTitle'),
+        description: t.get('cpc.pages.settings.resend.testDisabledError'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!resendValidation.ok) {
+      toast({
+        title: t.get('cpc.pages.settings.resend.testTitle'),
+        description: t.get('cpc.pages.settings.resend.testValidationError'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving({ open: true, progress: 10, message: t.get('cpc.pages.settings.resend.testing') });
+    const startedAtMs = auditTimerStart();
+    try {
+      if (
+        loadedResend.fromEmail !== normalizeEmail(resendDraft.fromEmail) ||
+        resendDraft.apiKey.trim().length > 0 ||
+        !loadedResend.apiKeySet ||
+        loadedResend.enabled !== resendDraft.enabled
+      ) {
+        const saved = await applyResendSettings();
+        if (!saved) {
+          setSaving(null);
+          return;
+        }
+      }
+
+      const call = httpsCallable(functions, 'testResendConnection');
+      const result = await call();
+      const data = result.data as { ok?: boolean; message?: string } | null;
+      const ok = data?.ok === true;
+      if (ok) {
+        await writeAuditLog({ action: 'resend_test_ok', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
+        setSaving({ open: true, progress: 100, message: t.get('cpc.pages.settings.resend.testOk') });
+        window.setTimeout(() => setSaving(null), 500);
+        toast({
+          title: t.get('cpc.pages.settings.resend.testTitle'),
+          description: t.get('cpc.pages.settings.resend.testOk'),
+        });
+      } else {
+        await writeAuditLog({ action: 'resend_test_error', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
+        const message =
+          typeof data?.message === 'string' && data.message
+            ? data.message
+            : t.get('cpc.pages.settings.resend.testError');
+        setSaving(null);
+        toast({ title: t.get('cpc.pages.settings.resend.testTitle'), description: message, variant: 'destructive' });
+      }
+    } catch (error: unknown) {
+      const raw = error instanceof Error ? error.message : String(error ?? '');
+      const tips =
+        raw.includes('Failed to fetch') || raw.includes('ERR_FAILED')
+          ? ' Serviço de Funções indisponível. Verifique se as Cloud Functions foram deployadas e se a região está correta (VITE_FUNCTIONS_REGION). Em desenvolvimento, pode ativar o emulador com VITE_FUNCTIONS_EMULATOR=true.'
+          : '';
+      const message = (error instanceof Error ? error.message : t.get('cpc.pages.settings.resend.testError')) + tips;
+      setSaving(null);
+      toast({ title: t.get('cpc.pages.settings.resend.testTitle'), description: message, variant: 'destructive' });
+    }
+  }
+
   async function applyRecaptchaSettings() {
     if (!user || !canManageSettings) return;
     if (!recaptchaValidation.ok) return;
@@ -503,9 +677,84 @@ export default function CPCSettingsPage() {
     }
   }
 
+  async function applySmtpSettings(): Promise<boolean> {
+    if (!user || !canManageSettings || !smtpValidation.ok) return false;
+
+    setApplyingSmtp(true);
+    const startedAtMs = auditTimerStart();
+    try {
+      const nextPort = parsePort(draft.smtpPort);
+      const smtpUpdate: Record<string, unknown> = {
+        host: sanitizeHost(draft.smtpHost),
+        port: nextPort,
+        security: draft.smtpSecurity,
+        username: sanitizeUsername(draft.smtpUsername),
+        fromEmail: normalizeEmail(draft.smtpFromEmail),
+        passwordSet: loaded?.smtp.passwordSet === true || draft.smtpPassword.trim().length > 0,
+        updatedBy: user.uid,
+        updatedAt: serverTimestamp(),
+      };
+      if (draft.smtpPassword.trim().length > 0) {
+        smtpUpdate.password = draft.smtpPassword;
+      }
+
+      await setDocument('system_settings', 'smtp', smtpUpdate, true);
+
+      const nextSmtp = {
+        host: smtpUpdate.host as string,
+        port: smtpUpdate.port as number,
+        security: smtpUpdate.security as SmtpSecurity,
+        username: smtpUpdate.username as string,
+        passwordSet: smtpUpdate.passwordSet as boolean,
+        fromEmail: smtpUpdate.fromEmail as string,
+      };
+
+      setLoaded((current) =>
+        current
+          ? {
+              ...current,
+              smtp: nextSmtp,
+            }
+          : {
+              contactNotificationEmail: normalizeEmail(draft.notificationEmail),
+              smtp: nextSmtp,
+            }
+      );
+      setDraft((current) => ({ ...current, smtpPassword: '' }));
+
+      await writeAuditLog({
+        action: 'smtp_settings_updated',
+        actor_id: user.uid,
+        context: 'cpc_settings',
+        before: redactSettingsForAudit(loaded),
+        after: redactSettingsForAudit({
+          contactNotificationEmail: loaded?.contactNotificationEmail || normalizeEmail(draft.notificationEmail),
+          smtp: nextSmtp,
+        }),
+        startedAtMs,
+      });
+
+      toast({
+        title: t.get('cpc.pages.settings.smtp.toast.appliedTitle'),
+        description: t.get('cpc.pages.settings.smtp.toast.appliedDescription'),
+      });
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t.get('cpc.pages.settings.smtp.toast.applyError');
+      toast({
+        title: t.get('cpc.pages.settings.smtp.toast.applyErrorTitle'),
+        description: message,
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setApplyingSmtp(false);
+    }
+  }
+
   async function saveSettings() {
     if (!user || !canManageSettings) return;
-    if (!validation.ok) return;
+    if (!contactValidation.ok) return;
 
     const nextEmail = normalizeEmail(draft.notificationEmail);
     const prevEmail = normalizeEmail(loaded?.contactNotificationEmail || '');
@@ -519,21 +768,6 @@ export default function CPCSettingsPage() {
     const startedAtMs = auditTimerStart();
     setSaving({ open: true, progress: 10, message: 'A guardar configurações...' });
     try {
-      const nextPort = parsePort(draft.smtpPort);
-      const smtpUpdate: Record<string, unknown> = {
-        host: sanitizeHost(draft.smtpHost),
-        port: nextPort,
-        security: draft.smtpSecurity,
-        username: sanitizeUsername(draft.smtpUsername),
-        fromEmail: normalizeEmail(draft.smtpFromEmail),
-        passwordSet: (loaded?.smtp.passwordSet === true || draft.smtpPassword.trim().length > 0) ? true : false,
-        updatedBy: user.uid,
-        updatedAt: serverTimestamp(),
-      };
-      if (draft.smtpPassword.trim().length > 0) {
-        smtpUpdate.password = draft.smtpPassword;
-      }
-
       const brandingUpdate = {
         header: branding.header,
         footer: branding.footer,
@@ -543,7 +777,6 @@ export default function CPCSettingsPage() {
 
       await Promise.all([
         setDocument('system_settings', 'contact', { notificationEmail: nextEmail, updatedBy: user.uid, updatedAt: serverTimestamp() }, true),
-        setDocument('system_settings', 'smtp', smtpUpdate, true),
         setDocument('system_settings', 'document_branding', brandingUpdate, true),
       ]);
       if (seq !== saveSeqRef.current) return;
@@ -553,14 +786,7 @@ export default function CPCSettingsPage() {
       const before = redactSettingsForAudit(loaded);
       const after = redactSettingsForAudit({
         contactNotificationEmail: nextEmail,
-        smtp: {
-          host: smtpUpdate.host as string,
-          port: smtpUpdate.port as number,
-          security: smtpUpdate.security as SmtpSecurity,
-          username: smtpUpdate.username as string,
-          passwordSet: smtpUpdate.passwordSet as boolean,
-          fromEmail: smtpUpdate.fromEmail as string,
-        },
+        smtp: loaded?.smtp,
       });
       const beforeBranding = brandingSnapshot(loadedBranding);
       const afterBranding = brandingSnapshot(branding);
@@ -580,19 +806,19 @@ export default function CPCSettingsPage() {
 
       const nextLoaded: CpcSystemSettings = {
         contactNotificationEmail: nextEmail,
-        smtp: {
-          host: smtpUpdate.host as string,
-          port: smtpUpdate.port as number,
-          security: smtpUpdate.security as SmtpSecurity,
-          username: smtpUpdate.username as string,
-          passwordSet: smtpUpdate.passwordSet as boolean,
-          fromEmail: smtpUpdate.fromEmail as string,
+        smtp: loaded?.smtp ?? {
+          host: '',
+          port: 0,
+          security: 'ssl',
+          username: '',
+          passwordSet: false,
+          fromEmail: '',
         },
+        resend: loaded?.resend,
       };
 
       setLoaded(nextLoaded);
       setLoadedBranding(branding);
-      setDraft((s) => ({ ...s, smtpPassword: '' }));
       setEmailChangePending(null);
       setSaving({ open: true, progress: 100, message: 'Configurações guardadas.' });
       window.setTimeout(() => setSaving(null), 500);
@@ -605,27 +831,35 @@ export default function CPCSettingsPage() {
 
   async function handleTestSmtp() {
     if (!user || !canManageSettings) return;
-    if (!validation.ok) {
-      toast({ title: 'Teste SMTP', description: 'Corrija os campos obrigatórios antes de testar.', variant: 'destructive' });
+    if (!smtpValidation.ok) {
+      toast({ title: t.get('cpc.pages.settings.smtp.testTitle'), description: t.get('cpc.pages.settings.smtp.testValidationError'), variant: 'destructive' });
       return;
     }
-    setSaving({ open: true, progress: 10, message: 'A testar ligação SMTP...' });
+    setSaving({ open: true, progress: 10, message: t.get('cpc.pages.settings.smtp.testing') });
     const startedAtMs = auditTimerStart();
     try {
+      if (smtpHasChanges) {
+        const saved = await applySmtpSettings();
+        if (!saved) {
+          setSaving(null);
+          return;
+        }
+      }
+
       const call = httpsCallable(functions, 'testSmtpConnection');
       const result = await call();
       const data = result.data as { ok?: boolean; message?: string } | null;
       const ok = data?.ok === true;
       if (ok) {
         await writeAuditLog({ action: 'smtp_test_ok', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
-        setSaving({ open: true, progress: 100, message: 'Ligação SMTP OK.' });
+        setSaving({ open: true, progress: 100, message: t.get('cpc.pages.settings.smtp.testOk') });
         window.setTimeout(() => setSaving(null), 500);
-        toast({ title: 'Teste SMTP', description: 'Ligação SMTP estabelecida com sucesso.' });
+        toast({ title: t.get('cpc.pages.settings.smtp.testTitle'), description: t.get('cpc.pages.settings.smtp.testOk') });
       } else {
         await writeAuditLog({ action: 'smtp_test_error', actor_id: user.uid, context: 'cpc_settings', startedAtMs });
-        const message = typeof data?.message === 'string' && data.message ? data.message : 'Falha na ligação SMTP.';
+        const message = typeof data?.message === 'string' && data.message ? data.message : t.get('cpc.pages.settings.smtp.testError');
         setSaving(null);
-        toast({ title: 'Teste SMTP', description: message, variant: 'destructive' });
+        toast({ title: t.get('cpc.pages.settings.smtp.testTitle'), description: message, variant: 'destructive' });
       }
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error ?? '');
@@ -633,9 +867,9 @@ export default function CPCSettingsPage() {
         raw.includes('Failed to fetch') || raw.includes('ERR_FAILED')
           ? ' Serviço de Funções indisponível. Verifique se as Cloud Functions foram deployadas e se a região está correta (VITE_FUNCTIONS_REGION). Em desenvolvimento, pode ativar o emulador com VITE_FUNCTIONS_EMULATOR=true.'
           : '';
-      const message = (error instanceof Error ? error.message : 'Não foi possível testar o SMTP.') + tips;
+      const message = (error instanceof Error ? error.message : t.get('cpc.pages.settings.smtp.testError')) + tips;
       setSaving(null);
-      toast({ title: 'Teste SMTP', description: message, variant: 'destructive' });
+      toast({ title: t.get('cpc.pages.settings.smtp.testTitle'), description: message, variant: 'destructive' });
     }
   }
 
@@ -854,7 +1088,7 @@ export default function CPCSettingsPage() {
               placeholder="ex.: notificacoes@cpc.pt"
               disabled={loading}
             />
-            {validation.errors.notificationEmail ? <p className="text-sm font-medium text-destructive">{validation.errors.notificationEmail}</p> : null}
+            {contactValidation.errors.notificationEmail ? <p className="text-sm font-medium text-destructive">{contactValidation.errors.notificationEmail}</p> : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="contact-notification-email-confirm">Confirmar email</Label>
@@ -866,41 +1100,141 @@ export default function CPCSettingsPage() {
               placeholder="repita o email"
               disabled={loading}
             />
-            {validation.errors.notificationEmailConfirm ? <p className="text-sm font-medium text-destructive">{validation.errors.notificationEmailConfirm}</p> : null}
+            {contactValidation.errors.notificationEmailConfirm ? <p className="text-sm font-medium text-destructive">{contactValidation.errors.notificationEmailConfirm}</p> : null}
           </div>
         </div>
       </Card>
 
       <Card className="p-6 space-y-5">
         <div>
-          <h2 className="text-lg font-semibold">Configuração SMTP</h2>
-          <p className="text-sm text-muted-foreground">Parâmetros completos para envio de emails do sistema.</p>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            {t.get('cpc.pages.settings.resend.title')}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t.get('cpc.pages.settings.resend.subtitle')}</p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border bg-muted/20 px-4 py-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="resend-enabled">{t.get('cpc.pages.settings.resend.enabledLabel')}</Label>
+            <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.resend.enabledHelp')}</p>
+          </div>
+          <Switch
+            id="resend-enabled"
+            checked={resendDraft.enabled}
+            onCheckedChange={(checked) => setResendDraft((current) => ({ ...current, enabled: checked }))}
+            disabled={loading || applyingResend}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="resend-api-key">{t.get('cpc.pages.settings.resend.apiKeyLabel')}</Label>
+            <div className="relative">
+              <Input
+                id="resend-api-key"
+                type={showResendApiKey ? 'text' : 'password'}
+                value={resendDraft.apiKey}
+                onChange={(e) => setResendDraft((current) => ({ ...current, apiKey: e.target.value }))}
+                placeholder={
+                  loadedResend.apiKeySet
+                    ? t.get('cpc.pages.settings.resend.apiKeyConfiguredPlaceholder')
+                    : t.get('cpc.pages.settings.resend.apiKeyPlaceholder')
+                }
+                disabled={loading || applyingResend || !resendDraft.enabled}
+                autoComplete="new-password"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowResendApiKey((current) => !current)}
+                aria-label={showResendApiKey ? t.get('cpc.pages.settings.resend.hideApiKey') : t.get('cpc.pages.settings.resend.showApiKey')}
+              >
+                {showResendApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {resendValidation.errors.apiKey ? (
+              <p className="text-sm font-medium text-destructive">{resendValidation.errors.apiKey}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.resend.apiKeyHelp')}</p>
+            )}
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="resend-from-email">{t.get('cpc.pages.settings.resend.fromEmailLabel')}</Label>
+            <Input
+              id="resend-from-email"
+              type="email"
+              value={resendDraft.fromEmail}
+              onChange={(e) => setResendDraft((current) => ({ ...current, fromEmail: e.target.value }))}
+              placeholder={t.get('cpc.pages.settings.resend.fromEmailPlaceholder')}
+              disabled={loading || applyingResend || !resendDraft.enabled}
+            />
+            {resendValidation.errors.fromEmail ? (
+              <p className="text-sm font-medium text-destructive">{resendValidation.errors.fromEmail}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.resend.fromEmailHelp')}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleTestResend()}
+            disabled={loading || applyingResend || !resendValidation.ok || !resendDraft.enabled}
+          >
+            {t.get('cpc.pages.settings.resend.test')}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void applyResendSettings()}
+            disabled={loading || applyingResend || !resendValidation.ok}
+          >
+            {applyingResend ? t.get('cpc.pages.settings.resend.applying') : t.get('cpc.pages.settings.resend.apply')}
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold">{t.get('cpc.pages.settings.smtp.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t.get('cpc.pages.settings.smtp.subtitle')}</p>
+        </div>
+
+        <div className="rounded-xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">{t.get('cpc.pages.settings.smtp.recommendedTitle')}</p>
+          <p>{t.get('cpc.pages.settings.smtp.recommendedOutgoing')}</p>
+          <p>{t.get('cpc.pages.settings.smtp.recommendedUsername')}</p>
+          <p>{t.get('cpc.pages.settings.smtp.recommendedAuth')}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="smtp-host">Servidor SMTP</Label>
+            <Label htmlFor="smtp-host">{t.get('cpc.pages.settings.smtp.hostLabel')}</Label>
             <Input
               id="smtp-host"
               value={draft.smtpHost}
               onChange={(e) => setDraft((s) => ({ ...s, smtpHost: e.target.value }))}
-              placeholder="smtp.exemplo.com"
+              placeholder={COMMUNICATION_DEFAULTS.smtp.host}
               disabled={loading}
             />
-            {validation.errors.smtpHost ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpHost}</p> : null}
+            {smtpValidation.errors.smtpHost ? <p className="text-sm font-medium text-destructive">{smtpValidation.errors.smtpHost}</p> : null}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="smtp-port">Porta</Label>
+            <Label htmlFor="smtp-port">{t.get('cpc.pages.settings.smtp.portLabel')}</Label>
             <Input
               id="smtp-port"
               inputMode="numeric"
               value={draft.smtpPort}
               onChange={(e) => setDraft((s) => ({ ...s, smtpPort: e.target.value }))}
-              placeholder="587"
+              placeholder={String(COMMUNICATION_DEFAULTS.smtp.port)}
               disabled={loading}
             />
-            {validation.errors.smtpPort ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpPort}</p> : null}
+            {smtpValidation.errors.smtpPort ? <p className="text-sm font-medium text-destructive">{smtpValidation.errors.smtpPort}</p> : null}
           </div>
 
           <div className="space-y-2">
@@ -917,15 +1251,15 @@ export default function CPCSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="smtp-username">Utilizador</Label>
+            <Label htmlFor="smtp-username">{t.get('cpc.pages.settings.smtp.usernameLabel')}</Label>
             <Input
               id="smtp-username"
               value={draft.smtpUsername}
               onChange={(e) => setDraft((s) => ({ ...s, smtpUsername: e.target.value }))}
-              placeholder="utilizador@smtp"
+              placeholder={COMMUNICATION_DEFAULTS.smtp.username}
               disabled={loading}
             />
-            {validation.errors.smtpUsername ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpUsername}</p> : null}
+            {smtpValidation.errors.smtpUsername ? <p className="text-sm font-medium text-destructive">{smtpValidation.errors.smtpUsername}</p> : null}
           </div>
 
           <div className="space-y-2">
@@ -942,22 +1276,33 @@ export default function CPCSettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="smtp-from-email">Email de remetente</Label>
+            <Label htmlFor="smtp-from-email">{t.get('cpc.pages.settings.smtp.fromEmailLabel')}</Label>
             <Input
               id="smtp-from-email"
               type="email"
               value={draft.smtpFromEmail}
               onChange={(e) => setDraft((s) => ({ ...s, smtpFromEmail: e.target.value }))}
-              placeholder="no-reply@cpc.pt"
+              placeholder={COMMUNICATION_DEFAULTS.smtp.fromEmail}
               disabled={loading}
             />
-            {validation.errors.smtpFromEmail ? <p className="text-sm font-medium text-destructive">{validation.errors.smtpFromEmail}</p> : null}
+            {smtpValidation.errors.smtpFromEmail ? <p className="text-sm font-medium text-destructive">{smtpValidation.errors.smtpFromEmail}</p> : null}
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={handleTestSmtp} disabled={loading || !validation.ok}>
-            Testar SMTP
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button
+            variant="outline"
+            onClick={() => void handleTestSmtp()}
+            disabled={loading || applyingSmtp || !smtpValidation.ok}
+          >
+            {t.get('cpc.pages.settings.smtp.test')}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void applySmtpSettings()}
+            disabled={loading || applyingSmtp || !smtpValidation.ok || !smtpHasChanges}
+          >
+            {applyingSmtp ? t.get('cpc.pages.settings.smtp.applying') : t.get('cpc.pages.settings.smtp.apply')}
           </Button>
         </div>
       </Card>

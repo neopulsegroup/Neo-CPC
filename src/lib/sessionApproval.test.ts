@@ -4,6 +4,8 @@ import {
   isMigrantHistorySession,
   isMigrantUpcomingSession,
   isSessionPendingApproval,
+  isSessionScheduledNotYetPassed,
+  parseSessionScheduledTime,
   shouldShowSessionOnAgenda,
 } from './sessionApproval';
 
@@ -41,5 +43,17 @@ describe('sessionApproval', () => {
     expect(isMigrantHistorySession('Agendada', '2026-06-10', today)).toBe(true);
     expect(isMigrantHistorySession('Cancelada', '2026-06-20', today)).toBe(true);
     expect(isMigrantHistorySession('Agendada', '2026-06-20', today)).toBe(false);
+  });
+
+  it('considera hora do agendamento no mesmo dia civil', () => {
+    const today = '2026-06-17';
+    const beforeSession = new Date('2026-06-17T13:30:00.000Z'); // 14:30 em Lisboa (WEST)
+    const afterSession = new Date('2026-06-17T14:30:00.000Z'); // 15:30 em Lisboa
+
+    expect(isSessionScheduledNotYetPassed('2026-06-17', '15:00', beforeSession)).toBe(true);
+    expect(isSessionScheduledNotYetPassed('2026-06-17', '15:00', afterSession)).toBe(false);
+    expect(isMigrantUpcomingSession('Agendada', '2026-06-17', today, '15:00', beforeSession)).toBe(true);
+    expect(isMigrantUpcomingSession('Agendada', '2026-06-17', today, '15:00', afterSession)).toBe(false);
+    expect(parseSessionScheduledTime('15:20')).toEqual({ hour: 15, minute: 20 });
   });
 });

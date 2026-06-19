@@ -10,6 +10,9 @@ const mockUpdateDocument = vi.fn();
 
 const stableUser = { uid: 'm1' };
 
+let sessionsFixture: Array<Record<string, unknown>> = [];
+let supportRequestsFixture: Array<Record<string, unknown>> = [];
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: stableUser }),
 }));
@@ -37,10 +40,17 @@ vi.mock('@/components/ui/calendar', () => ({
 describe('SessionsPage - UI/Interações (referência)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionsFixture = [];
+    supportRequestsFixture = [];
+    mockQueryDocuments.mockImplementation(async (collectionName: string) => {
+      if (collectionName === 'support_requests') return supportRequestsFixture;
+      if (collectionName === 'sessions') return sessionsFixture;
+      return [];
+    });
   });
 
   it('renderiza header, toggle Lista/Calendário e mostra próximas sessões por default', async () => {
-    mockQueryDocuments.mockResolvedValueOnce([
+    sessionsFixture = [
       {
         id: 's1',
         migrant_id: stableUser.uid,
@@ -52,7 +62,7 @@ describe('SessionsPage - UI/Interações (referência)', () => {
         service_label: 'Aconselhamento jurídico',
         specialist_name: 'Sarah Johnson',
       },
-    ]);
+    ];
 
     render(<SessionsPage />);
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
@@ -66,9 +76,42 @@ describe('SessionsPage - UI/Interações (referência)', () => {
     expect(screen.getByText('Sarah Johnson')).toBeInTheDocument();
   });
 
+  it('oculta sessões duplicadas com a mesma data, hora e especialista', async () => {
+    sessionsFixture = [
+      {
+        id: 's1',
+        migrant_id: stableUser.uid,
+        session_type: 'jurista',
+        scheduled_date: '2099-10-11',
+        scheduled_time: '10:00',
+        status: 'Agendada',
+        service_id: 'legal',
+        service_label: 'Aconselhamento jurídico',
+        specialist_name: 'Sarah Johnson',
+      },
+      {
+        id: 's2',
+        migrant_id: stableUser.uid,
+        session_type: 'jurista',
+        scheduled_date: '2099-10-11',
+        scheduled_time: '10:00',
+        status: 'Agendada',
+        service_id: 'legal',
+        service_label: 'Aconselhamento jurídico',
+        specialist_name: 'Sarah Johnson',
+        support_request_id: 'sr1',
+      },
+    ];
+
+    render(<SessionsPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
+
+    expect(screen.getAllByText('Aconselhamento jurídico')).toHaveLength(1);
+    expect(screen.getAllByText('Sarah Johnson')).toHaveLength(1);
+  });
+
   it('permite alternar para o modo calendário', async () => {
     const user = userEvent.setup();
-    mockQueryDocuments.mockResolvedValueOnce([]);
 
     render(<SessionsPage />);
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
@@ -80,7 +123,7 @@ describe('SessionsPage - UI/Interações (referência)', () => {
 
   it('permite cancelar uma sessão quando aplicável', async () => {
     const user = userEvent.setup();
-    mockQueryDocuments.mockResolvedValueOnce([
+    sessionsFixture = [
       {
         id: 's1',
         migrant_id: stableUser.uid,
@@ -92,7 +135,7 @@ describe('SessionsPage - UI/Interações (referência)', () => {
         service_label: 'Apoio psicológico',
         specialist_name: 'Dra. Amina',
       },
-    ]);
+    ];
 
     render(<SessionsPage />);
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
@@ -104,7 +147,7 @@ describe('SessionsPage - UI/Interações (referência)', () => {
   });
 
   it('sessões canceladas ou passadas aparecem apenas no histórico', async () => {
-    mockQueryDocuments.mockResolvedValueOnce([
+    sessionsFixture = [
       {
         id: 's-upcoming',
         migrant_id: stableUser.uid,
@@ -138,7 +181,7 @@ describe('SessionsPage - UI/Interações (referência)', () => {
         service_label: 'Mediação',
         specialist_name: 'João',
       },
-    ]);
+    ];
 
     render(<SessionsPage />);
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
@@ -157,9 +200,31 @@ describe('SessionsPage - UI/Interações (referência)', () => {
     expect(history.getByText('João')).toBeInTheDocument();
   });
 
+  it('mostra pedidos de apoio recusados no histórico', async () => {
+    supportRequestsFixture = [
+      {
+        id: 'sr-rejected',
+        migrant_id: stableUser.uid,
+        type: 'juridico',
+        description: 'Pedido recusado',
+        status: 'cancelado',
+        created_at: '2026-06-10T10:00:00.000Z',
+        updated_at: '2026-06-11T12:00:00.000Z',
+      },
+    ];
+
+    render(<SessionsPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());
+
+    const historySection = screen.getByText('Histórico').closest('section');
+    expect(historySection).toBeTruthy();
+    const history = within(historySection as HTMLElement);
+    expect(history.getByText('Aconselhamento jurídico')).toBeInTheDocument();
+    expect(history.getByText('Recusado')).toBeInTheDocument();
+  });
+
   it('abre o wizard ao clicar em Marcar sessão no card de especialistas', async () => {
     const user = userEvent.setup();
-    mockQueryDocuments.mockResolvedValueOnce([]);
 
     render(<SessionsPage />);
     await waitFor(() => expect(document.querySelector('.animate-spin')).toBeNull());

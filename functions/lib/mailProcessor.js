@@ -8,6 +8,7 @@ exports.processMailDocument = processMailDocument;
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const admin_1 = require("./admin");
 const auditLogHelpers_1 = require("./auditLogHelpers");
+const resendMail_1 = require("./resendMail");
 const smtp_1 = require("./smtp");
 function safeString(value) {
     return typeof value === 'string' ? value : '';
@@ -71,19 +72,33 @@ async function processMailDocument(mailId) {
         await ref.set({ status: 'error', errorMessage: 'Payload inválido.' }, { merge: true });
         return;
     }
-    const smtp = await loadSmtpSettings();
-    const transporter = (0, smtp_1.createTransport)(smtp);
-    const from = safeString(docData.message?.from).trim() || smtp.fromEmail;
+    const fromOverride = safeString(docData.message?.from).trim() || undefined;
     const sendStartedAt = Date.now();
     try {
-        await transporter.sendMail({
-            to,
-            from,
-            replyTo,
-            subject,
-            text: text || undefined,
-            html: html || undefined,
-        });
+        if (await (0, resendMail_1.isResendConfigured)()) {
+            const resend = await (0, resendMail_1.loadResendSettings)();
+            await (0, resendMail_1.sendWithResend)(resend, {
+                to,
+                from: fromOverride,
+                replyTo,
+                subject,
+                text: text || undefined,
+                html: html || undefined,
+            });
+        }
+        else {
+            const smtp = await loadSmtpSettings();
+            const transporter = (0, smtp_1.createTransport)(smtp);
+            const from = fromOverride || smtp.fromEmail;
+            await transporter.sendMail({
+                to,
+                from,
+                replyTo,
+                subject,
+                text: text || undefined,
+                html: html || undefined,
+            });
+        }
         const durationMs = Date.now() - sendStartedAt;
         await ref.set({ status: 'sent', sentAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(), errorMessage: null }, { merge: true });
         await auditRef.add({
@@ -97,7 +112,7 @@ async function processMailDocument(mailId) {
     }
     catch (error) {
         const durationMs = Date.now() - sendStartedAt;
-        const msg = error instanceof Error ? error.message : 'Erro no envio SMTP.';
+        const msg = error instanceof Error ? error.message : 'Erro no envio de email.';
         await ref.set({ status: 'error', errorMessage: truncate(msg, 800) }, { merge: true });
         await auditRef.add({
             action: 'mail_send_error',

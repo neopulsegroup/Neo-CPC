@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteDocument, getDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { formatPhoneValueForDisplay } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -31,8 +32,8 @@ export default function CpcCompanyDetailPage() {
   const { companyId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, language } = useLanguage();
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const { toast } = useToast();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -270,7 +271,7 @@ export default function CpcCompanyDetailPage() {
               <div>
                 <dt className="text-muted-foreground">{t.get('cpc.pages.companies.detail.registeredAt')}</dt>
                 <dd className="font-medium mt-1">
-                  {company.created_at ? new Date(company.created_at).toLocaleDateString(locale) : '—'}
+                  {formatDate(company.created_at)}
                 </dd>
               </div>
             </dl>

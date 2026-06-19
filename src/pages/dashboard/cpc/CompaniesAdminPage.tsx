@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDocument, queryDocuments } from '@/integrations/firebase/firestore';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { Input } from '@/components/ui/input';
 import { Building2, Search } from 'lucide-react';
 import {
@@ -21,8 +22,8 @@ type CompanyRow = {
 };
 
 export default function CompaniesAdminPage() {
-  const { t, language } = useLanguage();
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const [loadingList, setLoadingList] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | CompanyRegistrationStatus>('pending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,7 +201,7 @@ export default function CompaniesAdminPage() {
                   {r.nif ? ` • NIF ${r.nif}` : ''}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {r.created_at ? new Date(r.created_at).toLocaleDateString(locale) : '—'}
+                  {formatDate(r.created_at)}
                 </p>
                 <p className="text-xs text-primary mt-2">{t.get('cpc.pages.companies.viewDetails')}</p>
               </div>

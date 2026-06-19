@@ -13,7 +13,8 @@ const mockUpdateDocument = vi.fn();
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { uid: 'u-m1' },
-    profile: { name: 'Ana', avatar_url: null },
+    profile: { name: 'Ana' },
+    profileData: { name: 'Ana', email: 'ana@exemplo.com', photoUrl: null },
   }),
 }));
 

@@ -12,7 +12,13 @@ import { FirstActionsCard } from '@/features/recommendations/FirstActionsCard';
 import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser, MAX_PARTICIPANT_ACTIVITIES_QUERY_LIMIT } from '@/features/activities/participantActivityList';
-import { APP_TIME_ZONE } from '@/lib/appCalendar';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
+import { formatAppNotificationTimestampParts } from '@/lib/appDateTime';
+import {
+  type DashboardNotificationDoc,
+  mapNotificationDoc,
+  parseNotificationCreatedAtMs,
+} from '@/lib/dashboardNotifications';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CircularProgress } from '@/components/ui/circular-progress';
@@ -37,10 +43,31 @@ import {
   CheckCircle,
   Search,
   ListChecks,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
+import { dedupeSessionsByAppointment } from '@/lib/cpcSessions';
 import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
+import { isSessionScheduledNotificationVisible } from '@/lib/migrantSessionNotifications';
+import {
+  createSupportRequest,
+  canMigrantDeleteSupportRequest,
+  deleteSupportRequestByMigrant,
+  isApprovedSupportRequestStatus,
+  shouldShowSupportRequestOnMigrantCard,
+  isRejectedSupportRequestStatus,
+  mergeRejectedSupportRequestsIntoMigrantHistory,
+  supportRequestToMigrantHistorySession,
+  migrateLegacySupportRequestsFromLocalStorage,
+  supportRequestStatusBadgeClass,
+  supportRequestStatusLabelKey,
+  supportRequestTypeLabelKey,
+  type SupportRequestDoc,
+  type SupportRequestType,
+} from '@/lib/supportRequests';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import { computeMigrantProfileCompletenessPercent } from '@/lib/migrantProfileCompleteness';
 import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 import {
@@ -103,16 +130,6 @@ type MigrantDashboardProfileDoc = {
   authorizeEmployersProfessionalProfile?: boolean | null;
 };
 
-type DashboardNotificationDoc = {
-  id: string;
-  recipient_id?: string | null;
-  title?: string | null;
-  body?: string | null;
-  href?: string | null;
-  type?: string | null;
-  created_at?: unknown;
-};
-
 function normalizeDashboardRole(value?: string | null): string {
   return String(value || '')
     .normalize('NFD')
@@ -121,39 +138,10 @@ function normalizeDashboardRole(value?: string | null): string {
     .trim();
 }
 
-function parseNotificationCreatedAtMs(created: unknown): number {
-  if (!created) return 0;
-  if (typeof created === 'string') {
-    const parsed = Date.parse(created);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  if (typeof created === 'object') {
-    const value = created as { toDate?: () => Date; seconds?: number };
-    if (typeof value.toDate === 'function') {
-      const date = value.toDate();
-      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-    }
-    if (typeof value.seconds === 'number') return value.seconds * 1000;
-  }
-  return 0;
-}
-
-function mapNotificationDoc(d: DashboardNotificationDoc) {
-  const created = d.created_at;
-  const dateMs = parseNotificationCreatedAtMs(created);
-  const date = dateMs > 0 ? new Date(dateMs).toISOString() : new Date().toISOString();
-  return {
-    id: d.id,
-    title: (d.title || 'Notificação').trim(),
-    body: (d.body || '').trim(),
-    date,
-    type: d.type || undefined,
-    href: d.href || undefined,
-  };
-}
-
 function MigrantHome() {
   const { t } = useLanguage();
+  const { formatDate, language } = useAppDateTime();
+  const { toast } = useToast();
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -168,8 +156,12 @@ function MigrantHome() {
   const [bookOpen, setBookOpen] = useState(false);
   const [bookArea, setBookArea] = useState<ServiceAreaId | null>(null);
   const [urgentOpen, setUrgentOpen] = useState(false);
-  const [urgentType, setUrgentType] = useState<'juridico' | 'psicologico' | 'habitacional' | 'necessidades'>('juridico');
+  const [urgentType, setUrgentType] = useState<SupportRequestType>('juridico');
   const [urgentDesc, setUrgentDesc] = useState('');
+  const [urgentSubmitting, setUrgentSubmitting] = useState(false);
+  const [supportRequests, setSupportRequests] = useState<SupportRequestDoc[]>([]);
+  const [supportRequestsLoading, setSupportRequestsLoading] = useState(false);
+  const [supportDeleteId, setSupportDeleteId] = useState<string | null>(null);
   const [extras, setExtras] = useState<{ nationality?: string; originCountry?: string; arrivalDate?: string; skills?: string; languagesList?: string; mainNeeds?: string; professionalTitle?: string; professionalExperience?: string; contactPreference?: 'email' | 'phone' } | null>(null);
   const [accessibility, setAccessibility] = useState<boolean>(() => {
     try {
@@ -194,6 +186,12 @@ function MigrantHome() {
     Array<{ id: string; title: string; subtitle: string }>
   >([]);
   const [applicationsCount, setApplicationsCount] = useState<number | null>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -281,7 +279,7 @@ function MigrantHome() {
       onNext: (docs) => {
         ready.sessions = true;
         setSessionsError(null);
-        const sorted = (docs || []).slice().sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
+        const sorted = dedupeSessionsByAppointment(docs || []).slice().sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
         setSessions(sorted);
         markReady();
       },
@@ -380,11 +378,11 @@ function MigrantHome() {
   }, [user?.uid]);
 
   const upcomingSessions = useMemo(() => {
-    const now = todayIsoAppCalendar();
+    const todayIso = todayIsoAppCalendar();
     return sessions
-      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, now))
+      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, todayIso, s.scheduled_time, now))
       .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.scheduled_time.localeCompare(b.scheduled_time));
-  }, [sessions]);
+  }, [sessions, now]);
 
   const trailsProgressAvg = useMemo(() => {
     const values = progress.map(p => p.progress_percent || 0);
@@ -569,27 +567,116 @@ function MigrantHome() {
     };
   }, [profileDoc, t]);
 
+  const visibleSupportRequests = useMemo(
+    () => supportRequests.filter((request) => shouldShowSupportRequestOnMigrantCard(request.status)),
+    [supportRequests]
+  );
+
   const visibleNotifications = useMemo(() => {
     const list = [
       ...(profileRequiredAlert ? [profileRequiredAlert] : []),
       ...(jobsAccessAlert ? [jobsAccessAlert] : []),
       ...dbNotifications,
       ...notifications,
-    ];
+    ].filter((notification) => isSessionScheduledNotificationVisible(notification, sessions, now));
     return list.slice(0, 4);
-  }, [dbNotifications, notifications, profileRequiredAlert, jobsAccessAlert]);
+  }, [dbNotifications, notifications, profileRequiredAlert, jobsAccessAlert, sessions, now]);
 
-  function addUrgentRequest() {
-    if (!user || !urgentDesc) return;
-    const req: { id: string; type: typeof urgentType; description: string; status: string; date: string } = { id: String(Date.now()), type: urgentType, description: urgentDesc, status: 'submetido', date: new Date().toISOString() };
+  useEffect(() => {
+    if (!user?.uid) {
+      setSupportRequests([]);
+      return;
+    }
+
+    let cancelled = false;
+    setSupportRequestsLoading(true);
+
+    void migrateLegacySupportRequestsFromLocalStorage(user.uid).catch(() => undefined);
+
+    const unsubscribe = subscribeQuery<SupportRequestDoc>({
+      collectionName: 'support_requests',
+      filters: [{ field: 'migrant_id', operator: '==', value: user.uid }],
+      onNext: (docs) => {
+        if (cancelled) return;
+        const sorted = [...(docs ?? [])].sort((a, b) => {
+          const tb = Date.parse(b.created_at || '');
+          const ta = Date.parse(a.created_at || '');
+          return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+        });
+        setSupportRequests(sorted);
+        setSupportRequestsLoading(false);
+      },
+      onError: () => {
+        if (!cancelled) {
+          setSupportRequests([]);
+          setSupportRequestsLoading(false);
+        }
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [user?.uid]);
+
+  async function addUrgentRequest() {
+    if (!user?.uid) return;
+    const description = urgentDesc.trim();
+    if (description.length < 10) {
+      toast({
+        title: t.get('common.validationTitle'),
+        description: t.get('dashboard.support_request_description_required'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUrgentSubmitting(true);
     try {
-      const raw = localStorage.getItem(`urgentRequests:${user.uid}`);
-      const list = raw ? (JSON.parse(raw) as Array<{ id: string; type: typeof urgentType; description: string; status: string; date: string }>) : [];
-      const next = [req, ...list];
-      localStorage.setItem(`urgentRequests:${user.uid}`, JSON.stringify(next));
-    } catch { void 0; }
-    setUrgentOpen(false);
-    setUrgentDesc('');
+      const migrantName = profileDoc?.name?.trim() || profile?.name?.trim() || null;
+      await createSupportRequest({
+        migrantId: user.uid,
+        migrantName,
+        type: urgentType,
+        description,
+      });
+      setUrgentOpen(false);
+      setUrgentDesc('');
+      toast({
+        title: t.get('dashboard.support_request_success'),
+        description: t.get('dashboard.support_request_success_desc'),
+      });
+    } catch (error) {
+      console.error('Erro ao submeter pedido de apoio', error);
+      toast({
+        title: t.get('common.errorTitle'),
+        description: t.get('dashboard.support_request_error'),
+        variant: 'destructive',
+      });
+    } finally {
+      setUrgentSubmitting(false);
+    }
+  }
+
+  async function handleDeleteSupportRequest(requestId: string) {
+    if (!user?.uid || supportDeleteId) return;
+    setSupportDeleteId(requestId);
+    try {
+      await deleteSupportRequestByMigrant(requestId);
+      toast({
+        title: t.get('dashboard.support_request_delete_success'),
+      });
+    } catch (error) {
+      console.error('Erro ao eliminar pedido de apoio', error);
+      toast({
+        title: t.get('common.errorTitle'),
+        description: t.get('dashboard.support_request_delete_error'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSupportDeleteId(null);
+    }
   }
 
   useEffect(() => {
@@ -712,7 +799,7 @@ function MigrantHome() {
                         <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><Clock className="h-5 w-5" /></div>
                         <div className="flex-1">
                           <p className="text-sm font-medium">{s.session_type}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(s.scheduled_date).toLocaleDateString()} • {s.scheduled_time}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(s.scheduled_date)} • {s.scheduled_time}</p>
                         </div>
                         <span className="text-xs text-muted-foreground">
                           {isSessionPendingApproval(s.status)
@@ -800,12 +887,7 @@ function MigrantHome() {
                           {(() => {
                             const datePart =
                               a.date && /^\d{4}-\d{2}-\d{2}$/.test(a.date)
-                                ? new Intl.DateTimeFormat('pt-PT', {
-                                    timeZone: APP_TIME_ZONE,
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  }).format(new Date(`${a.date}T12:00:00Z`))
+                                ? formatDate(a.date)
                                 : null;
                             const dur = formatActivityDurationShort(a);
                             if (datePart && dur) return `${datePart} • ${dur}`;
@@ -908,7 +990,14 @@ function MigrantHome() {
                       <>
                         <p className="font-medium text-sm">{n.title}</p>
                         <p className="text-xs text-muted-foreground line-clamp-3">{n.body}</p>
-                        <span className="text-[10px] text-muted-foreground mt-1">{new Date(n.date).toLocaleString()}</span>
+                        <span className="text-[10px] text-muted-foreground mt-1">
+                          {(() => {
+                            const parts = formatAppNotificationTimestampParts(n.date, { locale: language });
+                            return parts
+                              ? t.get('dashboard.notification_created_at', parts)
+                              : '—';
+                          })()}
+                        </span>
                       </>
                     );
                     return n.href ? (
@@ -937,6 +1026,60 @@ function MigrantHome() {
               <p className="text-sm text-muted-foreground mb-4">
                 {t.dashboard.support_desc}
               </p>
+              {supportRequestsLoading ? (
+                <p className="mb-4 text-xs text-muted-foreground">{t.get('common.loading')}</p>
+              ) : visibleSupportRequests.length > 0 ? (
+                <div className="mb-4 space-y-2">
+                  {visibleSupportRequests.slice(0, 3).map((request) => (
+                    <div key={request.id} className="rounded-lg border bg-background/80 px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">{t.get(supportRequestTypeLabelKey(request.type))}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                              supportRequestStatusBadgeClass(request.status)
+                            )}
+                          >
+                            {t.get(supportRequestStatusLabelKey(request.status))}
+                          </span>
+                          {canMigrantDeleteSupportRequest(request.status) ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              aria-label={t.get('dashboard.support_request_delete')}
+                              disabled={supportDeleteId === request.id}
+                              onClick={() => void handleDeleteSupportRequest(request.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{request.description}</p>
+                      {isApprovedSupportRequestStatus(request.status) ? (
+                        <div className="mt-2 space-y-1 text-[10px] text-muted-foreground">
+                          <p>
+                            {request.scheduled_date ? formatDate(request.scheduled_date) : '—'}
+                            {request.scheduled_time ? ` · ${request.scheduled_time}` : ''}
+                          </p>
+                          <p>
+                            {t.get('dashboard.support_request_specialist')}: {request.specialist_name?.trim() || '—'}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {request.created_at ? formatDate(request.created_at) : '—'}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-4 text-xs text-muted-foreground">{t.get('dashboard.support_requests_empty')}</p>
+              )}
               <Button className="w-full flex items-center justify-center gap-2" variant="outline" onClick={() => setUrgentOpen(true)}>
                 <AlertCircle className="h-4 w-4 text-primary" />
                 {t.dashboard.new_support_request}
@@ -1008,9 +1151,9 @@ function MigrantHome() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label>{t.dashboard.type}</Label>
-              <Select value={urgentType} onValueChange={(v) => setUrgentType(v as typeof urgentType)}>
+              <Select value={urgentType} onValueChange={(v) => setUrgentType(v as SupportRequestType)}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[10050]" position="popper">
                   <SelectItem value="juridico">{t.dashboard.support_types.juridico}</SelectItem>
                   <SelectItem value="psicologico">{t.dashboard.support_types.psicologico}</SelectItem>
                   <SelectItem value="habitacional">{t.dashboard.support_types.habitacional}</SelectItem>
@@ -1023,7 +1166,14 @@ function MigrantHome() {
               <Textarea value={urgentDesc} onChange={(e) => setUrgentDesc(e.target.value)} className="mt-1" />
             </div>
           </div>
-          <DialogFooter><Button onClick={addUrgentRequest}>{t.dashboard.submit}</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUrgentOpen(false)} disabled={urgentSubmitting}>
+              {t.get('common.cancel')}
+            </Button>
+            <Button onClick={() => void addUrgentRequest()} disabled={urgentSubmitting}>
+              {urgentSubmitting ? t.get('common.loading') : t.dashboard.submit}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

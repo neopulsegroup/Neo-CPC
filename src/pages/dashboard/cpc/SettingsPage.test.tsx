@@ -75,10 +75,57 @@ describe('CPCSettingsPage (dashboard/cpc/configuracoes)', () => {
     mockGetDocument.mockImplementation(async (collectionName: string, docId: string) => {
       if (collectionName === 'system_settings' && docId === 'contact') return { id: 'contact', notificationEmail: 'notificacoes@cpc.pt' };
       if (collectionName === 'system_settings' && docId === 'smtp')
-        return { id: 'smtp', host: 'smtp.exemplo.com', port: 587, security: 'tls', username: 'user', passwordSet: true, fromEmail: 'no-reply@cpc.pt' };
+        return { id: 'smtp', host: 'mail.portalcpc.com', port: 465, security: 'ssl', username: 'geral@portalcpc.com', passwordSet: true, fromEmail: 'geral@portalcpc.com' };
+      if (collectionName === 'system_settings' && docId === 'resend')
+        return { id: 'resend', apiKeySet: true, fromEmail: 'no-reply@cpc.pt', enabled: true };
       if (collectionName === 'system_settings' && docId === 'recaptcha_public') return { id: 'recaptcha_public', siteKey: '', minScore: 0.5 };
       if (collectionName === 'system_settings' && docId === 'recaptcha') return { id: 'recaptcha', secretKeySet: false };
       return null;
+    });
+  });
+
+  it('permite testar ligação Resend e regista auditoria', async () => {
+    const user = userEvent.setup();
+    mockCallable.mockResolvedValueOnce({ data: { ok: true } });
+    render(<CPCSettingsPage />);
+
+    await screen.findByRole('heading', { name: 'Configurações' });
+
+    await user.click(screen.getByRole('button', { name: 'Testar ligação' }));
+
+    await waitFor(() => {
+      expect(mockCallable).toHaveBeenCalled();
+      expect(mockAddDocument).toHaveBeenCalledWith(
+        'audit_logs',
+        expect.objectContaining({
+          action: 'resend_test_ok',
+          ip_address: expect.any(String),
+          user_agent: expect.any(String),
+          duration_ms: expect.any(Number),
+        })
+      );
+    });
+  });
+
+  it('permite guardar SMTP sem autosave', async () => {
+    const user = userEvent.setup();
+    render(<CPCSettingsPage />);
+
+    await screen.findByRole('heading', { name: 'Configurações' });
+
+    const hostInput = screen.getByLabelText('Servidor SMTP');
+    await user.clear(hostInput);
+    await user.type(hostInput, 'smtp.alterado.com');
+
+    await user.click(screen.getByRole('button', { name: 'Guardar SMTP' }));
+
+    await waitFor(() => {
+      expect(mockSetDocument).toHaveBeenCalledWith(
+        'system_settings',
+        'smtp',
+        expect.objectContaining({ host: 'smtp.alterado.com' }),
+        true
+      );
     });
   });
 

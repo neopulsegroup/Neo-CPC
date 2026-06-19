@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatAppDateTime } from '@/lib/appDateTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDocument, setDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { toast } from 'sonner';
@@ -347,7 +348,7 @@ const ALL_STEPS: TriageStep[] = [
 ];
 
 export default function Triage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -732,9 +733,9 @@ export default function Triage() {
                 <span>{Math.round(progress)}%</span>
                 <span className="text-xs">
                   {autoSaveState.status === 'saving' ? 'A guardar automaticamente…' : null}
-                  {autoSaveState.status === 'saved' ? `Guardado${autoSaveState.remote ? '' : ' neste dispositivo'} • ${new Date(autoSaveState.at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` : null}
+                  {autoSaveState.status === 'saved' ? `Guardado${autoSaveState.remote ? '' : ' neste dispositivo'} • ${formatAppDateTime(autoSaveState.at, { locale: language, hour: '2-digit', minute: '2-digit' })}` : null}
                   {autoSaveState.status === 'offline_saved'
-                    ? `Sem ligação — guardado neste dispositivo • ${new Date(autoSaveState.at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}`
+                    ? `Sem ligação — guardado neste dispositivo • ${formatAppDateTime(autoSaveState.at, { locale: language, hour: '2-digit', minute: '2-digit' })}`
                     : null}
                   {autoSaveState.status === 'conflict' ? autoSaveState.message : null}
                   {autoSaveState.status === 'error' ? autoSaveState.message : null}

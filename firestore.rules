@@ -487,15 +487,56 @@ service cloud.firestore {
       allow delete: if isCpcStaff() || (employerPublisher() && companyOwnsCompanyId(resource.data.company_id));
     }
 
+    function canReadTrailContent() {
+      return isAccountEnabled()
+        || migrantProfileFallbackWhenNoUserDoc()
+        || cpcStaffProfileFallbackWhenNoUserDoc();
+    }
+
     // Trails and modules (content)
     match /trails/{trailId} {
-      allow read: if isAccountEnabled();
+      allow read: if canReadTrailContent();
       allow write: if isCpcStaff();
     }
 
     match /trail_modules/{moduleId} {
-      allow read: if isAccountEnabled();
+      allow read: if canReadTrailContent();
       allow write: if isCpcStaff();
+    }
+
+    match /trail_module_comments/{commentId} {
+      function isTrailModuleCommentAuthor() {
+        return isAuthenticated() && resource.data.user_id == request.auth.uid;
+      }
+
+      function isValidTrailModuleCommentCreate() {
+        return request.resource.data.trail_id is string
+          && request.resource.data.module_id is string
+          && request.resource.data.user_id == request.auth.uid
+          && request.resource.data.user_name is string
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0
+          && request.resource.data.content.size() <= 2000
+          && request.resource.data.status == 'pending'
+          && request.resource.data.created_at is string;
+      }
+
+      function isTrailModuleCommentModerationUpdate() {
+        return isCpcStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'moderated_at', 'moderated_by', 'updatedAt'])
+          && (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected')
+          && request.resource.data.moderated_at is string
+          && request.resource.data.moderated_by == request.auth.uid;
+      }
+
+      allow read: if canReadTrailContent() && (
+        isCpcStaff()
+        || resource.data.status == 'approved'
+        || (isAuthenticated() && resource.data.user_id == request.auth.uid)
+      );
+      allow create: if isAccountEnabled() && isValidTrailModuleCommentCreate();
+      allow update: if isTrailModuleCommentModerationUpdate();
+      allow delete: if isCpcStaff() || (isAccountEnabled() && isTrailModuleCommentAuthor());
     }
 
     // Trail progress
@@ -504,6 +545,29 @@ service cloud.firestore {
       allow create: if isCpcStaff() || (isAuthenticated() && request.resource.data.user_id == request.auth.uid);
       allow update: if isCpcStaff() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
       allow delete: if isCpcStaff();
+    }
+
+    // Support requests (pedidos urgentes do migrante)
+    match /support_requests/{requestId} {
+      function isValidSupportRequestCreate() {
+        return isAccountEnabled()
+          && request.resource.data.migrant_id == request.auth.uid
+          && request.resource.data.type in ['juridico', 'psicologico', 'habitacional', 'necessidades']
+          && request.resource.data.description is string
+          && request.resource.data.description.size() >= 10
+          && request.resource.data.description.size() <= 2000
+          && request.resource.data.status == 'submetido'
+          && request.resource.data.created_at is string;
+      }
+
+      allow read: if isCpcStaff() || (isAccountEnabled() && resource.data.migrant_id == request.auth.uid);
+      allow create: if isValidSupportRequestCreate();
+      allow update: if isCpcStaff();
+      allow delete: if isCpcStaff() || (
+        isAccountEnabled()
+        && resource.data.migrant_id == request.auth.uid
+        && resource.data.status == 'submetido'
+      );
     }
 
     // Sessions
@@ -520,7 +584,7 @@ service cloud.firestore {
         (isAccountEnabled() && request.resource.data.migrant_id == request.auth.uid);
       allow update: if isCpcStaff() ||
         (isAccountEnabled() && resource.data.migrant_id == request.auth.uid);
-      allow delete: if isCpcStaff();
+      allow delete: if canManageTeamUsers();
     }
 
     match /conversations/{conversationId} {

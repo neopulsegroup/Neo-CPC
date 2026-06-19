@@ -8,12 +8,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Mail, Phone, Clock, Send, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/integrations/firebase/functionsClient';
+import { FirebaseError } from 'firebase/app';
+import { addDocument, serverTimestamp } from '@/integrations/firebase/firestore';
 
 function isValidEmail(value: string): boolean {
   const v = value.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && v.length <= 254;
+}
+
+function contactSubmitErrorMessage(error: unknown): string {
+  if (error instanceof FirebaseError) {
+    if (error.code === 'permission-denied') {
+      return 'Não foi possível enviar a mensagem. Tente novamente mais tarde.';
+    }
+    if (error.code === 'unavailable') {
+      return 'Serviço temporariamente indisponível. Tente novamente dentro de alguns minutos.';
+    }
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return 'Não foi possível enviar a mensagem.';
 }
 
 export default function Contact() {
@@ -36,17 +51,19 @@ export default function Contact() {
       if (!isValidEmail(email)) throw new Error('Indique um email válido.');
       if (!message) throw new Error('Escreva a sua mensagem.');
       if (message.length > 5000) throw new Error('A mensagem é demasiado longa.');
-      const submitContact = httpsCallable<
-        { name: string; email: string; message: string },
-        { ok: boolean }
-      >(functions, 'submitContactForm');
-      await submitContact({ name, email, message });
+
+      await addDocument('contact_messages', {
+        name,
+        email,
+        message,
+        source: '/contacto',
+        createdAt: serverTimestamp(),
+      });
 
       setSubmitted(true);
       toast.success(t.contact.form.success);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.';
-      toast.error(message);
+      toast.error(contactSubmitErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }

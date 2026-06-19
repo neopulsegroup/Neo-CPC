@@ -16,6 +16,7 @@ import {
 import { User, Mail, Phone, ArrowLeft, Briefcase, Calendar, Download, FileText, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/ApplicantProfileUnavailableBadge';
 
@@ -50,7 +51,8 @@ function displayValue(value: string | null | undefined): string {
 export default function CandidateProfilePage() {
   const { candidateId } = useParams();
   const { profile: viewerProfile } = useAuth();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const { toast } = useToast();
   const cpcCvExportRef = useRef<HTMLDivElement>(null);
   const [exportingCpcCv, setExportingCpcCv] = useState(false);
@@ -230,8 +232,6 @@ export default function CandidateProfilePage() {
     );
   }
 
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
-
   return (
     <div>
       <Link to={backHref} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
@@ -381,7 +381,7 @@ export default function CandidateProfilePage() {
                     <p className="font-medium">{app.job_title}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <Calendar className="h-3 w-3" />
-                      {new Date(app.created_at).toLocaleDateString(locale)}
+                      {formatDate(app.created_at)}
                     </p>
                   </div>
                 ))}

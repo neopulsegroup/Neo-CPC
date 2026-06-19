@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { ClipboardList } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatAppDate } from '@/lib/appDateTime';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser, MAX_PARTICIPANT_ACTIVITIES_QUERY_LIMIT } from '@/features/activities/participantActivityList';
-import { APP_TIME_ZONE } from '@/lib/appCalendar';
 
 type Row = {
   id: string;
@@ -18,6 +18,7 @@ type Row = {
 };
 
 export default function MigrantActivitiesListPage() {
+  const { language } = useLanguage();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
@@ -98,12 +99,7 @@ export default function MigrantActivitiesListPage() {
                       {(() => {
                         const datePart =
                           a.date && /^\d{4}-\d{2}-\d{2}$/.test(a.date)
-                            ? new Intl.DateTimeFormat('pt-PT', {
-                                timeZone: APP_TIME_ZONE,
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              }).format(new Date(`${a.date}T12:00:00Z`))
+                            ? formatAppDate(a.date, { locale: language })
                             : null;
                         const dur = formatActivityDurationShort(a);
                         if (datePart && dur) return `${datePart} • ${dur}`;

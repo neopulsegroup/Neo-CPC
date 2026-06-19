@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { addDocument, getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
+import { addDocument, deleteDocument, getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -20,8 +20,25 @@ import {
   ExternalLink,
   List,
   XCircle,
+  Trash2,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  buildNewModuleCommentPayload,
+  filterCommentsForViewer,
+  getCommentStatusLabel,
+  queryModuleComments,
+  TRAIL_MODULE_COMMENTS_COLLECTION,
+  type TrailModuleComment,
+} from '@/lib/moduleComments';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
+import {
+  buildQuizDisplayMap,
+  mapDisplayAnswerToOriginalIndex,
+  type ShuffledQuizOptions,
+} from '@/lib/quizOptions';
+import { queryTrailModules } from '@/lib/trailModules';
 
 /** TASK-03 — pergunta do quiz (replicado do editor; sem partilhar tipos entre páginas). */
 interface QuizQuestion {
@@ -37,6 +54,8 @@ interface Module {
   content_type: string;
   content_text: string | null;
   content_url: string | null;
+  content_path?: string | null;
+  cover_image_url?: string | null;
   duration_minutes: number | null;
   order_index: number;
   trail_id: string;
@@ -73,8 +92,11 @@ interface UserProgress {
 
 export default function ModuleViewerPage() {
   const { trailId, moduleId } = useParams();
-  const { user, profile } = useAuth();
+  const { user, profile, profileData } = useAuth();
+  const migrantPhotoUrl = profileData?.photoUrl ?? null;
+  const migrantName = profileData?.name ?? profile?.name ?? 'Anónimo';
   const { t } = useLanguage();
+  const { formatDateTime } = useAppDateTime();
   const navigate = useNavigate();
   const [module, setModule] = useState<Module | null>(null);
   const [trail, setTrail] = useState<Trail | null>(null);
@@ -88,31 +110,31 @@ export default function ModuleViewerPage() {
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizAttempts, setQuizAttempts] = useState<QuizAttemptDoc[]>([]);
   const [quizResult, setQuizResult] = useState<{ score: number; passed: boolean } | null>(null);
-  const isDemo = !!trailId && trailId.startsWith('demo-');
-  const getDemoKey = (id: string) => `demoTrailProgress:${id}:${user?.uid || 'anon'}`;
-  const getCommentsKey = (id: string) => `moduleComments:${id}`;
+  const [quizOptionOrder, setQuizOptionOrder] = useState<Record<string, ShuffledQuizOptions>>({});
   const getLastKey = (trail: string, uid?: string) => `lastModuleViewed:${trail}:${uid || 'anon'}`;
 
-  type ModuleComment = {
-    id: string;
-    user_id: string | null;
-    user_name: string;
-    avatar_url: string | null;
-    content: string;
-    created_at: string;
-  };
-
-  const [comments, setComments] = useState<ModuleComment[]>([]);
+  const [comments, setComments] = useState<TrailModuleComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [posting, setPosting] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  const visibleComments = useMemo(
+    () => filterCommentsForViewer(comments, user?.uid),
+    [comments, user?.uid]
+  );
 
   useEffect(() => {
-    if (trailId && moduleId) fetchData();
-    // Reset quiz state quando troca de módulo.
+    if (!trailId || !moduleId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    void fetchData();
     setQuizAnswers({});
     setQuizResult(null);
     setQuizAttempts([]);
-  }, [trailId, moduleId]);
+  }, [trailId, moduleId, user?.uid]);
 
   /**
    * TASK-03 — Carrega histórico de tentativas do quiz quando o módulo atual é um quiz.
@@ -148,104 +170,78 @@ export default function ModuleViewerPage() {
     };
   }, [module, user?.uid, moduleId]);
 
+  useEffect(() => {
+    if (module?.content_type === 'quiz' && Array.isArray(module.quiz_questions) && module.quiz_questions.length > 0) {
+      setQuizOptionOrder(buildQuizDisplayMap(module.quiz_questions));
+      return;
+    }
+    setQuizOptionOrder({});
+  }, [module?.id, module?.content_type, module?.quiz_questions]);
+
   async function fetchData() {
+    if (!trailId || !moduleId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      if (isDemo) {
-        const demoTrails: Record<string, Trail> = {
-          'demo-trail-1': { id: 'demo-trail-1', title: 'Direitos Laborais em Portugal', modules_count: 3, category: 'rights' },
-          'demo-trail-2': { id: 'demo-trail-2', title: 'Cultura e Costumes Portugueses', modules_count: 3, category: 'culture' },
-          'demo-trail-3': { id: 'demo-trail-3', title: 'Sistema de Saúde em Portugal', modules_count: 3, category: 'health' },
-          'demo-trail-4': { id: 'demo-trail-4', title: 'Preparação para o Trabalho', modules_count: 3, category: 'work' },
-        };
-        const mods: Record<string, Module[]> = {
-          'demo-trail-1': [
-            { id: 'demo-module-1-1', trail_id: 'demo-trail-1', title: 'Introdução aos direitos laborais', content_type: 'video', content_text: null, content_url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U', duration_minutes: 8, order_index: 1 },
-            { id: 'demo-module-1-2', trail_id: 'demo-trail-1', title: 'Contrato de trabalho', content_type: 'text', content_text: 'Tipos de contrato, período de prova e rescisão.', content_url: null, duration_minutes: 12, order_index: 2 },
-            { id: 'demo-module-1-3', trail_id: 'demo-trail-1', title: 'Segurança Social', content_type: 'pdf', content_text: null, content_url: 'https://example.com/seguranca-social.pdf', duration_minutes: 15, order_index: 3 },
-          ],
-          'demo-trail-2': [
-            { id: 'demo-module-2-1', trail_id: 'demo-trail-2', title: 'Boas-vindas à cultura portuguesa', content_type: 'video', content_text: null, content_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', duration_minutes: 6, order_index: 1 },
-            { id: 'demo-module-2-2', trail_id: 'demo-trail-2', title: 'Etiqueta e convivência', content_type: 'text', content_text: 'Cumprimentos, pontualidade e convivência social.', content_url: null, duration_minutes: 10, order_index: 2 },
-            { id: 'demo-module-2-3', trail_id: 'demo-trail-2', title: 'Feriados e tradições', content_type: 'pdf', content_text: null, content_url: 'https://example.com/tradicoes.pdf', duration_minutes: 10, order_index: 3 },
-          ],
-          'demo-trail-3': [
-            { id: 'demo-module-3-1', trail_id: 'demo-trail-3', title: 'Introdução ao SNS', content_type: 'video', content_text: null, content_url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U', duration_minutes: 7, order_index: 1 },
-            { id: 'demo-module-3-2', trail_id: 'demo-trail-3', title: 'Centros de saúde e hospitais', content_type: 'text', content_text: 'Diferenças e quando procurar cada serviço.', content_url: null, duration_minutes: 12, order_index: 2 },
-            { id: 'demo-module-3-3', trail_id: 'demo-trail-3', title: 'Documentação necessária', content_type: 'pdf', content_text: null, content_url: 'https://example.com/saude-docs.pdf', duration_minutes: 8, order_index: 3 },
-          ],
-          'demo-trail-4': [
-            { id: 'demo-module-4-1', trail_id: 'demo-trail-4', title: 'Como procurar vagas', content_type: 'video', content_text: null, content_url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U', duration_minutes: 9, order_index: 1 },
-            { id: 'demo-module-4-2', trail_id: 'demo-trail-4', title: 'Construindo o seu CV', content_type: 'text', content_text: 'Estrutura, competências e experiências.', content_url: null, duration_minutes: 14, order_index: 2 },
-            { id: 'demo-module-4-3', trail_id: 'demo-trail-4', title: 'Entrevistas de emprego', content_type: 'pdf', content_text: null, content_url: 'https://example.com/entrevistas.pdf', duration_minutes: 12, order_index: 3 },
-          ],
-        };
-        const t = demoTrails[trailId as string] || null;
-        const all = mods[trailId as string] || [];
-        const mod = all.find(m => m.id === moduleId) || null;
-        setTrail(t);
-        setAllModules(all);
-        setModule(mod);
-        const raw = localStorage.getItem(getDemoKey(trailId as string));
-        if (raw) {
-          try {
-            const val = JSON.parse(raw) as UserProgress;
-            setUserProgress(val);
-          } catch { void 0; }
-        } else {
-          const idx = all.findIndex(m => m.id === moduleId);
-          if (idx >= 0) {
-            const percent = Math.round(((idx) / all.length) * 100);
-            setUserProgress({ modules_completed: idx, progress_percent: percent });
-          }
-        }
-      } else {
-        if (!trailId || !moduleId) return;
-        const [moduleDoc, trailDoc, modulesDocs, progressDocs] = await Promise.all([
-          getDocument<Module>('trail_modules', moduleId),
-          getDocument<Trail>('trails', trailId),
-          queryDocuments<Module>(
-            'trail_modules',
-            [{ field: 'trail_id', operator: '==', value: trailId }],
-            { field: 'order_index', direction: 'asc' }
-          ),
-          user
-            ? queryDocuments<UserProgress>(
-                'user_trail_progress',
-                [
-                  { field: 'user_id', operator: '==', value: user.uid },
-                  { field: 'trail_id', operator: '==', value: trailId },
-                ],
-                undefined,
-                1
-              )
-            : Promise.resolve([] as UserProgress[]),
-        ]);
-        if (moduleDoc) setModule(moduleDoc);
-        if (trailDoc) setTrail(trailDoc);
-        setAllModules(modulesDocs);
-        setUserProgress(progressDocs[0] || null);
+      const moduleDoc = await getDocument<Module>('trail_modules', moduleId);
+      if (moduleDoc) setModule(moduleDoc);
+    } catch (error) {
+      console.error('Error fetching module:', error);
+    }
+
+    try {
+      const trailDoc = await getDocument<Trail>('trails', trailId);
+      if (trailDoc) setTrail(trailDoc);
+    } catch (error) {
+      console.error('Error fetching trail:', error);
+    }
+
+    try {
+      const modulesDocs = await queryTrailModules<Module>(trailId);
+      setAllModules(modulesDocs);
+    } catch (error) {
+      console.error('Error fetching trail modules:', error);
+      setAllModules([]);
+    }
+
+    try {
+      if (user) {
+        const progressDocs = await queryDocuments<UserProgress & { trail_id?: string }>(
+          'user_trail_progress',
+          [{ field: 'user_id', operator: '==', value: user.uid }]
+        );
+        setUserProgress(progressDocs.find((doc) => doc.trail_id === trailId) || null);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching trail progress:', error);
+      setUserProgress(null);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (!moduleId) return;
-    try {
-      const raw = localStorage.getItem(getCommentsKey(moduleId));
-      if (raw) {
-        const parsed = JSON.parse(raw) as ModuleComment[];
-        setComments(parsed);
-      } else {
+    let cancelled = false;
+    async function loadComments() {
+      if (!moduleId) {
         setComments([]);
+        return;
       }
-    } catch {
-      setComments([]);
+      try {
+        const docs = await queryModuleComments(moduleId);
+        if (!cancelled) setComments(docs);
+      } catch (err) {
+        console.error('ModuleViewerPage: falha ao carregar comentários', err);
+        if (!cancelled) setComments([]);
+      }
     }
-  }, [moduleId]);
+    void loadComments();
+    return () => {
+      cancelled = true;
+    };
+  }, [moduleId, user?.uid]);
 
   useEffect(() => {
     if (!trailId || !moduleId || !module) return;
@@ -256,80 +252,108 @@ export default function ModuleViewerPage() {
   }, [trailId, moduleId, module, user]);
 
   async function addComment() {
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !user?.uid || !trailId || !moduleId) return;
     setPosting(true);
+    setCommentError(null);
     try {
-      const comment: ModuleComment = {
-        id: `${Date.now()}`,
-        user_id: user?.uid || null,
-        user_name: profile?.name || 'Anónimo',
-        avatar_url: profile?.avatar_url || null,
-        content: newComment.trim(),
-        created_at: new Date().toISOString(),
-      };
-      const updated = [comment, ...comments];
-      setComments(updated);
-      if (moduleId) {
-        localStorage.setItem(getCommentsKey(moduleId), JSON.stringify(updated));
-      }
+      const payload = buildNewModuleCommentPayload({
+        trailId,
+        moduleId,
+        userId: user.uid,
+        userName: migrantName,
+        avatarUrl: migrantPhotoUrl,
+        content: newComment,
+      });
+      const id = await addDocument(TRAIL_MODULE_COMMENTS_COLLECTION, payload);
+      setComments((prev) => [{ id, ...payload }, ...prev]);
       setNewComment('');
-    } catch (e) {
-      // no-op
+    } catch (err) {
+      console.error('ModuleViewerPage: falha ao publicar comentário', err);
+      setCommentError('Não foi possível publicar o comentário. Tente novamente.');
     } finally {
       setPosting(false);
     }
   }
 
-  /**
-   * TASK-03 — Atualiza `user_trail_progress` incrementando modules_completed em 1.
-   * Extraído de completeModule para ser reutilizado pelo fluxo de quiz.
-   * Não navega — apenas escreve.
-   */
-  async function incrementTrailProgress(): Promise<{ modules_completed: number; progress_percent: number } | null> {
+  async function deleteOwnComment(commentId: string) {
+    if (!user?.uid) return;
+    const target = comments.find((comment) => comment.id === commentId);
+    if (!target || target.user_id !== user.uid) return;
+
+    setDeletingCommentId(commentId);
+    setCommentError(null);
+    try {
+      await deleteDocument(TRAIL_MODULE_COMMENTS_COLLECTION, commentId);
+      setComments((prev) => prev.filter((comment) => comment.id !== commentId));
+    } catch (err) {
+      console.error('ModuleViewerPage: falha ao apagar comentário', err);
+      setCommentError('Não foi possível apagar o comentário. Tente novamente.');
+    } finally {
+      setDeletingCommentId(null);
+    }
+  }
+
+  type TrailProgressDoc = {
+    id: string;
+    trail_id?: string;
+    modules_completed: number;
+    progress_percent: number;
+    completed_at?: string | null;
+    started_at?: string | null;
+  };
+
+  async function persistTrailProgress(
+    newModulesCompleted: number
+  ): Promise<{ modules_completed: number; progress_percent: number } | null> {
     if (!user || !trailId) return null;
-    const existing = await queryDocuments<{
-      id: string;
-      modules_completed: number;
-      progress_percent: number;
-      completed_at?: string | null;
-      started_at?: string | null;
-    }>(
+
+    const existing = await queryDocuments<TrailProgressDoc>(
       'user_trail_progress',
-      [
-        { field: 'user_id', operator: '==', value: user.uid },
-        { field: 'trail_id', operator: '==', value: trailId },
-      ],
-      undefined,
-      1
+      [{ field: 'user_id', operator: '==', value: user.uid }]
     );
+    const progressDoc = existing.find((doc) => doc.trail_id === trailId);
+
     const totalModules = trail?.modules_count || allModules.length;
-    const currentModulesCompleted = existing[0]?.modules_completed || 0;
-    const newModulesCompleted = Math.min(totalModules, currentModulesCompleted + 1);
-    const newProgressPercent = totalModules > 0 ? Math.round((newModulesCompleted / totalModules) * 100) : 0;
-    const isComplete = totalModules > 0 ? newModulesCompleted >= totalModules : false;
+    const clampedCompleted = Math.max(0, Math.min(totalModules, newModulesCompleted));
+    const newProgressPercent =
+      totalModules > 0 ? Math.round((clampedCompleted / totalModules) * 100) : 0;
+    const isComplete = totalModules > 0 ? clampedCompleted >= totalModules : false;
     const nowIso = new Date().toISOString();
 
-    if (existing[0]?.id) {
+    if (progressDoc?.id) {
       const payload: Record<string, unknown> = {
-        modules_completed: newModulesCompleted,
+        modules_completed: clampedCompleted,
         progress_percent: newProgressPercent,
         completed_at: isComplete ? nowIso : null,
       };
-      if ((existing[0].modules_completed || 0) === 0 && newModulesCompleted > 0 && !existing[0].started_at) {
+      if ((progressDoc.modules_completed || 0) === 0 && clampedCompleted > 0 && !progressDoc.started_at) {
         payload.started_at = nowIso;
       }
-      await updateDocument('user_trail_progress', existing[0].id, payload);
+      await updateDocument('user_trail_progress', progressDoc.id, payload);
     } else {
       await addDocument('user_trail_progress', {
         user_id: user.uid,
         trail_id: trailId,
-        modules_completed: newModulesCompleted,
+        modules_completed: clampedCompleted,
         progress_percent: newProgressPercent,
         completed_at: isComplete ? nowIso : null,
-        started_at: newModulesCompleted > 0 ? nowIso : null,
+        started_at: clampedCompleted > 0 ? nowIso : null,
       });
     }
-    return { modules_completed: newModulesCompleted, progress_percent: newProgressPercent };
+
+    return { modules_completed: clampedCompleted, progress_percent: newProgressPercent };
+  }
+
+  /**
+   * TASK-03 — Marca o módulo atual como concluído (fluxo de quiz).
+   * Não navega — apenas escreve.
+   */
+  async function incrementTrailProgress(): Promise<{ modules_completed: number; progress_percent: number } | null> {
+    const moduleIndex = allModules.findIndex((m) => m.id === moduleId);
+    if (moduleIndex < 0) return null;
+    const currentModulesCompleted = userProgress?.modules_completed || 0;
+    const newModulesCompleted = Math.max(currentModulesCompleted, moduleIndex + 1);
+    return persistTrailProgress(newModulesCompleted);
   }
 
   /**
@@ -347,7 +371,9 @@ export default function ModuleViewerPage() {
     setQuizSubmitting(true);
     try {
       const answers = questions.map((q) => {
-        const selectedIndex = quizAnswers[q.id];
+        const displayIndex = quizAnswers[q.id];
+        const mapping = quizOptionOrder[q.id]?.displayToOriginal ?? q.options.map((_, index) => index);
+        const selectedIndex = mapDisplayAnswerToOriginalIndex(displayIndex, mapping);
         const correct = selectedIndex === q.correctIndex;
         return { questionId: q.id, selectedIndex, correct };
       });
@@ -385,79 +411,61 @@ export default function ModuleViewerPage() {
   }
 
   function resetQuiz() {
+    if (module?.quiz_questions?.length) {
+      setQuizOptionOrder(buildQuizDisplayMap(module.quiz_questions));
+    }
     setQuizAnswers({});
     setQuizResult(null);
   }
 
-  async function completeModule() {
-    if (!trailId || !module) return;
+  const currentIndex = allModules.findIndex((m) => m.id === moduleId);
+  const isCurrentModuleCompleted =
+    currentIndex >= 0 && currentIndex < (userProgress?.modules_completed || 0);
+
+  async function toggleModuleCompletion() {
+    if (!trailId || !module || !user || currentIndex < 0) return;
     setCompleting(true);
     try {
-      if (!isDemo) {
-        if (!user) return;
-        const existing = await queryDocuments<{ id: string; modules_completed: number; progress_percent: number; completed_at?: string | null; started_at?: string | null }>(
-          'user_trail_progress',
-          [
-            { field: 'user_id', operator: '==', value: user.uid },
-            { field: 'trail_id', operator: '==', value: trailId },
-          ],
-          undefined,
-          1
-        );
-        const totalModules = trail?.modules_count || allModules.length;
-        const currentModulesCompleted = existing[0]?.modules_completed || 0;
-        const newModulesCompleted = Math.min(totalModules, currentModulesCompleted + 1);
-        const newProgressPercent = totalModules > 0 ? Math.round((newModulesCompleted / totalModules) * 100) : 0;
-        const isComplete = totalModules > 0 ? newModulesCompleted >= totalModules : false;
-        const nowIso = new Date().toISOString();
+      const currentModulesCompleted = userProgress?.modules_completed || 0;
+      const newModulesCompleted = isCurrentModuleCompleted
+        ? currentIndex
+        : Math.max(currentModulesCompleted, currentIndex + 1);
 
-        if (existing[0]?.id) {
-          const payload: Record<string, unknown> = {
-            modules_completed: newModulesCompleted,
-            progress_percent: newProgressPercent,
-            completed_at: isComplete ? new Date().toISOString() : null,
-          };
-          if ((existing[0].modules_completed || 0) === 0 && newModulesCompleted > 0 && !existing[0].started_at) {
-            payload.started_at = nowIso;
-          }
-          await updateDocument('user_trail_progress', existing[0].id, payload);
+      const progress = await persistTrailProgress(newModulesCompleted);
+      if (progress) setUserProgress(progress);
+
+      if (!isCurrentModuleCompleted) {
+        if (currentIndex < allModules.length - 1) {
+          navigate(`/dashboard/migrante/trilhas/${trailId}/modulo/${allModules[currentIndex + 1].id}`);
         } else {
-          await addDocument('user_trail_progress', {
-            user_id: user.uid,
-            trail_id: trailId,
-            modules_completed: newModulesCompleted,
-            progress_percent: newProgressPercent,
-            completed_at: isComplete ? new Date().toISOString() : null,
-            started_at: newModulesCompleted > 0 ? nowIso : null,
-          });
+          navigate(`/dashboard/migrante/trilhas/${trailId}`);
         }
-        setUserProgress({ modules_completed: newModulesCompleted, progress_percent: newProgressPercent });
-      }
-      if (isDemo) {
-        const total = allModules.length;
-        const completed = (userProgress?.modules_completed || 0) + 1;
-        const percent = Math.round((completed / total) * 100);
-        const demo = { modules_completed: completed, progress_percent: percent };
-        localStorage.setItem(getDemoKey(trailId), JSON.stringify(demo));
-        setUserProgress(demo);
-      }
-      const currentIndex = allModules.findIndex(m => m.id === moduleId);
-      if (currentIndex < allModules.length - 1) {
-        navigate(`/dashboard/migrante/trilhas/${trailId}/modulo/${allModules[currentIndex + 1].id}`);
-      } else {
-        navigate(`/dashboard/migrante/trilhas/${trailId}`);
       }
     } catch (error) {
-      console.error('Error completing module:', error);
+      console.error('Error toggling module completion:', error);
     } finally {
       setCompleting(false);
     }
   }
 
-  const currentIndex = allModules.findIndex(m => m.id === moduleId);
   const prevModule = currentIndex > 0 ? allModules[currentIndex - 1] : null;
   const nextModule = currentIndex < allModules.length - 1 ? allModules[currentIndex + 1] : null;
   const progressPercent = userProgress?.progress_percent || 0;
+
+  function ModuleContentIcon({ type, className }: { type: string; className?: string }) {
+    const iconClass = cn('shrink-0', className);
+    if (type === 'video') return <Play className={iconClass} aria-hidden />;
+    if (type === 'pdf') return <File className={iconClass} aria-hidden />;
+    if (type === 'quiz') return <HelpCircle className={iconClass} aria-hidden />;
+    return <FileText className={iconClass} aria-hidden />;
+  }
+
+  function moduleContentTypeLabel(type: string): string {
+    if (type === 'video') return 'Vídeo';
+    if (type === 'pdf') return 'PDF';
+    if (type === 'quiz') return t.get('curriculum.quiz.editor.contentTypeOption');
+    return 'Texto';
+  }
 
   if (loading) {
     return (
@@ -519,14 +527,18 @@ export default function ModuleViewerPage() {
               {/* TASK-03: para módulos do tipo 'quiz', a conclusão acontece via submit do quiz; ocultar o botão. */}
               {module.content_type !== 'quiz' ? (
                 <Button
-                  variant="outline"
+                  variant={isCurrentModuleCompleted ? 'default' : 'outline'}
                   size="sm"
-                  onClick={completeModule}
+                  onClick={toggleModuleCompletion}
                   disabled={completing}
                   className="gap-2"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  {completing ? 'A guardar...' : 'Marcar como concluída'}
+                  {completing
+                    ? 'A guardar...'
+                    : isCurrentModuleCompleted
+                      ? 'Concluída'
+                      : 'Marcar como concluída'}
                 </Button>
               ) : null}
 
@@ -569,8 +581,15 @@ export default function ModuleViewerPage() {
           <div className={cn("flex-1 min-w-0", showSidebar ? "lg:pr-6" : "")}>
             {/* Module Title */}
             <h1 className="text-xl md:text-2xl font-bold mb-4">
-              {trail?.title}: Aula {currentIndex + 1} - {module.title}
+              {module.title}
             </h1>
+
+            {/* Text module cover */}
+            {module.content_type === 'text' && module.cover_image_url ? (
+              <div className="mb-6 overflow-hidden rounded-lg border bg-muted/20">
+                <img src={module.cover_image_url} alt="" className="h-56 w-full object-cover" />
+              </div>
+            ) : null}
 
             {/* Video Content */}
             {module.content_type === 'video' && module.content_url && (
@@ -667,17 +686,17 @@ export default function ModuleViewerPage() {
                       <li key={q.id}>
                         <p className="font-medium mb-2">{q.question}</p>
                         <div role="radiogroup" aria-label={q.question} className="space-y-2">
-                          {q.options.map((opt, optIdx) => (
+                          {(quizOptionOrder[q.id]?.displayOptions ?? q.options).map((opt, displayIdx) => (
                             <label
-                              key={optIdx}
+                              key={`${q.id}-${displayIdx}-${opt}`}
                               className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted p-2 rounded"
                             >
                               <input
                                 type="radio"
                                 name={`quiz-${q.id}`}
-                                value={optIdx}
-                                checked={quizAnswers[q.id] === optIdx}
-                                onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: optIdx }))}
+                                value={displayIdx}
+                                checked={quizAnswers[q.id] === displayIdx}
+                                onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: displayIdx }))}
                               />
                               <span>{opt}</span>
                             </label>
@@ -741,7 +760,7 @@ export default function ModuleViewerPage() {
             <h2 className="text-lg font-semibold mb-4">Descrição</h2>
             {module.content_type === 'text' && module.content_text ? (
               <div className="prose prose-slate max-w-none">
-                <div dangerouslySetInnerHTML={{ __html: module.content_text.replace(/\n/g, '<br/>') }} />
+                <div dangerouslySetInnerHTML={{ __html: module.content_text }} />
               </div>
             ) : (
               <p className="text-muted-foreground">
@@ -754,10 +773,10 @@ export default function ModuleViewerPage() {
             <h2 className="text-lg font-semibold mb-4">Comentários</h2>
             <div className="flex items-start gap-3 mb-4">
               <Avatar>
-                {profile?.avatar_url ? (
-                  <AvatarImage src={profile.avatar_url} alt={profile?.name || 'Utilizador'} />
+                {migrantPhotoUrl ? (
+                  <AvatarImage src={migrantPhotoUrl} alt={migrantName} />
                 ) : (
-                  <AvatarFallback>{(profile?.name || 'A').slice(0, 1)}</AvatarFallback>
+                  <AvatarFallback>{migrantName.slice(0, 1)}</AvatarFallback>
                 )}
               </Avatar>
               <div className="flex-1">
@@ -768,18 +787,22 @@ export default function ModuleViewerPage() {
                   className="mb-2"
                 />
                 <div className="flex justify-end">
-                  <Button size="sm" onClick={addComment} disabled={posting || !newComment.trim()}>
+                  <Button size="sm" onClick={addComment} disabled={posting || !newComment.trim() || !user?.uid}>
                     {posting ? 'A publicar...' : 'Publicar'}
                   </Button>
                 </div>
+                {commentError ? <p className="text-sm text-destructive mt-2">{commentError}</p> : null}
               </div>
             </div>
 
-            {comments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Ainda não há comentários. Seja o primeiro a comentar!</p>
+            {visibleComments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Ainda não há comentários aprovados. Seja o primeiro a comentar!</p>
             ) : (
               <div className="space-y-4">
-                {comments.map((c) => (
+                {visibleComments.map((c) => {
+                  const statusLabel = getCommentStatusLabel(c.status);
+                  const isOwn = c.user_id === user?.uid;
+                  return (
                   <div key={c.id} className="flex items-start gap-3">
                     <Avatar>
                       {c.avatar_url ? (
@@ -788,17 +811,48 @@ export default function ModuleViewerPage() {
                         <AvatarFallback>{(c.user_name || 'A').slice(0, 1)}</AvatarFallback>
                       )}
                     </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">{c.user_name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(c.created_at).toLocaleString()}
+                          {formatDateTime(c.created_at)}
                         </span>
+                        {statusLabel ? (
+                          <span
+                            className={cn(
+                              'text-xs font-medium px-2 py-0.5 rounded-full',
+                              c.status === 'pending'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            )}
+                          >
+                            {statusLabel}
+                          </span>
+                        ) : null}
                       </div>
-                      <p className="text-sm mt-1">{c.content}</p>
+                      {c.status === 'pending' && isOwn ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          O seu comentário só ficará visível para outros migrantes após aprovação da equipa CPC.
+                        </p>
+                      ) : null}
+                      <p className="text-sm mt-1 break-words">{c.content}</p>
+                      {isOwn ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 h-8 px-2 text-destructive hover:text-destructive"
+                          onClick={() => void deleteOwnComment(c.id)}
+                          disabled={deletingCommentId === c.id}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          {deletingCommentId === c.id ? 'A apagar...' : 'Apagar'}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -806,20 +860,22 @@ export default function ModuleViewerPage() {
 
           {/* Sidebar - Module List */}
           {showSidebar && (
-            <div className="hidden lg:block w-80 flex-shrink-0">
-              <div className="bg-card rounded-lg border sticky top-4">
+            <div className="hidden lg:block w-80 shrink-0 min-w-0">
+              <div className="bg-card rounded-lg border sticky top-4 overflow-hidden">
                 {/* Progress Header */}
                 <div className="p-4 border-b">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">{trail?.title}</span>
-                    <span className="text-xs text-primary font-semibold">{progressPercent}%</span>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-sm font-medium leading-snug break-words min-w-0 flex-1">
+                      {trail?.title}
+                    </span>
+                    <span className="text-xs text-primary font-semibold shrink-0">{progressPercent}%</span>
                   </div>
                   <Progress value={progressPercent} className="h-2" />
                 </div>
 
                 {/* Module List */}
                 <ScrollArea className="h-[400px]">
-                  <div className="p-2">
+                  <div className="p-2 pr-3">
                     {allModules.map((mod, index) => {
                       const isCompleted = index < (userProgress?.modules_completed || 0);
                       const isCurrent = mod.id === moduleId;
@@ -829,13 +885,11 @@ export default function ModuleViewerPage() {
                           key={mod.id}
                           to={`/dashboard/migrante/trilhas/${trailId}/modulo/${mod.id}`}
                           className={cn(
-                            "flex items-start gap-3 p-3 rounded-lg transition-colors",
-                            isCurrent
-                              ? "bg-primary/10 text-primary"
-                              : "hover:bg-muted"
+                            'flex items-start gap-3 p-3 rounded-lg transition-colors min-w-0',
+                            isCurrent ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
                           )}
                         >
-                          <div className="mt-0.5">
+                          <div className="mt-0.5 shrink-0">
                             {isCompleted ? (
                               <CheckCircle className="h-4 w-4 text-green-500" />
                             ) : isCurrent ? (
@@ -845,17 +899,22 @@ export default function ModuleViewerPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              "text-sm font-medium truncate",
-                              isCurrent && "text-primary"
-                            )}>
+                            <p
+                              className={cn(
+                                'text-sm font-medium leading-snug break-words',
+                                isCurrent && 'text-primary'
+                              )}
+                            >
                               {mod.title}
                             </p>
-                            {mod.duration_minutes && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {mod.duration_minutes} min
+                            {mod.duration_minutes || mod.content_type ? (
+                              <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                                <span title={moduleContentTypeLabel(mod.content_type)}>
+                                  <ModuleContentIcon type={mod.content_type} className="h-3.5 w-3.5" />
+                                </span>
+                                {mod.duration_minutes ? <span>{mod.duration_minutes} min</span> : null}
                               </p>
-                            )}
+                            ) : null}
                           </div>
                         </Link>
                       );

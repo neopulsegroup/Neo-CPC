@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +23,26 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseUnknownDate } from '@/lib/companyVerification';
 import {
+  approveSupportRequestWithSession,
+  cancelSupportRequest,
+  isSupportScheduleDraftComplete,
+  queryPendingSupportRequests,
+  SUPPORT_REQUEST_APPROVAL_TIME_SLOTS,
+  supportRequestSessionLabelKey,
+  supportRequestTypeLabelKey,
+  supportRequestTypeToAgendaCategory,
+  type SupportRequestDoc,
+  type SupportScheduleDraft,
+} from '@/lib/supportRequests';
+import { loadSpecialistsForSupportRequestType, type CpcSpecialistOption } from '@/lib/cpcSpecialists';
+import {
   canApproveSessionRequests,
   isSessionPendingApproval,
   SESSION_STATUS_REJECTED,
   SESSION_STATUS_SCHEDULED,
   shouldShowSessionOnAgenda,
 } from '@/lib/sessionApproval';
+import { formatAppDate, formatAppMonthLongYear } from '@/lib/appDateTime';
 import {
   addCalendarDaysIso,
   APP_TIME_ZONE,
@@ -95,8 +111,11 @@ type AgendaSession = {
   durationHours: number;
 };
 
+type PendingRequestKind = 'session' | 'support_urgent';
+
 type PendingRequest = {
   id: string;
+  kind: PendingRequestKind;
   category: AgendaCategory;
   title: string;
   person: string;
@@ -104,6 +123,10 @@ type PendingRequest = {
   when: string;
   timeAgo: string;
   createdAtMs: number;
+  description?: string;
+  isUrgent?: boolean;
+  supportType?: SupportRequestDoc['type'];
+  migrantId?: string;
 };
 
 const START_HOUR = 8;
@@ -228,10 +251,7 @@ function formatRelativeTimeLabel(from: Date, to: Date, t: { get: (key: string, p
 }
 
 function formatPendingWhen(dateIso: string, timeLabel: string, locale: string): string {
-  const [y, m, d] = dateIso.split('-').map(Number);
-  const dateLabel = new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(
-    new Date(Date.UTC(y, m - 1, d, 12))
-  );
+  const dateLabel = formatAppDate(dateIso, { locale, weekday: 'short', day: '2-digit', month: 'short' });
   return `${dateLabel} • ${timeLabel}`;
 }
 
@@ -248,6 +268,7 @@ function buildPendingRequest(
   const createdAt = parseUnknownDate(doc.created_at) ?? now;
   return {
     id: doc.id,
+    kind: 'session',
     category,
     title: doc.service_label?.trim() || t.get(`cpc.agenda.sessionTypes.${category}`),
     person: personName,
@@ -255,6 +276,34 @@ function buildPendingRequest(
     when: formatPendingWhen(normalizeIso(doc.scheduled_date), (doc.scheduled_time ?? '').trim() || '—', locale),
     timeAgo: formatRelativeTimeLabel(createdAt, now, t),
     createdAtMs: createdAt.getTime(),
+  };
+}
+
+function buildPendingSupportRequest(
+  doc: SupportRequestDoc,
+  nameMap: Map<string, string>,
+  t: { get: (key: string, params?: Record<string, string | number>) => string },
+  now: Date
+): PendingRequest {
+  const category = supportRequestTypeToAgendaCategory(doc.type);
+  const migrantId = doc.migrant_id ?? '';
+  const personName = (doc.migrant_name?.trim() || nameMap.get(migrantId) || '').trim() || t.get('cpc.agenda.event.unknownPerson');
+  const createdAt = parseUnknownDate(doc.created_at) ?? now;
+  const typeLabel = t.get(supportRequestTypeLabelKey(doc.type));
+  return {
+    id: doc.id,
+    kind: 'support_urgent',
+    category,
+    title: typeLabel,
+    person: personName,
+    specialistName: null,
+    when: t.get('cpc.agenda.pending.supportDateTbd'),
+    timeAgo: formatRelativeTimeLabel(createdAt, now, t),
+    createdAtMs: createdAt.getTime(),
+    description: doc.description,
+    isUrgent: true,
+    supportType: doc.type,
+    migrantId,
   };
 }
 
@@ -270,6 +319,15 @@ export default function TeamAgendaPage() {
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
   const [cancelling, setCancelling] = useState(false);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [supportApproveOpen, setSupportApproveOpen] = useState(false);
+  const [supportApproveTarget, setSupportApproveTarget] = useState<PendingRequest | null>(null);
+  const [supportApproveDate, setSupportApproveDate] = useState<string>(() => todayIsoAppCalendar());
+  const [supportApproveTime, setSupportApproveTime] = useState<string>('');
+  const [supportApproveSpecialistId, setSupportApproveSpecialistId] = useState<string>('');
+  const [supportSpecialists, setSupportSpecialists] = useState<CpcSpecialistOption[]>([]);
+  const [loadingSupportSpecialists, setLoadingSupportSpecialists] = useState(false);
+  const [supportScheduleDrafts, setSupportScheduleDrafts] = useState<Record<string, SupportScheduleDraft>>({});
+  const [supportRequestDocsById, setSupportRequestDocsById] = useState<Record<string, SupportRequestDoc>>({});
   const [categoryFilter, setCategoryFilter] = useState<'all' | AgendaCategory>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [eventInfoOpen, setEventInfoOpen] = useState(false);
@@ -308,14 +366,27 @@ export default function TeamAgendaPage() {
           nameMap.set(id, name);
         });
         const now = new Date();
-        const pending = rows
+        const pendingSessions = rows
           .filter((r) => isSessionPendingApproval(r.status))
-          .map((r) => buildPendingRequest(r, nameMap, locale, t, now))
-          .sort((a, b) => b.createdAtMs - a.createdAtMs);
+          .map((r) => buildPendingRequest(r, nameMap, locale, t, now));
+        const supportRows = await queryPendingSupportRequests().catch(() => [] as SupportRequestDoc[]);
+        const supportIds = Array.from(new Set(supportRows.map((row) => row.migrant_id).filter(Boolean)));
+        for (const migrantId of supportIds) {
+          if (nameMap.has(migrantId)) continue;
+          const [profileDoc, userDoc] = await Promise.all([
+            getDocument<{ name?: string | null }>('profiles', migrantId).catch(() => null),
+            getDocument<{ name?: string | null }>('users', migrantId).catch(() => null),
+          ]);
+          const name = (profileDoc?.name?.trim() || userDoc?.name?.trim() || '').toString();
+          if (name) nameMap.set(migrantId, name);
+        }
+        const pendingSupport = supportRows.map((row) => buildPendingSupportRequest(row, nameMap, t, now));
+        const pending = [...pendingSupport, ...pendingSessions].sort((a, b) => b.createdAtMs - a.createdAtMs);
         const mapped = rows
           .filter((r) => shouldShowSessionOnAgenda(r.status))
           .map((r) => buildAgendaSession(r, nameMap));
         if (!cancelled) {
+          setSupportRequestDocsById(Object.fromEntries(supportRows.map((row) => [row.id, row])));
           setPendingRequests(pending);
           setSessions(mapped);
         }
@@ -379,7 +450,7 @@ export default function TeamAgendaPage() {
 
   const periodTitle = useMemo(() => {
     const [y, m] = anchorIso.split('-').map(Number);
-    return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
+    return formatAppMonthLongYear(`${y}-${String(m).padStart(2, '0')}-01`, { locale });
   }, [anchorIso, locale]);
 
   const showNowLine = todayIso >= week.weekStart && todayIso <= week.weekEnd;
@@ -404,10 +475,12 @@ export default function TeamAgendaPage() {
 
   const selectedSessionDateTime = useMemo(() => {
     if (!selectedSession) return '';
-    const [y, m, d] = selectedSession.dateIso.split('-').map(Number);
-    const dateLabel = new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(
-      new Date(Date.UTC(y, m - 1, d, 12))
-    );
+    const dateLabel = formatAppDate(selectedSession.dateIso, {
+      locale,
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+    });
     const endHour = Math.min(23, selectedSession.startHour + Math.floor(selectedSession.durationHours));
     const endLabel = `${String(endHour).padStart(2, '0')}:${String(selectedSession.startMinute).padStart(2, '0')}`;
     return `${dateLabel} • ${selectedSession.timeLabel} - ${endLabel}`;
@@ -473,10 +546,140 @@ export default function TeamAgendaPage() {
     setView('week');
   }
 
+  function openSupportScheduleModal(request: PendingRequest) {
+    const draft = supportScheduleDrafts[request.id];
+    setSupportApproveTarget(request);
+    setSupportApproveDate(draft?.dateIso ?? todayIso);
+    setSupportApproveTime(draft?.timeLabel ?? '');
+    setSupportApproveSpecialistId(draft?.specialistId ?? '');
+    setSupportApproveOpen(true);
+  }
+
+  useEffect(() => {
+    if (!supportApproveOpen || !supportApproveTarget || supportApproveTarget.kind !== 'support_urgent' || !supportApproveTarget.supportType) {
+      setSupportSpecialists([]);
+      return;
+    }
+    const requestType = supportApproveTarget.supportType;
+    let cancelled = false;
+    (async () => {
+      setLoadingSupportSpecialists(true);
+      try {
+        const rows = await loadSpecialistsForSupportRequestType(requestType);
+        if (cancelled) return;
+        setSupportSpecialists(rows);
+        setSupportApproveSpecialistId((current) => {
+          if (current && rows.some((row) => row.id === current)) return current;
+          return rows[0]?.id ?? '';
+        });
+      } catch (error) {
+        console.error('Erro ao carregar especialistas para pedido urgente', error);
+        if (!cancelled) {
+          setSupportSpecialists([]);
+          setSupportApproveSpecialistId('');
+        }
+      } finally {
+        if (!cancelled) setLoadingSupportSpecialists(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supportApproveOpen, supportApproveTarget]);
+
+  function hasSupportScheduleDraft(requestId: string): boolean {
+    return isSupportScheduleDraftComplete(supportScheduleDrafts[requestId]);
+  }
+
+  function handleSaveSupportSchedule() {
+    if (!supportApproveTarget) return;
+    const dateIso = supportApproveDate.trim();
+    const timeLabel = supportApproveTime.trim();
+    const specialist = supportSpecialists.find((row) => row.id === supportApproveSpecialistId) ?? null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso) || !timeLabel || !specialist) {
+      toast({ title: t.get('cpc.agenda.pending.supportApproveValidation'), variant: 'destructive' });
+      return;
+    }
+    setSupportScheduleDrafts((prev) => ({
+      ...prev,
+      [supportApproveTarget.id]: {
+        dateIso,
+        timeLabel,
+        specialistId: specialist.id,
+        specialistName: specialist.name,
+      },
+    }));
+    setPendingRequests((prev) =>
+      prev.map((request) =>
+        request.id === supportApproveTarget.id
+          ? {
+              ...request,
+              when: formatPendingWhen(dateIso, timeLabel, locale),
+              specialistName: specialist.name,
+            }
+          : request
+      )
+    );
+    setSupportApproveOpen(false);
+    setSupportApproveTarget(null);
+  }
+
+  async function handleApproveSupportUrgent(requestId: string) {
+    if (!canModerateRequests || processingRequestId || !user?.uid) return;
+    const draft = supportScheduleDrafts[requestId];
+    if (!isSupportScheduleDraftComplete(draft)) return;
+    const pending = pendingRequests.find((request) => request.id === requestId);
+    const requestDoc = supportRequestDocsById[requestId];
+    if (!pending || !requestDoc) return;
+
+    setProcessingRequestId(requestId);
+    try {
+      const serviceLabel = t.get(supportRequestSessionLabelKey(requestDoc.type));
+      const sessionId = await approveSupportRequestWithSession({
+        request: requestDoc,
+        scheduledDate: draft!.dateIso,
+        scheduledTime: draft!.timeLabel,
+        specialistId: draft!.specialistId,
+        specialistName: draft!.specialistName,
+        approvedBy: user.uid,
+        serviceLabel,
+      });
+      const approvedDoc = await getDocument<SessionDoc>('sessions', sessionId);
+      if (approvedDoc) {
+        const nameMap = new Map<string, string>();
+        if (pending.migrantId) nameMap.set(pending.migrantId, pending.person);
+        setSessions((prev) => [...prev, buildAgendaSession(approvedDoc, nameMap)]);
+        setAnchorIso(draft!.dateIso);
+        setView('week');
+      }
+      setPendingRequests((prev) => prev.filter((request) => request.id !== requestId));
+      setSupportScheduleDrafts((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
+      setSupportRequestDocsById((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
+      toast({ title: t.get('cpc.agenda.pending.supportApproveSuccess') });
+    } catch (error) {
+      console.error('Erro ao aprovar pedido urgente', error);
+      toast({ title: t.get('cpc.agenda.pending.supportApproveError'), variant: 'destructive' });
+    } finally {
+      setProcessingRequestId(null);
+    }
+  }
+
   async function handleApprovePending(requestId: string) {
     if (!canModerateRequests || processingRequestId) return;
     const pending = pendingRequests.find((request) => request.id === requestId);
     if (!pending) return;
+    if (pending.kind === 'support_urgent') {
+      await handleApproveSupportUrgent(requestId);
+      return;
+    }
     setProcessingRequestId(requestId);
     try {
       await updateDocument('sessions', requestId, {
@@ -502,13 +705,18 @@ export default function TeamAgendaPage() {
 
   async function handleDeclinePending(requestId: string) {
     if (!canModerateRequests || processingRequestId) return;
+    const pending = pendingRequests.find((request) => request.id === requestId);
     setProcessingRequestId(requestId);
     try {
-      await updateDocument('sessions', requestId, {
-        status: SESSION_STATUS_REJECTED,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.uid ?? null,
-      });
+      if (pending?.kind === 'support_urgent') {
+        await cancelSupportRequest(requestId);
+      } else {
+        await updateDocument('sessions', requestId, {
+          status: SESSION_STATUS_REJECTED,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.uid ?? null,
+        });
+      }
       setPendingRequests((prev) => prev.filter((request) => request.id !== requestId));
       toast({ title: t.get('cpc.agenda.pending.declineSuccess') });
     } catch (error) {
@@ -892,21 +1100,54 @@ export default function TeamAgendaPage() {
         ) : (
         <div className="grid w-full grid-cols-1 gap-4 p-4 md:p-5 lg:grid-cols-3">
           {pendingRequests.map((request) => (
-              <article key={request.id} className="rounded-xl border p-3 shadow-sm transition-all hover:shadow-md break-words">
-                <div className="flex items-center justify-between">
-                  <Badge className={cn('rounded-md px-2 py-0.5 text-[11px] font-semibold', categoryBadgeClass(request.category))}>
-                    {t.get(`cpc.agenda.sessionTypes.${request.category}`)}
-                  </Badge>
+              <article
+                key={request.id}
+                className={cn(
+                  'rounded-xl border p-3 shadow-sm transition-all hover:shadow-md break-words',
+                  request.isUrgent && 'border-2 border-orange-400 bg-orange-50/70 ring-2 ring-orange-200'
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={cn('rounded-md px-2 py-0.5 text-[11px] font-semibold', categoryBadgeClass(request.category))}>
+                      {request.kind === 'support_urgent'
+                        ? t.get('cpc.agenda.pending.supportUrgentBadge')
+                        : t.get(`cpc.agenda.sessionTypes.${request.category}`)}
+                    </Badge>
+                    {request.isUrgent ? (
+                      <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        {t.get('cpc.agenda.pending.supportUrgentLabel')}
+                      </span>
+                    ) : null}
+                  </div>
                   <span className="text-xs text-slate-400">{request.timeAgo}</span>
                 </div>
                 <h3 className="mt-2 text-[15px] font-semibold leading-snug text-slate-900 md:text-base">{request.title}</h3>
                 <p className="mt-1 text-xs text-slate-500 md:text-sm">
-                  {request.person}{' '}
-                  <span className="text-slate-400">
-                    ({request.specialistName || t.get('cpc.agenda.pending.requestSource')})
-                  </span>
+                  {request.person}
+                  {request.kind !== 'support_urgent' ? (
+                    <span className="text-slate-400">
+                      {' '}
+                      ({request.specialistName || t.get('cpc.agenda.pending.requestSource')})
+                    </span>
+                  ) : null}
                 </p>
-                <p className="mt-3 text-xs text-slate-500 md:text-sm">{request.when}</p>
+                {request.description ? (
+                  <p className="mt-2 line-clamp-3 text-xs text-slate-600 md:text-sm">{request.description}</p>
+                ) : null}
+                {request.kind === 'support_urgent' ? (
+                  <button
+                    type="button"
+                    className="mt-3 text-left text-xs font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700 md:text-sm"
+                    onClick={() => openSupportScheduleModal(request)}
+                  >
+                    {hasSupportScheduleDraft(request.id)
+                      ? request.when
+                      : t.get('cpc.agenda.pending.supportDateTbd')}
+                  </button>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-500 md:text-sm">{request.when}</p>
+                )}
                 {canModerateRequests ? (
                   <div className="mt-3 flex gap-2">
                     <Button
@@ -920,7 +1161,10 @@ export default function TeamAgendaPage() {
                     </Button>
                     <Button
                       className="h-8 flex-1 rounded-md bg-blue-600 text-xs font-semibold hover:bg-blue-700 md:h-9 md:text-sm"
-                      disabled={processingRequestId === request.id}
+                      disabled={
+                        processingRequestId === request.id ||
+                        (request.kind === 'support_urgent' && !hasSupportScheduleDraft(request.id))
+                      }
                       onClick={() => void handleApprovePending(request.id)}
                     >
                       {processingRequestId === request.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
@@ -935,6 +1179,102 @@ export default function TeamAgendaPage() {
         </div>
         )}
       </section>
+
+      <Dialog open={supportApproveOpen} onOpenChange={setSupportApproveOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.get('cpc.agenda.pending.supportApproveTitle')}</DialogTitle>
+          </DialogHeader>
+          {supportApproveTarget ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-orange-200 bg-orange-50/70 p-3 text-sm">
+                <p className="font-semibold text-slate-900">{supportApproveTarget.title}</p>
+                <p className="mt-1 text-slate-600">{supportApproveTarget.person}</p>
+                {supportApproveTarget.description ? (
+                  <p className="mt-2 text-xs text-slate-600">{supportApproveTarget.description}</p>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="support-approve-date">{t.get('cpc.agenda.create.date')}</Label>
+                  <Input
+                    id="support-approve-date"
+                    type="date"
+                    className="mt-1"
+                    value={supportApproveDate}
+                    onChange={(e) => setSupportApproveDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="support-approve-time">{t.get('cpc.agenda.create.time')}</Label>
+                  <Select value={supportApproveTime || undefined} onValueChange={setSupportApproveTime}>
+                    <SelectTrigger id="support-approve-time" className="mt-1">
+                      <SelectValue placeholder={t.get('cpc.agenda.create.time')} />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10050]" position="popper">
+                      {SUPPORT_REQUEST_APPROVAL_TIME_SLOTS.map((slot) => (
+                        <SelectItem key={slot} value={slot}>
+                          {slot}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="support-approve-specialist">{t.get('cpc.agenda.create.specialist')}</Label>
+                <Select
+                  value={supportApproveSpecialistId || undefined}
+                  onValueChange={setSupportApproveSpecialistId}
+                  disabled={loadingSupportSpecialists}
+                >
+                  <SelectTrigger id="support-approve-specialist" className="mt-1">
+                    <SelectValue
+                      placeholder={
+                        loadingSupportSpecialists
+                          ? t.get('cpc.agenda.create.loadingSpecialists')
+                          : supportSpecialists.length === 0
+                            ? t.get('cpc.agenda.create.noSpecialists')
+                            : t.get('cpc.agenda.create.specialistPlaceholder')
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10050] max-h-56" position="popper">
+                    {supportSpecialists.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        {t.get('cpc.agenda.create.noSpecialists')}
+                      </SelectItem>
+                    ) : (
+                      supportSpecialists.map((specialist) => (
+                        <SelectItem key={specialist.id} value={specialist.id}>
+                          {specialist.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSupportApproveOpen(false)}>
+              {t.get('cpc.agenda.create.cancel')}
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={
+                !supportApproveDate.trim() ||
+                !supportApproveTime.trim() ||
+                !supportApproveSpecialistId.trim() ||
+                loadingSupportSpecialists
+              }
+              onClick={handleSaveSupportSchedule}
+            >
+              {t.get('cpc.agenda.pending.supportScheduleConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="w-full min-w-0" data-testid="cpc-agenda-calendar-section">
           {/* Ajuste: topo sem scroll vertical e com layout estável por breakpoint (390/768/1366) */}

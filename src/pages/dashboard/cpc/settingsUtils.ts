@@ -2,6 +2,11 @@ export type SmtpSecurity = 'tls' | 'ssl';
 
 export type CpcSystemSettings = {
   contactNotificationEmail: string;
+  resend?: {
+    apiKeySet: boolean;
+    fromEmail: string;
+    enabled: boolean;
+  };
   smtp: {
     host: string;
     port: number;
@@ -81,6 +86,25 @@ export function buildContactNotificationMail(args: {
   return mail;
 }
 
+export function buildResendTestMail(args: { to: string; from: string; summary: string }): {
+  to: string;
+  message: { subject: string; text: string; html: string; from: string };
+} {
+  const to = normalizeEmail(args.to);
+  const from = normalizeEmail(args.from);
+  const summary = args.summary.trim();
+  const subject = 'Teste Resend — CPC';
+  const text = `Teste Resend.\n\n${summary}\n`;
+  const html = `
+    <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #0a0a0a;">
+      <h2 style="margin: 0 0 12px;">Teste Resend</h2>
+      <p style="margin: 0 0 12px;">${escapeHtml(summary)}</p>
+    </div>
+  `.trim();
+
+  return { to, message: { subject, text, html, from } };
+}
+
 export function buildSmtpTestMail(args: { to: string; from: string; summary: string }): {
   to: string;
   message: { subject: string; text: string; html: string; from: string };
@@ -104,6 +128,13 @@ export function redactSettingsForAudit(input: Partial<CpcSystemSettings> | null 
   if (!input) return null;
   return {
     ...input,
+    resend: input.resend
+      ? {
+          apiKeySet: input.resend.apiKeySet,
+          fromEmail: input.resend.fromEmail,
+          enabled: input.resend.enabled,
+        }
+      : undefined,
     smtp: input.smtp
       ? {
           host: input.smtp.host,

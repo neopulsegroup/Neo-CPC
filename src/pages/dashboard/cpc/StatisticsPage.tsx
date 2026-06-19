@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, BarChart3, PieChart, Download, FileText, FileSpreadsheet, Users, CheckCircle, TrendingUp, Eye, X } from 'lucide-react';
 import {
@@ -119,17 +120,9 @@ export default function StatisticsPage() {
   const xlsxModuleRef = useRef<typeof import('xlsx') | null>(null);
   const xlsxLoaderRef = useRef<Promise<typeof import('xlsx')> | null>(null);
 
-  const locale = useMemo(() => {
-    if (language === 'en') return 'en-GB';
-    if (language === 'es') return 'es-ES';
-    if (language === 'fr') return 'fr-FR';
-    return 'pt-PT';
-  }, [language]);
+  const { locale, formatDate, formatMonthYear } = useAppDateTime();
+
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
-  const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' }),
-    [locale]
-  );
 
   function regionLabel(value: MigrantRegion): string {
     const keys: Record<MigrantRegion, string> = {
@@ -143,14 +136,12 @@ export default function StatisticsPage() {
     return t.get(keys[value]);
   }
   const monthLabels = useMemo(() => {
-    const d = new Date(2026, 0, 1);
     const labels: string[] = [];
     for (let i = 0; i < 12; i += 1) {
-      d.setMonth(i);
-      labels.push(d.toLocaleString(locale, { month: 'short' }));
+      labels.push(formatMonthYear(`2026-${String(i + 1).padStart(2, '0')}-01`));
     }
     return labels;
-  }, [locale]);
+  }, [formatMonthYear]);
 
   const dateRange = useMemo(() => {
     const base = startEndForPeriod(year, period);
@@ -902,7 +893,7 @@ export default function StatisticsPage() {
                     <td className="py-2 pr-4 font-medium">{row.name}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{row.email}</td>
                     <td className="py-2 pr-4">{regionLabel(row.region)}</td>
-                    <td className="py-2 pr-4">{row.registeredAt ? dateFormatter.format(row.registeredAt) : '—'}</td>
+                    <td className="py-2 pr-4">{formatDate(row.registeredAt)}</td>
                     <td className="py-2 pr-4">{row.startedPlan ? t.get('common.yes') : t.get('common.no')}</td>
                     <td className="py-2 pr-4">{row.completedPlan ? t.get('common.yes') : t.get('common.no')}</td>
                     <td className="py-2 pr-4">{numberFormatter.format(row.trailsCompleted)}</td>

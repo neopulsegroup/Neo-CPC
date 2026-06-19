@@ -6,25 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.submitContactForm = void 0;
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
-const firebase_functions_1 = require("firebase-functions");
 const admin_1 = require("./admin");
-const sendEmail_1 = require("./sendEmail");
-const CONTACT_CORS_ORIGINS = [
-    'https://www.portalcpc.com',
-    'https://portalcpc.com',
-    'https://cpc-projeto-app.web.app',
-    'https://cpc-projeto-app.firebaseapp.com',
-    'https://saas-cpc.vercel.app',
-    /^https:\/\/[\w-]+\.portalcpc\.com$/,
-    /^https:\/\/[\w-]+\.vercel\.app$/,
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:8090',
-    'http://localhost:4173',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:8090',
-];
+const contactMessageEmail_1 = require("./contactMessageEmail");
 function normalize(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -34,17 +17,11 @@ function normalizeEmail(value) {
 function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
-function escapeHtml(value) {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
+/** Callable legado — preferir gravação direta em `contact_messages` + trigger `onContactMessageCreated`. */
 exports.submitContactForm = (0, https_1.onCall)({
     region: 'us-central1',
     invoker: 'public',
-    cors: CONTACT_CORS_ORIGINS,
+    cors: true,
 }, async (request) => {
     const payload = (request.data || {});
     const name = normalize(payload.name);
@@ -60,38 +37,10 @@ exports.submitContactForm = (0, https_1.onCall)({
         throw new https_1.HttpsError('invalid-argument', 'Mensagem inválida.');
     }
     const db = (0, admin_1.getFirestore)();
-    const contactSnap = await db.doc('system_settings/contact').get();
-    const contactData = contactSnap.exists ? contactSnap.data() : null;
-    const toEmail = normalizeEmail(contactData?.notificationEmail) || 'geral@portalcpc.com';
-    const createdAtIso = new Date().toISOString();
-    const subject = `Novo contacto — ${name}`;
-    const text = `Novo contacto recebido.\n\n` +
-        `Nome: ${name}\n` +
-        `Email: ${email}\n` +
-        `Data: ${createdAtIso}\n\n` +
-        `Mensagem:\n${message}\n`;
-    const html = `
-      <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #0a0a0a;">
-        <h2 style="margin: 0 0 12px;">Novo contacto</h2>
-        <p style="margin: 0 0 6px;"><strong>Nome:</strong> ${escapeHtml(name)}</p>
-        <p style="margin: 0 0 6px;"><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p style="margin: 0 0 12px;"><strong>Data:</strong> ${escapeHtml(createdAtIso)}</p>
-        <div style="padding: 12px; background: #f6f7f9; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(message)}</div>
-      </div>
-    `.trim();
     try {
-        await (0, sendEmail_1.sendEmailViaSmtp)({
-            to: toEmail,
-            replyTo: email,
-            subject,
-            text,
-            html,
-        });
+        await (0, contactMessageEmail_1.sendContactNotificationEmail)({ name, email, message });
     }
-    catch (error) {
-        firebase_functions_1.logger.error('submitContactForm smtp error', {
-            message: error instanceof Error ? error.message : String(error ?? ''),
-        });
+    catch {
         throw new https_1.HttpsError('internal', 'Não foi possível enviar a mensagem neste momento.');
     }
     await db.collection('contact_messages').add({
@@ -99,7 +48,8 @@ exports.submitContactForm = (0, https_1.onCall)({
         email,
         message,
         source: '/contacto',
-        provider: 'smtp',
+        emailDeliveryStatus: 'sent',
+        emailSentAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(),
         createdAt: firebase_admin_1.default.firestore.FieldValue.serverTimestamp(),
     });
     return { ok: true };
