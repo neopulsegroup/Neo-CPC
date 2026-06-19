@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteDocument, getDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { formatJobQualificationSummary } from '@/features/jobs/jobOfferQualifications';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -57,8 +58,8 @@ export default function CpcJobOfferDetailPage() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, language } = useLanguage();
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const { toast } = useToast();
   const [job, setJob] = useState<JobOffer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -295,7 +296,7 @@ export default function CpcJobOfferDetailPage() {
               {job.created_at && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  {new Date(job.created_at).toLocaleDateString(locale)}
+                  {formatDate(job.created_at)}
                 </span>
               )}
               {job.sector && (

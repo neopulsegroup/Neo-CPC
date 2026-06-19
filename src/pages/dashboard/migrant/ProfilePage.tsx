@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +23,11 @@ import { updateDocument } from '@/integrations/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { storage } from '@/integrations/firebase/client';
 import { getDownloadURL, ref as makeStorageRef, uploadBytes } from 'firebase/storage';
+import {
+  buildProfilePhotoStoragePath,
+  deleteProfilePhotoFromStorage,
+  resolveProfilePhotoStoragePath,
+} from '@/lib/profilePhotoStorage';
 import { defaultBranding, fetchDocumentBranding } from '@/lib/documentBranding';
 import {
   PDF_BRANDING_FOOTER_HEIGHT_PT,
@@ -29,7 +35,7 @@ import {
   applyBrandingToAllPdfLibPages,
   embedBrandingImagesForPdfLib,
 } from '@/lib/pdfLibDocumentBranding';
-import { APP_TIME_ZONE, todayIsoAppCalendar } from '@/lib/appCalendar';
+import { todayIsoAppCalendar } from '@/lib/appCalendar';
 import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
 import { cepDigitsPortugal, formatPortugalCepDigits, lookupAddressFromPortugalCep } from '@/lib/portugalCepLookup';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
@@ -203,6 +209,7 @@ export default function ProfilePage() {
   const { migrantId } = useParams<{ migrantId?: string }>();
   const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
+  const { formatDate, formatDateTime, formatMonthYear } = useAppDateTime();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -550,10 +557,8 @@ export default function ProfilePage() {
     if (!raw) return null;
     const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)?.[0] || null;
     if (!iso) return raw;
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return raw;
-    const label = d.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' });
-    return label ? label.replace(/\.$/, '') : raw;
+    const label = formatMonthYear(iso);
+    return label || raw;
   }, [triageAnswers]);
 
   const integrationScales = useMemo(() => {
@@ -619,7 +624,7 @@ export default function ProfilePage() {
   const upcomingSessions = useMemo(() => {
     const today = todayIsoAppCalendar();
     return sessionsSorted
-      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today))
+      .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, today, s.scheduled_time))
       .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.scheduled_time.localeCompare(b.scheduled_time))
       .slice(0, 3);
   }, [sessionsSorted]);
@@ -1121,7 +1126,7 @@ export default function ProfilePage() {
         .map((p) => {
           const trail = trails[p.trail_id] || null;
           const title = trail?.title || p.trail_id || 'Trilha';
-          const date = p.completed_at ? new Date(p.completed_at).toLocaleDateString('pt-PT') : null;
+          const date = p.completed_at ? formatDate(p.completed_at) : null;
           return { title, meta: [date, 'Avaliação: —'].filter(Boolean).join(' · ') };
         });
 
@@ -1144,14 +1149,14 @@ export default function ProfilePage() {
       const sessionsMissed = (data?.sessions || []).filter((s) => (s.status || '').toLowerCase() === 'missed' || (s.status || '').toLowerCase() === 'faltou');
 
       const sessionsItems = sessionsDone.map((s) => {
-        const date = s.scheduled_date ? new Date(s.scheduled_date).toLocaleDateString('pt-PT') : '—';
+        const date = s.scheduled_date ? formatDate(s.scheduled_date) : '—';
         const meta = [`${date} ${s.scheduled_time || ''}`.trim(), 'Observações: —'].filter(Boolean).join(' · ');
         const title = s.session_type ? `Sessão (${s.session_type})` : 'Sessão';
         return { title, meta };
       });
 
       const activityItems = activities.map((a) => {
-        const dateStr = a.date ? new Date(a.date).toLocaleDateString('pt-PT') : '';
+        const dateStr = a.date ? formatDate(a.date) : '';
         const dur = formatActivityDurationShort(a);
         const primary = [dateStr || null, dur].filter(Boolean).join(' • ');
         const meta = [primary || null, a.status ? `Estado: ${formatActivityStatusListLabel(a.status)}` : null].filter(Boolean).join(' · ');
@@ -1253,9 +1258,7 @@ export default function ProfilePage() {
       const completedAt = typeof triageDoc.completedAt === 'string' ? triageDoc.completedAt : null;
       const completedAtLabel = (() => {
         if (!completedAt) return null;
-        const d = new Date(completedAt);
-        if (Number.isNaN(d.getTime())) return completedAt;
-        return d.toLocaleString('pt-PT');
+        return formatDateTime(completedAt);
       })();
 
       const pdfDoc = await PDFDocument.create();
@@ -1441,7 +1444,7 @@ export default function ProfilePage() {
     const isAllowedByExt = ['jpg', 'jpeg', 'png', 'gif'].includes(fileExt);
     const isAllowedByMime = file.type ? PHOTO_ALLOWED_MIME.has(file.type) : false;
 
-    if (!user || !targetUserId) {
+    if (!user || !targetUserId || isViewingOtherUser || targetUserId !== user.uid) {
       toast({ title: 'Sessão expirada', description: 'Inicie sessão novamente e tente outra vez.', variant: 'destructive' });
       return;
     }
@@ -1461,11 +1464,16 @@ export default function ProfilePage() {
     }
 
     setUploadingPhoto(true);
-    let stage: 'upload' | 'url' | 'db' = 'upload';
+    let stage: 'delete' | 'upload' | 'url' | 'db' = 'delete';
     try {
-      const safeName = file.name.replace(/[^\w.+-]+/g, '-').slice(0, 80) || 'foto';
-      const path = `profile_photos/${targetUserId}/${Date.now()}-${safeName}`;
-      const ref = makeStorageRef(storage, path);
+      const newPath = buildProfilePhotoStoragePath(targetUserId);
+      const previousPhotoUrl = profileDoc?.photoUrl ?? null;
+      const previousPath = resolveProfilePhotoStoragePath(previousPhotoUrl, targetUserId);
+      if (previousPath && previousPath !== newPath) {
+        await deleteProfilePhotoFromStorage(previousPhotoUrl, targetUserId);
+      }
+
+      const ref = makeStorageRef(storage, newPath);
 
       stage = 'upload';
       await uploadBytes(ref, file, { contentType: file.type || undefined });
@@ -1485,6 +1493,15 @@ export default function ProfilePage() {
       toast({ title: 'Foto atualizada', description: 'A sua foto de perfil foi atualizada com sucesso.' });
     } catch (err: unknown) {
       const code = typeof err === 'object' && err !== null && 'code' in err ? String((err as { code?: unknown }).code) : '';
+
+      if (stage === 'delete') {
+        if (code === 'storage/unauthorized') {
+          toast({ title: 'Sem permissão', description: 'Não foi possível remover a foto anterior.', variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Erro', description: 'Não foi possível preparar o envio da nova foto. Tente novamente.', variant: 'destructive' });
+        return;
+      }
 
       if (stage === 'upload') {
         if (code === 'storage/unauthorized') {
@@ -1538,9 +1555,10 @@ export default function ProfilePage() {
   }
 
   async function removeProfilePhoto() {
-    if (!user || !targetUserId) return;
+    if (!user || !targetUserId || isViewingOtherUser || targetUserId !== user.uid) return;
     setUploadingPhoto(true);
     try {
+      await deleteProfilePhotoFromStorage(profileDoc?.photoUrl, targetUserId);
       await updateDocument('profiles', targetUserId, { photoUrl: null });
       setData((prev) => {
         if (!prev) return prev;
@@ -1619,7 +1637,7 @@ export default function ProfilePage() {
                   e.currentTarget.value = '';
                   if (file) void uploadProfilePhoto(file);
                 }}
-                disabled={uploadingPhoto}
+                disabled={uploadingPhoto || isViewingOtherUser}
               />
 
               {uploadingPhoto ? (
@@ -1629,6 +1647,7 @@ export default function ProfilePage() {
                 </div>
               ) : null}
 
+              {!isViewingOtherUser ? (
               <button
                 type="button"
                 className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full border bg-background shadow-sm flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
@@ -1638,6 +1657,7 @@ export default function ProfilePage() {
               >
                 <Camera className="h-4 w-4 text-muted-foreground" />
               </button>
+              ) : null}
             </div>
 
             <div className="min-w-0">
@@ -2171,7 +2191,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {profileDoc.photoUrl ? (
+            {profileDoc.photoUrl && !isViewingOtherUser ? (
               <div className="sm:col-span-2 pt-1">
                 <Button type="button" variant="ghost" size="sm" className="px-0" disabled={uploadingPhoto} onClick={removeProfilePhoto}>
                   Remover foto
@@ -2269,7 +2289,7 @@ export default function ProfilePage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium">{new Date(s.scheduled_date).toLocaleDateString('pt-PT')}</p>
+                      <p className="text-sm font-medium">{formatDate(s.scheduled_date)}</p>
                       <p className="text-xs text-muted-foreground">{s.scheduled_time}</p>
                     </div>
                   </div>
@@ -2317,12 +2337,7 @@ export default function ProfilePage() {
                           {(() => {
                             const datePart =
                               a.date && /^\d{4}-\d{2}-\d{2}$/.test(a.date)
-                                ? new Intl.DateTimeFormat('pt-PT', {
-                                    timeZone: APP_TIME_ZONE,
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  }).format(new Date(`${a.date}T12:00:00Z`))
+                                ? formatDate(a.date)
                                 : null;
                             const dur = formatActivityDurationShort(a);
                             if (datePart && dur) return `${datePart} • ${dur}`;

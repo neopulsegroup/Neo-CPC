@@ -5,6 +5,7 @@ import { FileText, GraduationCap, Languages, Briefcase, User, Save, Mail, Phone,
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { Language } from '@/lib/i18n';
+import { formatAppMonthYear } from '@/lib/appDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { exportCurriculumPreviewToPdf, sanitizeCurriculumPdfFileName } from '@/features/curriculum/exportCurriculumPdf';
 import { getCurriculumLanguageSuggestions, getCurriculumSkillSuggestions } from '@/features/curriculum/skillLanguageSuggestions';
@@ -114,11 +115,8 @@ function localeTag(language: Language): string {
 function formatMonthYear(ym: string, language: Language): string {
   const m = ym.match(/^(\d{4})-(\d{2})$/);
   if (!m) return '';
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  if (mo < 0 || mo > 11) return ym;
   try {
-    return new Date(y, mo, 1).toLocaleDateString(localeTag(language), { month: 'short', year: 'numeric' });
+    return formatAppMonthYear(`${m[1]}-${m[2]}-01`, { locale: language });
   } catch {
     return ym;
   }

@@ -1,4 +1,5 @@
 import { splitCsvLike } from '@/components/curriculum/CurriculumTagAutocomplete';
+import { formatAppMonthYear } from '@/lib/appDateTime';
 
 export type ProfileDoc = Record<string, unknown>;
 
@@ -184,8 +185,5 @@ export function localeForLanguage(language: string): string {
 export function formatMonthYear(ym: string, locale: string): string {
   const m = ym.match(/^(\d{4})-(\d{2})$/);
   if (!m) return '';
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  if (mo < 0 || mo > 11) return '';
-  return new Date(y, mo, 1).toLocaleDateString(locale, { month: 'short', year: 'numeric' });
+  return formatAppMonthYear(`${m[1]}-${m[2]}-01`, { locale });
 }

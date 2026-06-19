@@ -3,6 +3,7 @@ import { Layout } from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import ContentEditorPage from '@/pages/dashboard/cpc/ContentEditorPage';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import ServiceAreasAdminPage from '@/pages/dashboard/cpc/ServiceAreasAdminPage';
@@ -12,11 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_SCHEMAS } from '@/features/cms/pageSchemas';
-import { countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, updateDocument } from '@/integrations/firebase/firestore';
+import { countDocuments, deleteDocument, getDocument, queryDocuments, serverTimestamp, setDocument, subscribeQuery, updateDocument } from '@/integrations/firebase/firestore';
 import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
 import { registerUser } from '@/integrations/firebase/auth';
 import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
 import {
+  Bell,
   Building2,
   Users,
   Calendar,
@@ -41,12 +43,12 @@ import {
   Settings,
   Languages,
   ClipboardList,
+  ListChecks,
   Trash2,
   Search,
   ScrollText,
 } from 'lucide-react';
 import {
-  APP_TIME_ZONE,
   addCalendarDaysIso,
   getCalendarDateIsoInAppTimeZone,
   monthStartEndIsoInAppTimeZone,
@@ -67,6 +69,14 @@ import {
   type CpcTeamRole,
 } from '@/lib/cpcRoles';
 import { isMigrantUpcomingSession, isSessionPendingApproval } from '@/lib/sessionApproval';
+import { countPendingSupportRequests } from '@/lib/supportRequests';
+import { formatAppNotificationTimestampParts } from '@/lib/appDateTime';
+import {
+  type DashboardNotificationDoc,
+  type DashboardNotificationView,
+  sortDashboardNotificationsNewestFirst,
+} from '@/lib/dashboardNotifications';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 
 type CpcDashboardSessionDoc = {
@@ -228,24 +238,12 @@ export default function CPCDashboard() {
     Array<{ id: string; migrant: string; type: string; timeLabel: string; status: string; statusRaw?: string | null }>
   >([]);
   const [messagesPending, setMessagesPending] = useState(0);
+  const [dbNotifications, setDbNotifications] = useState<DashboardNotificationView[]>([]);
   const [sidebarAccordionValue, setSidebarAccordionValue] = useState<string>('');
 
-  const locale = useMemo(() => {
-    if (language === 'en') return 'en-GB';
-    if (language === 'es') return 'es-ES';
-    if (language === 'fr') return 'fr-FR';
-    return 'pt-PT';
-  }, [language]);
+  const { locale, formatDate, formatDateTime, formatDateLong } = useAppDateTime();
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
-  const shortDateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', timeZone: APP_TIME_ZONE }),
-    [locale]
-  );
-  const longDateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { timeZone: APP_TIME_ZONE }),
-    [locale]
-  );
 
   function formatSessionStatusLabel(status?: string | null): string {
     if (isSessionPendingApproval(status)) return t.get('cpc.sessions.status.pending_approval');
@@ -257,10 +255,7 @@ export default function CPCDashboard() {
 
   function formatSessionTimeLabel(scheduledDateIso: string, scheduledTime: string, todayIso: string): string {
     if (scheduledDateIso === todayIso) return scheduledTime;
-    const [year, month, day] = scheduledDateIso.split('-').map(Number);
-    if (!year || !month || !day) return scheduledTime;
-    const date = new Date(year, month - 1, day);
-    return `${shortDateFormatter.format(date)} · ${scheduledTime}`;
+    return `${formatDate(scheduledDateIso)} · ${scheduledTime}`;
   }
 
   function formatKpiChange(current: number, prev: number): { label: string; className: string } {
@@ -360,6 +355,12 @@ export default function CPCDashboard() {
     useEffect(() => {
       loadTeam();
     }, []);
+
+    useEffect(() => {
+      if (!canManageTeam) {
+        void logUnauthorizedAttempt('cpc.team.page_access');
+      }
+    }, [canManageTeam]);
 
     async function handleCreateUser() {
       if (!canManageTeam) {
@@ -834,7 +835,7 @@ export default function CPCDashboard() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm">{new Date(r.created_at).toLocaleString(locale)}</p>
+                  <p className="text-sm">{formatDateTime(r.created_at)}</p>
                   <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">{r.status}</span>
                 </div>
               </div>
@@ -1016,7 +1017,7 @@ export default function CPCDashboard() {
                         {r.company_name} {r.location ? `• ${r.location}` : ''}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {r.created_at ? new Date(r.created_at).toLocaleDateString(locale) : '—'}
+                        {formatDate(r.created_at)}
                       </p>
                       <p className="text-xs text-primary mt-2">{t.get('cpc.pages.offers.viewDetails')}</p>
                     </div>
@@ -1167,13 +1168,13 @@ export default function CPCDashboard() {
             subtitle: `${relative}${title}`,
             statusLabel,
             statusClassName,
-            dateLabel: shortDateFormatter.format(createdAt),
+            dateLabel: formatDate(createdAt),
           };
         });
         setRecentMigrants(recentList);
 
         const upcomingSessTyped = allSessions
-          .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, todayISO))
+          .filter((s) => isMigrantUpcomingSession(s.status, s.scheduled_date, todayISO, s.scheduled_time))
           .slice(0, 6);
         const migrantIds = Array.from(new Set(upcomingSessTyped.map((s) => s.migrant_id).filter(Boolean)));
         const migrantMap: Record<string, string> = {};
@@ -1195,7 +1196,6 @@ export default function CPCDashboard() {
 
         try {
           let pendingChats = 0;
-          let pendingUrgencies = 0;
           firebaseMigrants.forEach((migrant) => {
             const chatRaw = localStorage.getItem(`chat:${migrant.id}`);
             if (chatRaw) {
@@ -1204,12 +1204,8 @@ export default function CPCDashboard() {
                 pendingChats += 1;
               }
             }
-            const urgentRaw = localStorage.getItem(`urgentRequests:${migrant.id}`);
-            if (urgentRaw) {
-              const urgentList = JSON.parse(urgentRaw) as Array<{ status?: string }>;
-              pendingUrgencies += urgentList.filter((item) => ['submetido', 'pending', 'pendente'].includes(normalizeText(item.status))).length;
-            }
           });
+          const pendingUrgencies = await countPendingSupportRequests().catch(() => 0);
           setMessagesPending(pendingChats + pendingUrgencies);
         } catch { setMessagesPending(0); }
       } finally {
@@ -1218,6 +1214,26 @@ export default function CPCDashboard() {
     }
     fetchOverview();
   }, [period]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setDbNotifications([]);
+      return;
+    }
+
+    const unsubscribe = subscribeQuery<DashboardNotificationDoc>({
+      collectionName: 'notifications',
+      filters: [{ field: 'recipient_id', operator: '==', value: user.uid }],
+      onNext: (docs) => {
+        setDbNotifications(sortDashboardNotificationsNewestFirst(docs ?? [], 20));
+      },
+      onError: () => setDbNotifications([]),
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  const visibleNotifications = useMemo(() => dbNotifications.slice(0, 4), [dbNotifications]);
 
   const migrantsDelta = migrantsPeriodNew - migrantsPrevNew;
   const sessionsDelta = sessionsPeriodCount - sessionsPrevCount;
@@ -1307,6 +1323,7 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/migrantes', label: t.get('cpc.menu.migrants'), icon: Users },
     { to: '/dashboard/cpc/atividades', label: t.get('cpc.menu.activities'), icon: ClipboardList },
     { to: '/dashboard/cpc/agenda', label: t.get('cpc.menu.agenda'), icon: Calendar },
+    { to: '/dashboard/cpc/sessoes', label: t.get('cpc.menu.sessions'), icon: ListChecks },
     { to: '/dashboard/cpc/empresas', label: t.get('cpc.menu.companies'), icon: Building2 },
     { to: '/dashboard/cpc/candidaturas', label: t.get('cpc.menu.applications'), icon: FileText },
     { to: '/dashboard/cpc/ofertas', label: t.get('cpc.menu.offers'), icon: Briefcase },
@@ -1459,7 +1476,7 @@ export default function CPCDashboard() {
                       {t.get('cpc.dashboard.welcome')}, <span className="text-primary">{cpcDisplayName}</span>
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {t.get('cpc.dashboard.today_summary', { date: longDateFormatter.format(new Date()) })}
+                      {t.get('cpc.dashboard.today_summary', { date: formatDateLong(new Date()) })}
                     </p>
                   </div>
 
@@ -1570,6 +1587,50 @@ export default function CPCDashboard() {
                     </div>
 
                     <div className="space-y-6">
+                      <Card className="p-0">
+                        <CardHeader className="pb-2">
+                          <h3 className="font-semibold flex items-center gap-2">
+                            <Bell className="h-4 w-4" />
+                            {t.get('dashboard.notifications')}
+                          </h3>
+                        </CardHeader>
+                        <CardContent>
+                          {visibleNotifications.length > 0 ? (
+                            <div className="space-y-3">
+                              {visibleNotifications.map((n) => {
+                                const isWarn = n.type === 'warning';
+                                const baseClass = `p-3 rounded-lg flex flex-col gap-1 ${isWarn ? 'border border-amber-200 bg-amber-50/60' : 'bg-muted/50'}`;
+                                const content = (
+                                  <>
+                                    <p className="font-medium text-sm">{n.title}</p>
+                                    <p className="text-xs text-muted-foreground line-clamp-3">{n.body}</p>
+                                    <span className="text-[10px] text-muted-foreground mt-1">
+                                      {(() => {
+                                        const parts = formatAppNotificationTimestampParts(n.date, { locale: language });
+                                        return parts
+                                          ? t.get('dashboard.notification_created_at', parts)
+                                          : '—';
+                                      })()}
+                                    </span>
+                                  </>
+                                );
+                                return n.href ? (
+                                  <Link key={n.id} to={n.href} className={`${baseClass} hover:bg-amber-50`}>
+                                    {content}
+                                  </Link>
+                                ) : (
+                                  <div key={n.id} className={baseClass}>
+                                    {content}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">{t.get('dashboard.no_notifications')}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+
                       <div className="cpc-card p-6">
                         <h2 className="text-lg font-semibold">{t.get('cpc.quickActions.title')}</h2>
                         <p className="text-sm text-muted-foreground mt-1">{t.get('cpc.quickActions.subtitle')}</p>
@@ -1619,6 +1680,7 @@ export default function CPCDashboard() {
                 <Route path="atividades/:activityId" element={<ActivityDetailsPage />} />
                 <Route path="atividades/:activityId/editar" element={<ActivityEditorPage />} />
                 <Route path="agenda" element={<TeamAgendaPage />} />
+                <Route path="sessoes" element={<CpcSessionsPage />} />
                 <Route path="empresas" element={<CompaniesAdminPage />} />
                 <Route path="empresas/:companyId" element={<CpcCompanyDetailPage />} />
                 <Route path="candidaturas" element={<CandidaturasDetalhadas />} />
@@ -1660,6 +1722,7 @@ export default function CPCDashboard() {
 import CandidateProfilePage from './company/CandidateProfilePage';
 import MigrantsAdminPage from './cpc/MigrantsAdminPage';
 import TeamAgendaPage from './cpc/TeamAgendaPage';
+import CpcSessionsPage from './cpc/CpcSessionsPage';
 import MigrantProfilePage from './migrant/ProfilePage';
 import TrailsAdminPage from './cpc/TrailsAdminPage';
 import TrailEditorPage from './cpc/TrailEditorPage';

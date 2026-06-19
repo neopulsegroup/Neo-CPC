@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { addDocument, queryDocuments, serverTimestamp, subscribeQuery, updateDocument } from '@/integrations/firebase/firestore';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { CirclePlus, Download, EllipsisVertical, FileSpreadsheet, FileText, Loader2, MessagesSquare, Paperclip, Phone, Plus, Send, Smile, Video } from 'lucide-react';
 import { buildCpcMessagesDocx, buildCpcMessagesPrintHtml, buildCpcMessagesXlsx, formatMessageExportDate } from './messagesExport';
@@ -126,12 +127,7 @@ export default function CPCMessagesPage() {
   const xlsxLoaderRef = useRef<Promise<typeof import('xlsx')> | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  const locale = useMemo(() => {
-    if (language === 'en') return 'en-GB';
-    if (language === 'es') return 'es-ES';
-    if (language === 'fr') return 'fr-FR';
-    return 'pt-PT';
-  }, [language]);
+  const { locale, formatDateTime } = useAppDateTime();
 
   const filterLabel = useMemo(() => {
     const key =
@@ -240,7 +236,7 @@ export default function CPCMessagesPage() {
         formatMessageExportDate(m.created_at, locale),
       ]);
 
-      const dateStr = new Date().toLocaleString(locale);
+      const dateStr = formatDateTime(new Date());
       const intro = t.get('messagesPage.export.intro', { date: dateStr, filter: filterLabel });
       const messagesNote = activeConversationId
         ? t.get('messagesPage.export.noteActiveConversation')

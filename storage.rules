@@ -11,6 +11,17 @@ service firebase.storage {
         && request.auth.uid == userId
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Avatar legado ou ficheiros antigos em subpasta (não branding/capas).
+    match /profile_photos/{userId}/{fileName} {
+      allow read: if true;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
 
     match /profile_photos/{userId}/document_branding/{fileName} {
@@ -19,6 +30,33 @@ service firebase.storage {
         && request.auth.uid == userId
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+    }
+
+    match /profile_photos/{userId}/trail_covers/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /profile_photos/{userId}/trail_module_covers/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /profile_photos/{userId}/trail_module_pdfs/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     match /company_logos/{userId}/{fileName} {

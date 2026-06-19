@@ -5,8 +5,8 @@ export const COMMUNICATION_DEFAULTS = {
   notificationEmail: 'geral@portalcpc.com',
   smtp: {
     host: 'mail.portalcpc.com',
-    port: 587,
-    security: 'tls' as SmtpSecurity,
+    port: 465,
+    security: 'ssl' as SmtpSecurity,
     username: 'geral@portalcpc.com',
     fromEmail: 'geral@portalcpc.com',
   },

@@ -4,6 +4,7 @@ import { countDocuments, getDocument, queryDocuments, setDocument, updateDocumen
 import { resolveJobOfferCompanyIds } from '@/pages/dashboard/company/companyDashboardHomeData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -54,7 +55,8 @@ function createdAtToIso(value: unknown): string {
 
 export default function MyJobsPage() {
   const { user, profile, profileData } = useAuth();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const { locale, formatDate } = useAppDateTime();
   const { toast } = useToast();
   const { canPublish, status, loading: verificationLoading } = useCompanyVerification();
   const location = useLocation();
@@ -366,23 +368,7 @@ export default function MyJobsPage() {
     return { label: t.get('company.offers.status.other'), color: 'bg-muted text-muted-foreground' };
   };
 
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
   const numberFormatter = new Intl.NumberFormat(locale);
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
-    [locale]
-  );
-
-  function formatDate(value: string) {
-    if (!value) return '—';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date);
-  }
 
   const shownFrom = filteredCount === 0 ? 0 : pageIndex * PAGE_SIZE + 1;
   const shownTo = Math.min(pageIndex * PAGE_SIZE + jobs.length, filteredCount);

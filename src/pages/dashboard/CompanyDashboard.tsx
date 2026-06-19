@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PhoneInput, companyPhoneForPayload, formatPhoneValueForDisplay } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { getDocument, queryDocuments, setDocument, updateDocument } from '@/integrations/firebase/firestore';
 import { storage } from '@/integrations/firebase/client';
@@ -558,21 +559,13 @@ const EMPTY_HOME_SNAPSHOT: CompanyHomeSnapshot = {
 
 function CompanyHome({ canPublish }: { canPublish: boolean }) {
   const { user, profile, profileData } = useAuth();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const { toast } = useToast();
+  const { locale, formatDate, formatDateLong } = useAppDateTime();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<CompanyHomeSnapshot>(EMPTY_HOME_SNAPSHOT);
 
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
-  const shortDateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: '2-digit',
-        month: 'short',
-      }),
-    [locale]
-  );
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
 
   useEffect(() => {
@@ -722,8 +715,7 @@ function CompanyHome({ canPublish }: { canPublish: boolean }) {
                       <p className="text-sm text-muted-foreground truncate">
                         {row.jobTitle} •{' '}
                         {(() => {
-                          const d = new Date(row.createdAt || '');
-                          return Number.isNaN(d.getTime()) ? '—' : shortDateFormatter.format(d);
+                          return formatDate(row.createdAt || '');
                         })()}
                       </p>
                     </div>
@@ -763,13 +755,11 @@ function CompanyHome({ canPublish }: { canPublish: boolean }) {
 
 export default function CompanyDashboard() {
   const location = useLocation();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const { formatDateLong } = useAppDateTime();
   const { status, canPublish, loading: verificationLoading } = useCompanyVerification();
   const displayName = useDashboardDisplayName();
   const isHome = location.pathname === '/dashboard/empresa' || location.pathname === '/dashboard/empresa/';
-
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
-  const longDateFormatter = new Intl.DateTimeFormat(locale);
 
   const sidebarItemsMain = [
     { to: '/dashboard/empresa', label: t.get('company.menu.overview'), icon: TrendingUp },
@@ -840,7 +830,7 @@ export default function CompanyDashboard() {
                       <span className="text-primary">{displayName}</span>
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {t.get('company.dashboard.summary', { date: longDateFormatter.format(new Date()) })}
+                      {t.get('company.dashboard.summary', { date: formatDateLong(new Date()) })}
                     </p>
                   </div>
                   {canPublish ? (

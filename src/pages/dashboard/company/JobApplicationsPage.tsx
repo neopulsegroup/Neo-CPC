@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { CVUploadButton } from '@/features/cv/CVUploadButton';
 import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/ApplicantProfileUnavailableBadge';
@@ -44,7 +45,8 @@ interface JobOffer {
 
 export default function JobApplicationsPage() {
   const { jobId } = useParams();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const { formatDate } = useAppDateTime();
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [job, setJob] = useState<JobOffer | null>(null);
@@ -144,8 +146,6 @@ export default function JobApplicationsPage() {
     }
   };
 
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -228,7 +228,7 @@ export default function JobApplicationsPage() {
                       <div className="mt-4 pt-4 border-t border-border">
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {t.get('company.applications.appliedOn', { date: new Date(app.created_at).toLocaleDateString(locale) })}
+                          {t.get('company.applications.appliedOn', { date: formatDate(app.created_at) })}
                         </p>
                         {app.cover_letter && (
                           <p className="text-sm mt-2 line-clamp-2">{app.cover_letter}</p>
@@ -265,7 +265,7 @@ export default function JobApplicationsPage() {
                     <div>
                       <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.date')}</label>
                       <p className="font-medium">
-                        {new Date(selectedApplication.created_at).toLocaleDateString(locale)}
+                        {formatDate(selectedApplication.created_at)}
                       </p>
                     </div>
 

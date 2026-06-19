@@ -6,6 +6,7 @@ import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/Appl
 import { loadApplicantIdentityMap } from '@/pages/dashboard/company/applicantIdentity';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,7 +78,8 @@ function normalizeStatus(value: string | null | undefined): ApplicationStatus {
 
 export default function CompanyApplicationsPage() {
   const { user, profile, profileData } = useAuth();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
+  const { locale, formatDate } = useAppDateTime();
   const { toast } = useToast();
 
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -94,7 +96,6 @@ export default function CompanyApplicationsPage() {
   const [dateTo, setDateTo] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'pt-PT';
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
 
   useEffect(() => {
@@ -381,10 +382,8 @@ export default function CompanyApplicationsPage() {
     return <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">{t.get(labelKey)}</span>;
   }
 
-  function formatDate(value: string) {
-    if (!value) return '—';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale);
+  function formatApplicationDate(value: string) {
+    return formatDate(value);
   }
 
   if (loadingInitial) {
@@ -527,7 +526,7 @@ export default function CompanyApplicationsPage() {
                         <Mail className="h-3.5 w-3.5" />
                         {row.applicantEmail || '—'}
                       </span>
-                      <span>{formatDate(row.createdAt)}</span>
+                      <span>{formatApplicationDate(row.createdAt)}</span>
                     </p>
                     <p className="text-sm mt-2 inline-flex items-center gap-2">
                       <Briefcase className="h-4 w-4 text-muted-foreground" />

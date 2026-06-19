@@ -39,9 +39,11 @@ function useUnsavedChangesWarning(when: boolean) {
   }, [when]);
 }
 
+import { formatAppDate } from '@/lib/appDateTime';
+
 function formatDate(date: Date | null): string {
   if (!date) return 'Nunca';
-  return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(date);
+  return formatAppDate(date, { day: '2-digit', month: '2-digit' });
 }
 
 function shouldSpanTwoColumns(key: string): boolean {

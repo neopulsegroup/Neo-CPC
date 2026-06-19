@@ -1,3 +1,5 @@
+import { formatAppDateTime } from '@/lib/appDateTime';
+
 export function escapeHtmlForMessagesExport(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -10,18 +12,18 @@ export function escapeHtmlForMessagesExport(value: string): string {
 export function formatMessageExportDate(value: unknown, locale: string): string {
   if (!value) return '—';
   try {
-    if (value instanceof Date) return value.toLocaleString(locale);
+    if (value instanceof Date) return formatAppDateTime(value, { locale });
     if (typeof value === 'string' || typeof value === 'number') {
       const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString(locale);
+      return Number.isNaN(d.getTime()) ? '—' : formatAppDateTime(d, { locale });
     }
     if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate: () => Date }).toDate === 'function') {
       const d = (value as { toDate: () => Date }).toDate();
-      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString(locale);
+      return Number.isNaN(d.getTime()) ? '—' : formatAppDateTime(d, { locale });
     }
     if (typeof value === 'object' && value !== null && 'seconds' in value && typeof (value as { seconds: number }).seconds === 'number') {
       const d = new Date((value as { seconds: number }).seconds * 1000);
-      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString(locale);
+      return Number.isNaN(d.getTime()) ? '—' : formatAppDateTime(d, { locale });
     }
   } catch {
     return '—';

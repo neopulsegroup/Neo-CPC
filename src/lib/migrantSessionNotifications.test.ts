@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { notifyMigrantSessionScheduled, sessionScheduledNotificationId } from './migrantSessionNotifications';
+import { notifyMigrantSessionScheduled, sessionScheduledNotificationId, isSessionScheduledNotificationVisible } from './migrantSessionNotifications';
 
 const mockSetDocument = vi.fn();
 
@@ -39,5 +39,25 @@ describe('migrantSessionNotifications', () => {
         created_by: 'cpc-user',
       })
     );
+  });
+
+  it('oculta notificação quando a sessão já passou', () => {
+    const beforeSession = new Date('2026-06-17T13:30:00.000Z'); // 14:30 em Lisboa
+    const afterSession = new Date('2026-06-17T14:30:00.000Z'); // 15:30 em Lisboa
+    expect(
+      isSessionScheduledNotificationVisible(
+        { id: 'session_notify_s1', type: 'session_scheduled' },
+        [{ id: 's1', status: 'Agendada', scheduled_date: '2026-06-17', scheduled_time: '15:00' }],
+        beforeSession
+      )
+    ).toBe(true);
+    expect(
+      isSessionScheduledNotificationVisible(
+        { id: 'session_notify_s1', type: 'session_scheduled' },
+        [{ id: 's1', status: 'Agendada', scheduled_date: '2026-06-17', scheduled_time: '15:00' }],
+        afterSession
+      )
+    ).toBe(false);
+    expect(isSessionScheduledNotificationVisible({ id: 'other', type: 'info' }, [], beforeSession)).toBe(true);
   });
 });

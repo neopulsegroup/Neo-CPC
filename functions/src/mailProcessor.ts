@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { getFirestore } from './admin';
 import { buildServerAuditLogContext } from './auditLogHelpers';
+import { isResendConfigured, loadResendSettings, sendWithResend } from './resendMail';
 import { createTransport, type SmtpSettings } from './smtp';
 
 type MailDoc = {
@@ -85,21 +86,33 @@ export async function processMailDocument(mailId: string): Promise<void> {
     return;
   }
 
-  const smtp = await loadSmtpSettings();
-  const transporter = createTransport(smtp);
-  const from = safeString(docData.message?.from).trim() || smtp.fromEmail;
-
+  const fromOverride = safeString(docData.message?.from).trim() || undefined;
   const sendStartedAt = Date.now();
 
   try {
-    await transporter.sendMail({
-      to,
-      from,
-      replyTo,
-      subject,
-      text: text || undefined,
-      html: html || undefined,
-    });
+    if (await isResendConfigured()) {
+      const resend = await loadResendSettings();
+      await sendWithResend(resend, {
+        to,
+        from: fromOverride,
+        replyTo,
+        subject,
+        text: text || undefined,
+        html: html || undefined,
+      });
+    } else {
+      const smtp = await loadSmtpSettings();
+      const transporter = createTransport(smtp);
+      const from = fromOverride || smtp.fromEmail;
+      await transporter.sendMail({
+        to,
+        from,
+        replyTo,
+        subject,
+        text: text || undefined,
+        html: html || undefined,
+      });
+    }
     const durationMs = Date.now() - sendStartedAt;
     await ref.set({ status: 'sent', sentAt: admin.firestore.FieldValue.serverTimestamp(), errorMessage: null }, { merge: true });
     await auditRef.add({
@@ -112,7 +125,7 @@ export async function processMailDocument(mailId: string): Promise<void> {
     });
   } catch (error: unknown) {
     const durationMs = Date.now() - sendStartedAt;
-    const msg = error instanceof Error ? error.message : 'Erro no envio SMTP.';
+    const msg = error instanceof Error ? error.message : 'Erro no envio de email.';
     await ref.set({ status: 'error', errorMessage: truncate(msg, 800) }, { merge: true });
     await auditRef.add({
       action: 'mail_send_error',

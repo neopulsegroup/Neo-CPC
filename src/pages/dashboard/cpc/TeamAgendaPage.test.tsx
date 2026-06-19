@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import TeamAgendaPage from './TeamAgendaPage';
@@ -7,6 +7,14 @@ let currentLanguage: 'pt' | 'en' | 'es' | 'fr' = 'pt';
 
 const messages = {
   pt: {
+    dashboard: {
+      support_types: {
+        juridico: 'Apoio Jurídico',
+        psicologico: 'Apoio Psicológico',
+        habitacional: 'Apoio Habitacional',
+        necessidades: 'Outras Necessidades',
+      },
+    },
     cpc: {
       agenda: {
         header: { today: 'Hoje', previous: 'Período anterior', next: 'Período seguinte', filterBy: 'Filtrar por', week: 'Semana', month: 'Mês', newSession: 'Nova sessão' },
@@ -33,7 +41,7 @@ const messages = {
           validation: 'Preencha todos os campos obrigatórios.',
         },
         weekdays: { mon: 'SEG', tue: 'TER', wed: 'QUA', thu: 'QUI', fri: 'SEX', sat: 'SÁB', sun: 'DOM' },
-        pending: { title: 'Pedidos Pendentes', viewAll: 'Ver todos os pedidos', empty: 'Sem pedidos pendentes de aprovação.', requestSource: 'Pedido do migrante', noPermission: 'Apenas Consultores, Admins e Super Admins podem aprovar pedidos.', statusLabel: 'Em aprovação', approveSuccess: 'Pedido aprovado e sessão agendada.', approveError: 'Não foi possível aprovar o pedido.', declineSuccess: 'Pedido recusado.', declineError: 'Não foi possível recusar o pedido.' },
+        pending: { title: 'Pedidos Pendentes', viewAll: 'Ver todos os pedidos', empty: 'Sem pedidos pendentes de aprovação.', requestSource: 'Pedido do migrante', noPermission: 'Apenas Consultores, Admins e Super Admins podem aprovar pedidos.', statusLabel: 'Em aprovação', approveSuccess: 'Pedido aprovado e sessão agendada.', approveError: 'Não foi possível aprovar o pedido.', declineSuccess: 'Pedido recusado.', declineError: 'Não foi possível recusar o pedido.', supportUrgentBadge: 'Apoio urgente', supportUrgentLabel: 'Urgente', supportRequestSource: 'Pedido urgente do migrante', supportDateTbd: 'Data e hora por definir', supportApproveTitle: 'Aprovar pedido urgente', supportScheduleConfirm: 'Confirmar data e hora', supportApproveValidation: 'Selecione data e hora.', supportApproveSuccess: 'Pedido urgente aprovado.', supportApproveError: 'Erro ao aprovar pedido urgente.', supportDefaultResponsible: 'Equipa CPC' },
         actions: { approve: 'Aprovar', decline: 'Recusar', assignSlot: 'Atribuir horário', reschedule: 'Reagendar', cancel: 'Cancelar' },
         status: { approved: 'Aprovado', declined: 'Recusado', assigned: 'Horário atribuído' },
         eventModal: { close: 'Fechar' },
@@ -340,10 +348,26 @@ vi.mock('@/integrations/firebase/firestore', () => {
   const teamMembers = [
     { id: 'lawyer1', role: 'lawyer', name: 'Dr. A. Rossi', active: true },
     { id: 'psy1', role: 'psychologist', name: 'Dr. M. Garcia', active: true },
+    { id: 'consultant1', role: 'consultant', name: 'Consultor CPC', active: true },
+  ];
+
+  const supportRequests = [
+    {
+      id: 'sr1',
+      migrant_id: 'm2',
+      migrant_name: 'Lucas Dubois',
+      type: 'psicologico',
+      description: 'Preciso de apoio psicológico urgente.',
+      status: 'submetido',
+      created_at: new Date().toISOString(),
+    },
   ];
 
   return {
     queryDocuments: vi.fn(async (collectionName: string, filters?: Array<{ field: string; operator: string; value: unknown }>) => {
+      if (collectionName === 'support_requests') {
+        return supportRequests;
+      }
       if (collectionName === 'users') {
         const roleFilter = filters?.find((f) => f.field === 'role');
         if (roleFilter?.operator === 'in' && Array.isArray(roleFilter.value) && roleFilter.value.includes('migrant')) {
@@ -395,10 +419,20 @@ describe('TeamAgendaPage', () => {
     rerender(<TeamAgendaPage />);
 
     const user = userEvent.setup();
+    expect(screen.getAllByRole('button', { name: 'Aprovar' })).toHaveLength(2);
+    expect(await screen.findByText('Preciso de apoio psicológico urgente.')).toBeInTheDocument();
+
+    const sessionCard = (await screen.findByText('Mediação Familiar')).closest('article');
+    expect(sessionCard).toBeTruthy();
+    await user.click(within(sessionCard as HTMLElement).getByRole('button', { name: 'Aprovar' }));
     expect(screen.getAllByRole('button', { name: 'Aprovar' })).toHaveLength(1);
-    await user.click(screen.getAllByRole('button', { name: 'Aprovar' })[0]);
-    expect(screen.queryAllByRole('button', { name: 'Aprovar' })).toHaveLength(0);
-    expect(screen.getByText('Sem pedidos pendentes de aprovação.')).toBeInTheDocument();
+
+    const supportCard = (await screen.findByText('Preciso de apoio psicológico urgente.')).closest('article');
+    expect(supportCard).toBeTruthy();
+    expect(within(supportCard as HTMLElement).getByRole('button', { name: 'Aprovar' })).toBeDisabled();
+
+    await user.click(within(supportCard as HTMLElement).getByRole('button', { name: 'Data e hora por definir' }));
+    expect(screen.getByText('Aprovar pedido urgente')).toBeInTheDocument();
   });
 
   it('mantém renderização estável em mobile, tablet e desktop sem overflow textual', async () => {

@@ -235,6 +235,30 @@
         { "fieldPath": "migrant_id", "order": "ASCENDING" },
         { "fieldPath": "scheduled_date", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trail_modules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "trail_id", "order": "ASCENDING" },
+        { "fieldPath": "order_index", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trail_module_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "trail_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trail_module_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "module_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { formatAppDateLong, formatAppWeekdayShort } from '@/lib/appDateTime';
 
 export type BookingServiceId = 'legal' | 'psychology' | 'mediation';
 export type BookingSpecialistRole = 'jurista' | 'psicologa' | 'mediador';
@@ -85,11 +85,11 @@ function getInitials(name: string) {
 }
 
 function formatPtDate(date: Date) {
-  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+  return formatAppDateLong(date);
 }
 
 function formatPtWeekdayShort(date: Date) {
-  return date.toLocaleDateString('pt-PT', { weekday: 'short' });
+  return formatAppWeekdayShort(date);
 }
 
 function toISODate(date: Date) {

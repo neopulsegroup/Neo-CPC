@@ -49,13 +49,15 @@ function parseUnknownDate(value: unknown): Date | null {
   return null;
 }
 
+import { formatAppDate, formatAppDateTime } from '@/lib/appDateTime';
+
 function formatTimeLabel(value: unknown, locale: string): string {
   const date = parseUnknownDate(value);
   if (!date) return '';
   const now = new Date();
   const sameDay = date.toDateString() === now.toDateString();
-  if (sameDay) return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-  return date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
+  if (sameDay) return formatAppDateTime(date, { locale, hour: '2-digit', minute: '2-digit' });
+  return formatAppDate(date, { locale, day: '2-digit', month: '2-digit' });
 }
 
 function getInitials(value?: string | null): string {

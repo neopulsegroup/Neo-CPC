@@ -36,6 +36,20 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   deleteDocument: (...args: unknown[]) => mockDeleteDocument(...args),
 }));
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { uid: 'u-admin', email: 'admin@teste.com' } }),
+}));
+
+vi.mock('@/integrations/firebase/client', () => ({
+  storage: {},
+}));
+
+vi.mock('firebase/storage', () => ({
+  ref: vi.fn(),
+  uploadBytes: vi.fn(),
+  getDownloadURL: vi.fn(),
+}));
+
 describe('TrailEditorPage — quiz editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,6 +76,19 @@ describe('TrailEditorPage — quiz editor', () => {
     );
     await screen.findByText('Editar Trilha');
   }
+
+  it('mostra editor mesmo quando falha a carga de módulos', async () => {
+    mockQueryDocuments.mockRejectedValueOnce(new Error('modules failed'));
+    render(
+      <MemoryRouter initialEntries={['/dashboard/cpc/trilhas/tr1']}>
+        <Routes>
+          <Route path="/dashboard/cpc/trilhas/:trailId" element={<TrailEditorPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Editar Trilha')).toBeInTheDocument();
+  });
 
   it('mostra bloco de quiz quando content_type = quiz é selecionado', async () => {
     const user = userEvent.setup();
@@ -97,10 +124,9 @@ describe('TrailEditorPage — quiz editor', () => {
     await user.selectOptions(screen.getByLabelText('Tipo de conteúdo'), 'quiz');
     await user.type(screen.getByLabelText('Título *'), 'Quiz simples');
     await user.type(screen.getByPlaceholderText('Digite a pergunta...'), 'O que é o EMPIS?');
-    await user.type(screen.getByPlaceholderText('Opção 1'), 'Organização');
-    await user.type(screen.getByPlaceholderText('Opção 2'), 'Pessoa');
+    await user.type(screen.getByPlaceholderText('Digite a resposta correta...'), 'Organização');
+    await user.type(screen.getByPlaceholderText('Resposta incorreta 1'), 'Pessoa');
 
-    // Por defeito correctIndex é 0 (Opção 1 já está marcada). Submeter deve passar.
     await user.click(screen.getByRole('button', { name: /Adicionar módulo/i }));
 
     await waitFor(() => {
@@ -118,6 +144,16 @@ describe('TrailEditorPage — quiz editor', () => {
       options: ['Organização', 'Pessoa'],
       correctIndex: 0,
     });
+  });
+
+  it('permite adicionar respostas incorretas extra', async () => {
+    const user = userEvent.setup();
+    await renderEditor();
+    await user.selectOptions(screen.getByLabelText('Tipo de conteúdo'), 'quiz');
+
+    await user.click(screen.getByRole('button', { name: /Adicionar resposta incorreta/i }));
+
+    expect(screen.getByPlaceholderText('Resposta incorreta 2')).toBeInTheDocument();
   });
 
   it('permite adicionar uma 2ª pergunta', async () => {

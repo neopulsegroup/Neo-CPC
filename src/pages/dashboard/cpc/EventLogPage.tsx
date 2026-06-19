@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { queryDocuments } from '@/integrations/firebase/firestore';
+import { createAppDateFormatters } from '@/lib/appDateTime';
 import { createdAtToIso } from '@/lib/firestoreTimestamps';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -197,13 +198,18 @@ export default function EventLogPage() {
     setLoadError(null);
     try {
       const docs = await queryDocuments<AuditLogRow>('audit_logs', [], undefined, LOG_FETCH_LIMIT);
-      const mapped = docs.map(mapAuditDoc);
+      const mapped = (docs ?? []).map(mapAuditDoc);
       mapped.sort((a, b) => b.createdAtMs - a.createdAtMs);
       setRows(mapped);
 
-      const actorIds = mapped.map((row) => row.actorId);
-      const actorInfo = await loadActorMetaById(actorIds);
-      setActorMeta(actorInfo);
+      try {
+        const actorIds = mapped.map((row) => row.actorId);
+        const actorInfo = await loadActorMetaById(actorIds);
+        setActorMeta(actorInfo);
+      } catch (actorError) {
+        console.error('Error loading audit log actors:', actorError);
+        setActorMeta({});
+      }
     } catch (error) {
       console.error('Error loading audit logs:', error);
       setRows([]);
@@ -281,14 +287,7 @@ export default function EventLogPage() {
     setPageIndex(0);
   }, [search, scopeFilter, actionFilter, criticalityFilter, resultFilter, originFilter, dateFrom, dateTo, pageSize]);
 
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(language === 'pt' ? 'pt-PT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'en-GB', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }),
-    [language]
-  );
+  const dateFormatter = useMemo(() => createAppDateFormatters(language).dateTime, [language]);
 
   const criticalityLabel = (value: AuditLogCriticality) => t.get(`cpc.pages.eventLog.criticality.${value}`);
   const resultLabel = (value: AuditLogResult) => t.get(`cpc.pages.eventLog.results.${value}`);

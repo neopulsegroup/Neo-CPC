@@ -1,14 +1,15 @@
 import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatAppDate } from '@/lib/appDateTime';
 
 export default function Privacy() {
   const { language, t } = useLanguage();
-  const dateLocale = language === 'pt' ? 'pt-PT' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'en-GB';
-  const updatedAt = new Intl.DateTimeFormat(dateLocale, {
-    year: 'numeric',
-    month: '2-digit',
+  const updatedAt = formatAppDate(new Date(), {
+    locale: language,
     day: '2-digit',
-  }).format(new Date());
+    month: '2-digit',
+    year: 'numeric',
+  });
 
   return (
     <Layout>

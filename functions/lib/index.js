@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.applyRecaptchaSettings = exports.uploadCvSecure = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.onMailCreated = void 0;
+exports.onContactMessageCreated = exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.applyRecaptchaSettings = exports.uploadCvSecure = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.testResendConnection = exports.onMailCreated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const systemSettingsPermissions_1 = require("./systemSettingsPermissions");
 const mailProcessor_1 = require("./mailProcessor");
+const resendMail_1 = require("./resendMail");
 const smtp_1 = require("./smtp");
 const mailProcessor_2 = require("./mailProcessor");
 const registerUserSecure_1 = require("./registerUserSecure");
@@ -36,11 +37,35 @@ const onSessionCreated_1 = require("./onSessionCreated");
 Object.defineProperty(exports, "onSessionCreated", { enumerable: true, get: function () { return onSessionCreated_1.onSessionCreated; } });
 const scheduledReminders_1 = require("./scheduledReminders");
 Object.defineProperty(exports, "scheduledReminders", { enumerable: true, get: function () { return scheduledReminders_1.scheduledReminders; } });
+const onContactMessageCreated_1 = require("./onContactMessageCreated");
+Object.defineProperty(exports, "onContactMessageCreated", { enumerable: true, get: function () { return onContactMessageCreated_1.onContactMessageCreated; } });
 const applyRecaptchaSettings_1 = require("./applyRecaptchaSettings");
 Object.defineProperty(exports, "applyRecaptchaSettings", { enumerable: true, get: function () { return applyRecaptchaSettings_1.applyRecaptchaSettings; } });
 exports.onMailCreated = (0, firestore_1.onDocumentCreated)('mail/{mailId}', async (event) => {
     const mailId = event.params.mailId;
     await (0, mailProcessor_2.processMailDocument)(mailId);
+});
+exports.testResendConnection = (0, https_1.onCall)(async (request) => {
+    const uid = request.auth?.uid ?? null;
+    if (!uid)
+        throw new https_1.HttpsError('unauthenticated', 'Sessão inválida.');
+    const ok = await (0, systemSettingsPermissions_1.canManageSystemSettings)(uid);
+    if (!ok)
+        throw new https_1.HttpsError('permission-denied', 'Sem permissão.');
+    try {
+        const resend = await (0, resendMail_1.loadResendSettings)();
+        await (0, resendMail_1.verifyResendConnection)(resend);
+        return { ok: true };
+    }
+    catch (error) {
+        if (error instanceof https_1.HttpsError)
+            throw error;
+        const raw = error instanceof Error ? error.message : 'Falha na ligação ao Resend.';
+        const message = raw.includes('em falta')
+            ? 'Configuração Resend incompleta. Guarde a API key e o remetente antes de testar.'
+            : raw;
+        return { ok: false, message };
+    }
 });
 exports.testSmtpConnection = (0, https_1.onCall)(async (request) => {
     const uid = request.auth?.uid ?? null;

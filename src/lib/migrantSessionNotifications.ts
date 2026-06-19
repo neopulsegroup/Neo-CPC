@@ -1,15 +1,51 @@
 import { setDocument, serverTimestamp } from '@/integrations/firebase/firestore';
 
+import { formatAppDateLong } from '@/lib/appDateTime';
+import { getCalendarDateIsoInTimeZone } from '@/lib/appCalendar';
+import { isMigrantUpcomingSession } from '@/lib/sessionApproval';
+
 export function sessionScheduledNotificationId(sessionId: string): string {
   return `session_notify_${sessionId}`;
 }
 
+export function extractSessionIdFromScheduledNotificationId(notificationId: string): string | null {
+  const prefix = 'session_notify_';
+  if (!notificationId.startsWith(prefix)) return null;
+  const sessionId = notificationId.slice(prefix.length).trim();
+  return sessionId || null;
+}
+
+type SessionScheduleRef = {
+  id: string;
+  status: string | null;
+  scheduled_date: string;
+  scheduled_time: string;
+};
+
+/** Notificações de sessão agendada deixam de aparecer após a data/hora da sessão. */
+export function isSessionScheduledNotificationVisible(
+  notification: { id: string; type?: string },
+  sessions: SessionScheduleRef[],
+  now: Date = new Date()
+): boolean {
+  const sessionId = extractSessionIdFromScheduledNotificationId(notification.id);
+  const isSessionNotification = notification.type === 'session_scheduled' || sessionId != null;
+  if (!isSessionNotification) return true;
+  if (!sessionId) return false;
+  const session = sessions.find((item) => item.id === sessionId);
+  if (!session) return false;
+  const todayIso = getCalendarDateIsoInTimeZone(now);
+  return isMigrantUpcomingSession(
+    session.status,
+    session.scheduled_date,
+    todayIso,
+    session.scheduled_time,
+    now
+  );
+}
+
 function formatSessionDateTimePt(dateIso: string, time: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso.trim());
-  if (!match) return `${dateIso} ${time}`.trim();
-  const [, y, m, d] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  const datePart = date.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+  const datePart = formatAppDateLong(dateIso, { day: 'numeric' });
   return `${datePart}, ${time}`;
 }
 
