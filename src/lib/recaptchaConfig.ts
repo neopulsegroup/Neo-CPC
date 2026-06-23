@@ -89,5 +89,5 @@ export function validateRecaptchaSettingsDraft(
 
 export function getRecaptchaSiteKeyFromEnv(): string {
   const env = import.meta.env as unknown as Record<string, string | boolean | undefined>;
-  return String(env.VITE_RECAPTCHA_SITE_KEY || env.VITE_HCAPTCHA_SITE_KEY || env.VITE_FIREBASE_APPCHECK_SITE_KEY || '').trim();
+  return String(env.VITE_RECAPTCHA_SITE_KEY || env.VITE_HCAPTCHA_SITE_KEY || '').trim();
 }

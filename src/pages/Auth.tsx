@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
+import { prefetchRegisterCaptcha } from '@/lib/recaptcha';
 import HumanVerificationCaptcha from '@/components/auth/HumanVerificationCaptcha';
 import { toast } from 'sonner';
 import { User, Building2, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -107,6 +108,11 @@ export default function Auth() {
       setSelectedRole(null);
     }
   }, [location.pathname, searchParams]);
+
+  useEffect(() => {
+    if (mode !== 'register') return;
+    void prefetchRegisterCaptcha();
+  }, [mode]);
 
   useEffect(() => {
     if (isAuthenticated && profile && !authLoading) {

@@ -1,7 +1,6 @@
 import { getDocument } from '@/integrations/firebase/firestore';
 import {
   DEFAULT_RECAPTCHA_MIN_SCORE,
-  getRecaptchaSiteKeyFromEnv,
   parseCaptchaProvider,
   parseRecaptchaMinScore,
   type CaptchaPublicSettings,
@@ -16,6 +15,24 @@ export function clearRecaptchaPublicSettingsCache(): void {
   loadingPromise = null;
 }
 
+function resolvePublicCaptchaSettings(doc: {
+  enabled?: boolean | null;
+  provider?: string | null;
+  siteKey?: string | null;
+  minScore?: number | null;
+} | null): CaptchaPublicSettings {
+  const enabled = doc?.enabled === true;
+  const siteKey =
+    enabled && typeof doc?.siteKey === 'string' && doc.siteKey.trim() ? doc.siteKey.trim() : '';
+
+  return {
+    enabled,
+    provider: parseCaptchaProvider(doc?.provider),
+    siteKey,
+    minScore: parseRecaptchaMinScore(doc?.minScore ?? DEFAULT_RECAPTCHA_MIN_SCORE),
+  };
+}
+
 export async function loadRecaptchaPublicSettings(): Promise<RecaptchaPublicSettings> {
   if (cachedPublicSettings) return cachedPublicSettings;
   if (loadingPromise) return loadingPromise;
@@ -28,26 +45,11 @@ export async function loadRecaptchaPublicSettings(): Promise<RecaptchaPublicSett
         siteKey?: string | null;
         minScore?: number | null;
       }>('system_settings', 'recaptcha_public');
-      const siteKey =
-        typeof doc?.siteKey === 'string' && doc.siteKey.trim() ? doc.siteKey.trim() : getRecaptchaSiteKeyFromEnv();
-      const secretConfigured = Boolean(siteKey);
-      const enabled =
-        typeof doc?.enabled === 'boolean' ? doc.enabled : secretConfigured;
-      const resolved: CaptchaPublicSettings = {
-        enabled,
-        provider: parseCaptchaProvider(doc?.provider),
-        siteKey,
-        minScore: parseRecaptchaMinScore(doc?.minScore ?? DEFAULT_RECAPTCHA_MIN_SCORE),
-      };
+      const resolved = resolvePublicCaptchaSettings(doc);
       cachedPublicSettings = resolved;
       return resolved;
     } catch {
-      const fallback: CaptchaPublicSettings = {
-        enabled: false,
-        provider: 'recaptcha_v3',
-        siteKey: getRecaptchaSiteKeyFromEnv(),
-        minScore: DEFAULT_RECAPTCHA_MIN_SCORE,
-      };
+      const fallback = resolvePublicCaptchaSettings(null);
       cachedPublicSettings = fallback;
       return fallback;
     } finally {
@@ -73,3 +75,5 @@ export async function resolveCaptchaProvider(): Promise<CaptchaPublicSettings['p
   const settings = await loadRecaptchaPublicSettings();
   return settings.provider;
 }
+
+export { resolvePublicCaptchaSettings };
