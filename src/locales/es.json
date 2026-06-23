@@ -2810,25 +2810,39 @@
           }
         },
         "recaptcha": {
-          "title": "Configuración de reCAPTCHA",
-          "subtitle": "Defina las claves de Google reCAPTCHA v3 usadas en el registro público.",
-          "siteKeyLabel": "VITE_RECAPTCHA_SITE_KEY",
+          "title": "Protección anti-bot (CAPTCHA)",
+          "subtitle": "Configure reCAPTCHA v3 o hCaptcha para el registro público. Si está desactivado, el registro no requiere verificación.",
+          "enabledLabel": "Activar CAPTCHA en el registro",
+          "enabledHelp": "Desactivado permite crear usuarios sin reCAPTCHA/hCaptcha.",
+          "providerLabel": "Proveedor",
+          "providerHelp": "Elija Google reCAPTCHA v3 (invisible) o hCaptcha (invisible).",
+          "providers": {
+            "recaptcha_v3": "Google reCAPTCHA v3",
+            "hcaptcha": "hCaptcha"
+          },
+          "siteKeyLabel": "Site key reCAPTCHA",
           "siteKeyPlaceholder": "6Lc...",
-          "secretKeyLabel": "RECAPTCHA_SECRET_KEY",
+          "hcaptchaSiteKeyLabel": "Sitekey hCaptcha",
+          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "secretKeyLabel": "Secret key reCAPTCHA",
+          "hcaptchaSecretKeyLabel": "Secreto hCaptcha",
           "secretKeyPlaceholder": "Pegue la secret key",
+          "hcaptchaSecretKeyPlaceholder": "Pegue el secreto generado en el panel hCaptcha",
           "secretKeyConfiguredPlaceholder": "•••••••• (configurada — deje vacío para mantener)",
           "showSecret": "Mostrar secret key",
           "hideSecret": "Ocultar secret key",
-          "minScoreLabel": "RECAPTCHA_MIN_SCORE",
+          "minScoreLabel": "Puntuación mínima (reCAPTCHA v3)",
           "minScoreDefault": "{score} (predeterminado)",
           "minScoreHelp": "Puntuación mínima aceptada por el servidor (0.0 a 1.0). Valor predeterminado: 0.5.",
-          "apply": "Aplicar configuración",
-          "applying": "Aplicando...",
+          "hcaptchaModeLabel": "Modo hCaptcha",
+          "hcaptchaModeHelp": "Utiliza hCaptcha invisible en el registro. Verifique el dominio en el panel hCaptcha y guarde el secreto correspondiente.",
+          "apply": "Guardar CAPTCHA",
+          "applying": "Guardando...",
           "toast": {
-            "appliedTitle": "reCAPTCHA actualizado",
-            "appliedDescription": "La configuración de reCAPTCHA se guardó correctamente.",
-            "applyErrorTitle": "reCAPTCHA",
-            "applyError": "No se pudo aplicar la configuración de reCAPTCHA."
+            "appliedTitle": "CAPTCHA actualizado",
+            "appliedDescription": "La configuración de CAPTCHA se guardó correctamente.",
+            "applyErrorTitle": "CAPTCHA",
+            "applyError": "No se pudo guardar la configuración de CAPTCHA."
           }
         }
       },

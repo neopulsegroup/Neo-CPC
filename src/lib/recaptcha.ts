@@ -1,5 +1,11 @@
 import { getRecaptchaSiteKeyFromEnv } from '@/lib/recaptchaConfig';
-import { loadRecaptchaPublicSettings, resolveRecaptchaSiteKey } from '@/lib/recaptchaRuntime';
+import { getHcaptchaToken } from '@/lib/hcaptcha';
+import {
+  isCaptchaEnabledAsync,
+  loadRecaptchaPublicSettings,
+  resolveCaptchaProvider,
+  resolveRecaptchaSiteKey,
+} from '@/lib/recaptchaRuntime';
 
 let scriptLoadingPromise: Promise<void> | null = null;
 
@@ -20,8 +26,7 @@ export function isRecaptchaSiteKeyConfigured(): boolean {
 
 /** Indica se há site key já carregada em runtime (inclui Firestore). */
 export async function isRecaptchaSiteKeyConfiguredAsync(): Promise<boolean> {
-  const siteKey = await resolveRecaptchaSiteKey();
-  return siteKey.length > 0;
+  return isCaptchaEnabledAsync();
 }
 
 async function loadRecaptchaScript(siteKey: string): Promise<void> {
@@ -65,21 +70,32 @@ export async function getRecaptchaToken(action: string): Promise<string | null> 
   }
 }
 
+async function getCaptchaTokenForRegister(): Promise<string | null> {
+  const settings = await loadRecaptchaPublicSettings();
+  if (!settings.enabled || !settings.siteKey) return null;
+
+  if (settings.provider === 'hcaptcha') {
+    return getHcaptchaToken(settings.siteKey);
+  }
+
+  return getRecaptchaToken('register');
+}
+
 /**
- * Obtém token reCAPTCHA v3 para o registo.
- * Quando a chave pública está configurada, falha com `CAPTCHA_REQUIRED` se o token
- * não puder ser gerado (bloqueia submissões sem verificação server-side).
+ * Obtém token CAPTCHA para o registo.
+ * Quando o CAPTCHA está ativo, falha com `CAPTCHA_REQUIRED` se o token não puder ser gerado.
  */
 export async function resolveRegisterRecaptchaToken(): Promise<string | undefined> {
-  const configured = await isRecaptchaSiteKeyConfiguredAsync();
-  if (!configured) {
-    return (await getRecaptchaToken('register')) ?? undefined;
+  const enabled = await isCaptchaEnabledAsync();
+  if (!enabled) {
+    return undefined;
   }
-  const token = await getRecaptchaToken('register');
+
+  const token = await getCaptchaTokenForRegister();
   if (!token) {
     throw new Error('CAPTCHA_REQUIRED');
   }
   return token;
 }
 
-export { loadRecaptchaPublicSettings, clearRecaptchaPublicSettingsCache } from '@/lib/recaptchaRuntime';
+export { loadRecaptchaPublicSettings, clearRecaptchaPublicSettingsCache, resolveCaptchaProvider } from '@/lib/recaptchaRuntime';

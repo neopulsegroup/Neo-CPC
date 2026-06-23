@@ -78,7 +78,8 @@ describe('CPCSettingsPage (dashboard/cpc/configuracoes)', () => {
         return { id: 'smtp', host: 'mail.portalcpc.com', port: 465, security: 'ssl', username: 'geral@portalcpc.com', passwordSet: true, fromEmail: 'geral@portalcpc.com' };
       if (collectionName === 'system_settings' && docId === 'resend')
         return { id: 'resend', apiKeySet: true, fromEmail: 'no-reply@cpc.pt', enabled: true };
-      if (collectionName === 'system_settings' && docId === 'recaptcha_public') return { id: 'recaptcha_public', siteKey: '', minScore: 0.5 };
+      if (collectionName === 'system_settings' && docId === 'recaptcha_public')
+        return { id: 'recaptcha_public', enabled: true, provider: 'recaptcha_v3', siteKey: '', minScore: 0.5 };
       if (collectionName === 'system_settings' && docId === 'recaptcha') return { id: 'recaptcha', secretKeySet: false };
       return null;
     });

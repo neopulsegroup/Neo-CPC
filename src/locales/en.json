@@ -2810,25 +2810,39 @@
           }
         },
         "recaptcha": {
-          "title": "reCAPTCHA configuration",
-          "subtitle": "Set the Google reCAPTCHA v3 keys used on public registration.",
-          "siteKeyLabel": "VITE_RECAPTCHA_SITE_KEY",
+          "title": "Bot protection (CAPTCHA)",
+          "subtitle": "Configure reCAPTCHA v3 or hCaptcha for public registration. When disabled, sign-up does not require verification.",
+          "enabledLabel": "Enable CAPTCHA on registration",
+          "enabledHelp": "When disabled, users can register without reCAPTCHA/hCaptcha.",
+          "providerLabel": "Provider",
+          "providerHelp": "Choose Google reCAPTCHA v3 (invisible) or hCaptcha (invisible).",
+          "providers": {
+            "recaptcha_v3": "Google reCAPTCHA v3",
+            "hcaptcha": "hCaptcha"
+          },
+          "siteKeyLabel": "reCAPTCHA site key",
           "siteKeyPlaceholder": "6Lc...",
-          "secretKeyLabel": "RECAPTCHA_SECRET_KEY",
+          "hcaptchaSiteKeyLabel": "hCaptcha sitekey",
+          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "secretKeyLabel": "reCAPTCHA secret key",
+          "hcaptchaSecretKeyLabel": "hCaptcha secret",
           "secretKeyPlaceholder": "Paste the secret key",
+          "hcaptchaSecretKeyPlaceholder": "Paste the secret generated in the hCaptcha dashboard",
           "secretKeyConfiguredPlaceholder": "•••••••• (configured — leave empty to keep)",
           "showSecret": "Show secret key",
           "hideSecret": "Hide secret key",
-          "minScoreLabel": "RECAPTCHA_MIN_SCORE",
+          "minScoreLabel": "Minimum score (reCAPTCHA v3)",
           "minScoreDefault": "{score} (default)",
           "minScoreHelp": "Minimum score accepted by the server (0.0 to 1.0). Default: 0.5.",
-          "apply": "Apply configuration",
-          "applying": "Applying...",
+          "hcaptchaModeLabel": "hCaptcha mode",
+          "hcaptchaModeHelp": "Uses invisible hCaptcha on registration. Verify your domain in the hCaptcha dashboard and save the matching secret.",
+          "apply": "Save CAPTCHA",
+          "applying": "Saving...",
           "toast": {
-            "appliedTitle": "reCAPTCHA updated",
-            "appliedDescription": "reCAPTCHA settings were saved successfully.",
-            "applyErrorTitle": "reCAPTCHA",
-            "applyError": "Could not apply reCAPTCHA configuration."
+            "appliedTitle": "CAPTCHA updated",
+            "appliedDescription": "CAPTCHA settings were saved successfully.",
+            "applyErrorTitle": "CAPTCHA",
+            "applyError": "Could not save CAPTCHA configuration."
           }
         }
       },
