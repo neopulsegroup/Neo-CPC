@@ -9,6 +9,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
 import { prefetchRegisterCaptcha } from '@/lib/recaptcha';
+import HcaptchaRegisterWidget from '@/components/auth/HcaptchaRegisterWidget';
 import HumanVerificationCaptcha from '@/components/auth/HumanVerificationCaptcha';
 import { toast } from 'sonner';
 import { User, Building2, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -73,6 +74,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [hcaptchaVerified, setHcaptchaVerified] = useState(true);
   const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   const [formData, setFormData] = useState({
@@ -214,6 +216,7 @@ export default function Auth() {
       // Regenera o desafio após falha no registo (boa prática anti-replay).
       if (mode === 'register') {
         setCaptchaVerified(false);
+        setHcaptchaVerified(true);
         setCaptchaResetSignal((n) => n + 1);
       }
       toast.error(
@@ -232,6 +235,7 @@ export default function Auth() {
   // Reinicia o CAPTCHA ao mudar de perfil ou alternar entre login/registo.
   useEffect(() => {
     setCaptchaVerified(false);
+    setHcaptchaVerified(true);
     setCaptchaResetSignal((n) => n + 1);
   }, [selectedRole, mode]);
 
@@ -463,7 +467,18 @@ export default function Auth() {
                 />
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading || (mode === 'register' && !captchaVerified)}>
+              {mode === 'register' && (
+                <HcaptchaRegisterWidget
+                  onVerifiedChange={setHcaptchaVerified}
+                  resetSignal={captchaResetSignal}
+                />
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || (mode === 'register' && (!captchaVerified || !hcaptchaVerified))}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

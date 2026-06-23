@@ -698,8 +698,10 @@ export default function TrailEditorPage() {
         </Link>
       </div>
 
-      <div className="cpc-card p-6 w-full">
-        <form onSubmit={saveTrail} className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="cpc-card p-6 w-full min-w-0">
+          <h2 className="font-semibold text-lg mb-4">Configurações da trilha</h2>
+          <form onSubmit={saveTrail} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="trail-cover-edit">{t.get('curriculum.quiz.editor.coverImage')}</Label>
             <div className="overflow-hidden rounded-xl border bg-muted/20">
@@ -799,10 +801,10 @@ export default function TrailEditorPage() {
             )}
           </Button>
         </form>
-      </div>
+        </div>
 
-      <div className="cpc-card p-6 w-full">
-        <h2 className="font-semibold text-lg mb-4">Módulos</h2>
+        <div className="cpc-card p-6 w-full min-w-0">
+          <h2 className="font-semibold text-lg mb-4">Módulos</h2>
         <div className="space-y-2 mb-8">
           {modules.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum módulo ainda.</p>
@@ -1129,6 +1131,7 @@ export default function TrailEditorPage() {
             )}
           </Button>
         </form>
+        </div>
       </div>
 
       <div className="cpc-card p-6 w-full">
