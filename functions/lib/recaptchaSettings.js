@@ -21,8 +21,7 @@ async function loadCaptchaRuntimeConfig() {
         : null;
     const envSecret = process.env.RECAPTCHA_SECRET_KEY?.trim() || process.env.HCAPTCHA_SECRET_KEY?.trim() || null;
     const secretKey = firestoreSecret || envSecret;
-    const secretKeySet = secretData?.secretKeySet === true || Boolean(firestoreSecret);
-    const enabled = typeof publicData?.enabled === 'boolean' ? publicData.enabled : Boolean(siteKey && secretKeySet && secretKey);
+    const enabled = publicData?.enabled === true;
     const provider = parseProvider(publicData?.provider);
     const minScoreRaw = publicData?.minScore;
     const minScore = typeof minScoreRaw === 'number' && Number.isFinite(minScoreRaw)

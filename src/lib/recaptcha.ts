@@ -1,5 +1,4 @@
-import { getRecaptchaSiteKeyFromEnv } from '@/lib/recaptchaConfig';
-import { getHcaptchaToken } from '@/lib/hcaptcha';
+import { getHcaptchaToken, prefetchHcaptcha } from '@/lib/hcaptcha';
 import {
   isCaptchaEnabledAsync,
   loadRecaptchaPublicSettings,
@@ -18,13 +17,7 @@ declare global {
   }
 }
 
-/** Indica se existe site key (Firestore ou variável de ambiente). */
-export function isRecaptchaSiteKeyConfigured(): boolean {
-  const envKey = getRecaptchaSiteKeyFromEnv();
-  return envKey.length > 0;
-}
-
-/** Indica se há site key já carregada em runtime (inclui Firestore). */
+/** Indica se o CAPTCHA de registo está ativo no Firestore. */
 export async function isRecaptchaSiteKeyConfiguredAsync(): Promise<boolean> {
   return isCaptchaEnabledAsync();
 }
@@ -81,18 +74,41 @@ async function getCaptchaTokenForRegister(): Promise<string | null> {
   return getRecaptchaToken('register');
 }
 
+/** Pré-carrega o script/widget do provedor configurado (best-effort). */
+export async function prefetchRegisterCaptcha(): Promise<void> {
+  const settings = await loadRecaptchaPublicSettings();
+  if (!settings.enabled || !settings.siteKey) return;
+
+  if (settings.provider === 'hcaptcha') {
+    await prefetchHcaptcha(settings.siteKey);
+    return;
+  }
+
+  try {
+    await loadRecaptchaScript(settings.siteKey);
+  } catch {
+    // Prefetch é best-effort.
+  }
+}
+
 /**
  * Obtém token CAPTCHA para o registo.
  * Quando o CAPTCHA está ativo, falha com `CAPTCHA_REQUIRED` se o token não puder ser gerado.
  */
 export async function resolveRegisterRecaptchaToken(): Promise<string | undefined> {
-  const enabled = await isCaptchaEnabledAsync();
-  if (!enabled) {
+  const settings = await loadRecaptchaPublicSettings();
+  if (!settings.enabled || !settings.siteKey) {
     return undefined;
   }
 
   const token = await getCaptchaTokenForRegister();
   if (!token) {
+    if (import.meta.env.DEV) {
+      console.warn('[captcha] Falha ao gerar token', {
+        provider: settings.provider,
+        siteKeyConfigured: Boolean(settings.siteKey),
+      });
+    }
     throw new Error('CAPTCHA_REQUIRED');
   }
   return token;

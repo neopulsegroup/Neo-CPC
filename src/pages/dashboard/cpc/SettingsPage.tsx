@@ -416,10 +416,7 @@ export default function CPCSettingsPage() {
         setBranding(normalizedBranding);
         setLoadedBranding(normalizedBranding);
 
-        const recaptchaEnabled =
-          typeof recaptchaPublicDoc?.enabled === 'boolean'
-            ? recaptchaPublicDoc.enabled
-            : Boolean(recaptchaPublicDoc?.siteKey && recaptchaSecretDoc?.secretKeySet);
+        const recaptchaEnabled = recaptchaPublicDoc?.enabled === true;
         const recaptchaProvider = parseCaptchaProvider(recaptchaPublicDoc?.provider);
         const nextRecaptcha: RecaptchaSettingsDraft & { secretKeySet: boolean } = {
           enabled: recaptchaEnabled,
