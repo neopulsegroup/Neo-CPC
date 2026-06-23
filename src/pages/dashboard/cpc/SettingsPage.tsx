@@ -24,9 +24,12 @@ import { clearRecaptchaPublicSettingsCache } from '@/lib/recaptcha';
 import {
   DEFAULT_RECAPTCHA_MIN_SCORE,
   RECAPTCHA_MIN_SCORE_OPTIONS,
+  CAPTCHA_PROVIDER_OPTIONS,
   parseRecaptchaMinScore,
+  parseCaptchaProvider,
   validateRecaptchaSettingsDraft,
   type RecaptchaSettingsDraft,
+  type CaptchaProvider,
 } from '@/lib/recaptchaConfig';
 
 import { COMMUNICATION_DEFAULTS } from '@/lib/communicationDefaults';
@@ -35,6 +38,8 @@ import { isValidEmail, normalizeEmail, parsePort, redactSettingsForAudit, saniti
 type ContactSettingsDoc = { id: string; notificationEmail?: string | null };
 type RecaptchaPublicSettingsDoc = {
   id: string;
+  enabled?: boolean | null;
+  provider?: string | null;
   siteKey?: string | null;
   minScore?: number | null;
 };
@@ -228,11 +233,15 @@ export default function CPCSettingsPage() {
   const [branding, setBranding] = useState<BrandingSettings>(defaultBranding());
   const [loadedBranding, setLoadedBranding] = useState<BrandingSettings>(defaultBranding());
   const [recaptchaDraft, setRecaptchaDraft] = useState<RecaptchaSettingsDraft>({
+    enabled: false,
+    provider: 'recaptcha_v3',
     siteKey: '',
     secretKey: '',
     minScore: DEFAULT_RECAPTCHA_MIN_SCORE,
   });
   const [loadedRecaptcha, setLoadedRecaptcha] = useState<RecaptchaSettingsDraft & { secretKeySet: boolean }>({
+    enabled: false,
+    provider: 'recaptcha_v3',
     siteKey: '',
     secretKey: '',
     minScore: DEFAULT_RECAPTCHA_MIN_SCORE,
@@ -407,7 +416,14 @@ export default function CPCSettingsPage() {
         setBranding(normalizedBranding);
         setLoadedBranding(normalizedBranding);
 
+        const recaptchaEnabled =
+          typeof recaptchaPublicDoc?.enabled === 'boolean'
+            ? recaptchaPublicDoc.enabled
+            : Boolean(recaptchaPublicDoc?.siteKey && recaptchaSecretDoc?.secretKeySet);
+        const recaptchaProvider = parseCaptchaProvider(recaptchaPublicDoc?.provider);
         const nextRecaptcha: RecaptchaSettingsDraft & { secretKeySet: boolean } = {
+          enabled: recaptchaEnabled,
+          provider: recaptchaProvider,
           siteKey:
             typeof recaptchaPublicDoc?.siteKey === 'string' && recaptchaPublicDoc.siteKey.trim()
               ? recaptchaPublicDoc.siteKey.trim()
@@ -418,6 +434,8 @@ export default function CPCSettingsPage() {
         };
         setLoadedRecaptcha(nextRecaptcha);
         setRecaptchaDraft({
+          enabled: nextRecaptcha.enabled,
+          provider: nextRecaptcha.provider,
           siteKey: nextRecaptcha.siteKey,
           secretKey: '',
           minScore: nextRecaptcha.minScore,
@@ -637,20 +655,30 @@ export default function CPCSettingsPage() {
     const startedAtMs = auditTimerStart();
     try {
       const call = httpsCallable<
-        { siteKey: string; secretKey?: string; minScore: number },
-        { ok?: boolean; secretKeySet?: boolean; minScore?: number }
+        {
+          enabled: boolean;
+          provider: CaptchaProvider;
+          siteKey: string;
+          secretKey?: string;
+          minScore: number;
+        },
+        { ok?: boolean; enabled?: boolean; provider?: CaptchaProvider; secretKeySet?: boolean; minScore?: number }
       >(functions, 'applyRecaptchaSettings');
       await call({
+        enabled: recaptchaDraft.enabled,
+        provider: recaptchaDraft.provider,
         siteKey: recaptchaDraft.siteKey.trim(),
         ...(recaptchaDraft.secretKey.trim() ? { secretKey: recaptchaDraft.secretKey.trim() } : {}),
         minScore: recaptchaDraft.minScore,
       });
 
       const nextLoaded = {
+        enabled: recaptchaDraft.enabled,
+        provider: recaptchaDraft.provider,
         siteKey: recaptchaDraft.siteKey.trim(),
         secretKey: '',
         minScore: recaptchaDraft.minScore,
-        secretKeySet: true,
+        secretKeySet: recaptchaDraft.enabled ? true : loadedRecaptcha.secretKeySet,
       };
       setLoadedRecaptcha(nextLoaded);
       setRecaptchaDraft((current) => ({ ...current, secretKey: '' }));
@@ -661,9 +689,11 @@ export default function CPCSettingsPage() {
         actor_id: user.uid,
         context: 'cpc_settings',
         after: {
+          enabled: nextLoaded.enabled,
+          provider: nextLoaded.provider,
           siteKeyConfigured: Boolean(nextLoaded.siteKey),
           minScore: nextLoaded.minScore,
-          secretKeySet: true,
+          secretKeySet: nextLoaded.secretKeySet,
         },
         startedAtMs,
       });
@@ -1316,15 +1346,62 @@ export default function CPCSettingsPage() {
           <p className="text-sm text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.subtitle')}</p>
         </div>
 
+        <div className="flex items-center justify-between gap-4 rounded-xl border bg-muted/20 px-4 py-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="captcha-enabled">{t.get('cpc.pages.settings.recaptcha.enabledLabel')}</Label>
+            <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.enabledHelp')}</p>
+          </div>
+          <Switch
+            id="captcha-enabled"
+            checked={recaptchaDraft.enabled}
+            onCheckedChange={(checked) => setRecaptchaDraft((current) => ({ ...current, enabled: checked }))}
+            disabled={loading || applyingRecaptcha}
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="recaptcha-site-key">{t.get('cpc.pages.settings.recaptcha.siteKeyLabel')}</Label>
+            <Label htmlFor="captcha-provider">{t.get('cpc.pages.settings.recaptcha.providerLabel')}</Label>
+            <Select
+              value={recaptchaDraft.provider}
+              onValueChange={(value) =>
+                setRecaptchaDraft((current) => ({
+                  ...current,
+                  provider: value as CaptchaProvider,
+                }))
+              }
+              disabled={loading || applyingRecaptcha || !recaptchaDraft.enabled}
+            >
+              <SelectTrigger id="captcha-provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CAPTCHA_PROVIDER_OPTIONS.map((provider) => (
+                  <SelectItem key={provider} value={provider}>
+                    {t.get(`cpc.pages.settings.recaptcha.providers.${provider}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.providerHelp')}</p>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="recaptcha-site-key">
+              {recaptchaDraft.provider === 'hcaptcha'
+                ? t.get('cpc.pages.settings.recaptcha.hcaptchaSiteKeyLabel')
+                : t.get('cpc.pages.settings.recaptcha.siteKeyLabel')}
+            </Label>
             <Input
               id="recaptcha-site-key"
               value={recaptchaDraft.siteKey}
               onChange={(e) => setRecaptchaDraft((current) => ({ ...current, siteKey: e.target.value }))}
-              placeholder={t.get('cpc.pages.settings.recaptcha.siteKeyPlaceholder')}
-              disabled={loading || applyingRecaptcha}
+              placeholder={
+                recaptchaDraft.provider === 'hcaptcha'
+                  ? t.get('cpc.pages.settings.recaptcha.hcaptchaSiteKeyPlaceholder')
+                  : t.get('cpc.pages.settings.recaptcha.siteKeyPlaceholder')
+              }
+              disabled={loading || applyingRecaptcha || !recaptchaDraft.enabled}
               autoComplete="off"
             />
             {recaptchaValidation.errors.siteKey ? (
@@ -1333,7 +1410,11 @@ export default function CPCSettingsPage() {
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="recaptcha-secret-key">{t.get('cpc.pages.settings.recaptcha.secretKeyLabel')}</Label>
+            <Label htmlFor="recaptcha-secret-key">
+              {recaptchaDraft.provider === 'hcaptcha'
+                ? t.get('cpc.pages.settings.recaptcha.hcaptchaSecretKeyLabel')
+                : t.get('cpc.pages.settings.recaptcha.secretKeyLabel')}
+            </Label>
             <div className="relative">
               <Input
                 id="recaptcha-secret-key"
@@ -1343,9 +1424,11 @@ export default function CPCSettingsPage() {
                 placeholder={
                   loadedRecaptcha.secretKeySet
                     ? t.get('cpc.pages.settings.recaptcha.secretKeyConfiguredPlaceholder')
-                    : t.get('cpc.pages.settings.recaptcha.secretKeyPlaceholder')
+                    : recaptchaDraft.provider === 'hcaptcha'
+                      ? t.get('cpc.pages.settings.recaptcha.hcaptchaSecretKeyPlaceholder')
+                      : t.get('cpc.pages.settings.recaptcha.secretKeyPlaceholder')
                 }
-                disabled={loading || applyingRecaptcha}
+                disabled={loading || applyingRecaptcha || !recaptchaDraft.enabled}
                 autoComplete="new-password"
                 className="pr-10"
               />
@@ -1363,33 +1446,42 @@ export default function CPCSettingsPage() {
             ) : null}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="recaptcha-min-score">{t.get('cpc.pages.settings.recaptcha.minScoreLabel')}</Label>
-            <Select
-              value={String(recaptchaDraft.minScore)}
-              onValueChange={(value) =>
-                setRecaptchaDraft((current) => ({
-                  ...current,
-                  minScore: parseRecaptchaMinScore(Number(value)),
-                }))
-              }
-              disabled={loading || applyingRecaptcha}
-            >
-              <SelectTrigger id="recaptcha-min-score">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RECAPTCHA_MIN_SCORE_OPTIONS.map((score) => (
-                  <SelectItem key={score} value={String(score)}>
-                    {score === DEFAULT_RECAPTCHA_MIN_SCORE
-                      ? t.get('cpc.pages.settings.recaptcha.minScoreDefault', { score: String(score) })
-                      : String(score)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.minScoreHelp')}</p>
-          </div>
+          {recaptchaDraft.provider === 'recaptcha_v3' ? (
+            <div className="space-y-2">
+              <Label htmlFor="recaptcha-min-score">{t.get('cpc.pages.settings.recaptcha.minScoreLabel')}</Label>
+              <Select
+                value={String(recaptchaDraft.minScore)}
+                onValueChange={(value) =>
+                  setRecaptchaDraft((current) => ({
+                    ...current,
+                    minScore: parseRecaptchaMinScore(Number(value)),
+                  }))
+                }
+                disabled={loading || applyingRecaptcha || !recaptchaDraft.enabled}
+              >
+                <SelectTrigger id="recaptcha-min-score">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECAPTCHA_MIN_SCORE_OPTIONS.map((score) => (
+                    <SelectItem key={score} value={String(score)}>
+                      {score === DEFAULT_RECAPTCHA_MIN_SCORE
+                        ? t.get('cpc.pages.settings.recaptcha.minScoreDefault', { score: String(score) })
+                        : String(score)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t.get('cpc.pages.settings.recaptcha.minScoreHelp')}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>{t.get('cpc.pages.settings.recaptcha.hcaptchaModeLabel')}</Label>
+              <p className="text-sm text-muted-foreground rounded-xl border bg-muted/20 px-4 py-3">
+                {t.get('cpc.pages.settings.recaptcha.hcaptchaModeHelp')}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end">

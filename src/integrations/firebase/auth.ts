@@ -8,7 +8,7 @@ import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './client';
 import { functions } from './functionsClient';
-import { isRecaptchaSiteKeyConfigured, resolveRegisterRecaptchaToken } from '@/lib/recaptcha';
+import { resolveRegisterRecaptchaToken } from '@/lib/recaptcha';
 import { normalizeRegisterEmail } from '@/lib/normalizeRegisterEmail';
 import { resolvePasswordResetContinueUrl } from '@/lib/passwordResetContinueUrl';
 const env = import.meta.env as unknown as Record<string, string | boolean | undefined>;
@@ -192,7 +192,6 @@ function useSecureRegisterFunction(): boolean {
 
 function allowClientRegisterFallback(): boolean {
     if (env.PROD === true) return false;
-    if (isRecaptchaSiteKeyConfigured()) return false;
     return String(env.VITE_ALLOW_CLIENT_REGISTER_FALLBACK ?? 'true').toLowerCase() === 'true';
 }
 

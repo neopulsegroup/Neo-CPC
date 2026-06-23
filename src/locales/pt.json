@@ -2811,25 +2811,39 @@
           }
         },
         "recaptcha": {
-          "title": "Configuração de reCAPTCHA",
-          "subtitle": "Defina as chaves do Google reCAPTCHA v3 utilizadas no registo público.",
-          "siteKeyLabel": "VITE_RECAPTCHA_SITE_KEY",
+          "title": "Proteção anti-bot (CAPTCHA)",
+          "subtitle": "Configure reCAPTCHA v3 ou hCaptcha para o registo público. Quando desativado, o cadastro não exige verificação.",
+          "enabledLabel": "Ativar CAPTCHA no registo",
+          "enabledHelp": "Desativado permite criar utilizadores sem reCAPTCHA/hCaptcha.",
+          "providerLabel": "Provedor",
+          "providerHelp": "Escolha entre Google reCAPTCHA v3 (invisível) ou hCaptcha (invisível).",
+          "providers": {
+            "recaptcha_v3": "Google reCAPTCHA v3",
+            "hcaptcha": "hCaptcha"
+          },
+          "siteKeyLabel": "Site key reCAPTCHA",
           "siteKeyPlaceholder": "6Lc...",
-          "secretKeyLabel": "RECAPTCHA_SECRET_KEY",
+          "hcaptchaSiteKeyLabel": "Sitekey hCaptcha",
+          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "secretKeyLabel": "Secret key reCAPTCHA",
+          "hcaptchaSecretKeyLabel": "Segredo hCaptcha",
           "secretKeyPlaceholder": "Cole a secret key",
+          "hcaptchaSecretKeyPlaceholder": "Cole o segredo gerado no painel hCaptcha",
           "secretKeyConfiguredPlaceholder": "•••••••• (configurada — deixe vazio para manter)",
           "showSecret": "Mostrar secret key",
           "hideSecret": "Ocultar secret key",
-          "minScoreLabel": "RECAPTCHA_MIN_SCORE",
+          "minScoreLabel": "Score mínimo (reCAPTCHA v3)",
           "minScoreDefault": "{score} (predefinido)",
           "minScoreHelp": "Pontuação mínima aceite pelo servidor (0.0 a 1.0). Valor predefinido: 0.5.",
-          "apply": "Aplicar configuração",
-          "applying": "A aplicar...",
+          "hcaptchaModeLabel": "Modo hCaptcha",
+          "hcaptchaModeHelp": "Utiliza hCaptcha invisível no registo. Valide o domínio no painel hCaptcha e guarde o segredo correspondente.",
+          "apply": "Guardar CAPTCHA",
+          "applying": "A guardar...",
           "toast": {
-            "appliedTitle": "reCAPTCHA atualizado",
-            "appliedDescription": "As definições de reCAPTCHA foram guardadas com sucesso.",
-            "applyErrorTitle": "reCAPTCHA",
-            "applyError": "Não foi possível aplicar a configuração de reCAPTCHA."
+            "appliedTitle": "CAPTCHA atualizado",
+            "appliedDescription": "As definições de CAPTCHA foram guardadas com sucesso.",
+            "applyErrorTitle": "CAPTCHA",
+            "applyError": "Não foi possível guardar a configuração de CAPTCHA."
           }
         }
       },

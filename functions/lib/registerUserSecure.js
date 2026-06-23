@@ -9,7 +9,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
 const admin_1 = require("./admin");
-const recaptchaSettings_1 = require("./recaptchaSettings");
+const captchaVerification_1 = require("./captchaVerification");
 const ALLOWED_ROLES = [
     'migrant',
     'company',
@@ -171,61 +171,6 @@ async function assertRateLimit(ip, email, requestId) {
         }, { merge: true });
     });
 }
-async function verifyCaptchaIfConfigured(captchaToken, requestId) {
-    const runtime = await (0, recaptchaSettings_1.loadRecaptchaRuntimeConfig)();
-    const secret = runtime.secretKey;
-    const captchaRequired = process.env.RECAPTCHA_REQUIRED !== 'false';
-    if (!secret) {
-        if (captchaRequired && process.env.NODE_ENV === 'production') {
-            firebase_functions_1.logger.error('captcha_secret_missing_in_production', { requestId });
-            throw new https_1.HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
-                error: 'CAPTCHA_REQUIRED',
-                requestId,
-            });
-        }
-        return;
-    }
-    const token = typeof captchaToken === 'string' ? captchaToken.trim() : '';
-    if (!token) {
-        throw new https_1.HttpsError('failed-precondition', 'Não foi possível concluir o cadastro.', {
-            error: 'CAPTCHA_REQUIRED',
-            requestId,
-        });
-    }
-    const params = new URLSearchParams();
-    params.set('secret', secret);
-    params.set('response', token);
-    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-    });
-    if (!response.ok) {
-        firebase_functions_1.logger.error('captcha_http_error', { requestId, status: response.status });
-        throw new https_1.HttpsError('unavailable', 'Não foi possível concluir o cadastro.', {
-            error: 'AUTH_PROVIDER_UNAVAILABLE',
-            requestId,
-        });
-    }
-    const body = (await response.json());
-    const minScore = runtime.minScore;
-    const score = typeof body.score === 'number' ? body.score : 0;
-    const action = typeof body.action === 'string' ? body.action.trim() : '';
-    if (action && action !== 'register') {
-        firebase_functions_1.logger.warn('captcha_action_mismatch', { requestId, action });
-        throw new https_1.HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
-            error: 'REGISTRATION_FAILED',
-            requestId,
-        });
-    }
-    if (!body.success || score < minScore) {
-        firebase_functions_1.logger.warn('captcha_failed', { requestId, score, minScore, action: action || null });
-        throw new https_1.HttpsError('permission-denied', 'Não foi possível concluir o cadastro.', {
-            error: 'REGISTRATION_FAILED',
-            requestId,
-        });
-    }
-}
 function validatePayload(payload, requestId) {
     const email = normalizeEmail(payload.email);
     const name = normalizeName(payload.name);
@@ -277,7 +222,7 @@ exports.registerUserSecure = (0, https_1.onCall)({
     try {
         const { email, name, password, role, nif, activityArea } = validatePayload(payload, requestId);
         await assertRateLimit(ip, email, requestId);
-        await verifyCaptchaIfConfigured(payload.captchaToken, requestId);
+        await (0, captchaVerification_1.verifyCaptchaIfRequired)(payload.captchaToken, requestId, request.rawRequest);
         await assertEmailNotAlreadyRegistered(email, requestId);
         const auth = (0, admin_1.getAdminApp)().auth();
         const created = await auth.createUser({
