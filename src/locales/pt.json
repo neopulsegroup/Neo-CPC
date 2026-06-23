@@ -2824,7 +2824,7 @@
           "siteKeyLabel": "Site key reCAPTCHA",
           "siteKeyPlaceholder": "6Lc...",
           "hcaptchaSiteKeyLabel": "Sitekey hCaptcha",
-          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "hcaptchaSiteKeyPlaceholder": "50180a18-2d4e-4088-85ae-b0f810501f8a",
           "secretKeyLabel": "Secret key reCAPTCHA",
           "hcaptchaSecretKeyLabel": "Segredo hCaptcha",
           "secretKeyPlaceholder": "Cole a secret key",
@@ -2836,7 +2836,7 @@
           "minScoreDefault": "{score} (predefinido)",
           "minScoreHelp": "Pontuação mínima aceite pelo servidor (0.0 a 1.0). Valor predefinido: 0.5.",
           "hcaptchaModeLabel": "Modo hCaptcha",
-          "hcaptchaModeHelp": "Utiliza hCaptcha invisível no registo. Valide o domínio no painel hCaptcha e guarde o segredo correspondente.",
+          "hcaptchaModeHelp": "Mostra o widget hCaptcha no formulário de registo. Valide o domínio no painel hCaptcha e guarde o segredo correspondente.",
           "apply": "Guardar CAPTCHA",
           "applying": "A guardar...",
           "toast": {

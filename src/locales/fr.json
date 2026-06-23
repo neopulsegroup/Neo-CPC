@@ -2823,7 +2823,7 @@
           "siteKeyLabel": "Site key reCAPTCHA",
           "siteKeyPlaceholder": "6Lc...",
           "hcaptchaSiteKeyLabel": "Sitekey hCaptcha",
-          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "hcaptchaSiteKeyPlaceholder": "50180a18-2d4e-4088-85ae-b0f810501f8a",
           "secretKeyLabel": "Secret key reCAPTCHA",
           "hcaptchaSecretKeyLabel": "Secret hCaptcha",
           "secretKeyPlaceholder": "Collez la secret key",
@@ -2835,7 +2835,7 @@
           "minScoreDefault": "{score} (par défaut)",
           "minScoreHelp": "Score minimum accepté par le serveur (0.0 à 1.0). Valeur par défaut : 0.5.",
           "hcaptchaModeLabel": "Mode hCaptcha",
-          "hcaptchaModeHelp": "Utilise hCaptcha invisible à l'inscription. Vérifiez le domaine dans le tableau de bord hCaptcha et enregistrez le secret correspondant.",
+          "hcaptchaModeHelp": "Affiche le widget hCaptcha sur le formulaire d'inscription. Vérifiez le domaine dans le tableau de bord hCaptcha et enregistrez le secret correspondant.",
           "apply": "Enregistrer CAPTCHA",
           "applying": "Enregistrement...",
           "toast": {

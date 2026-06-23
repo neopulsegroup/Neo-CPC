@@ -2823,7 +2823,7 @@
           "siteKeyLabel": "reCAPTCHA site key",
           "siteKeyPlaceholder": "6Lc...",
           "hcaptchaSiteKeyLabel": "hCaptcha sitekey",
-          "hcaptchaSiteKeyPlaceholder": "08b0de1a-3098-4a0e-822e-bfa43b380a90",
+          "hcaptchaSiteKeyPlaceholder": "50180a18-2d4e-4088-85ae-b0f810501f8a",
           "secretKeyLabel": "reCAPTCHA secret key",
           "hcaptchaSecretKeyLabel": "hCaptcha secret",
           "secretKeyPlaceholder": "Paste the secret key",
@@ -2835,7 +2835,7 @@
           "minScoreDefault": "{score} (default)",
           "minScoreHelp": "Minimum score accepted by the server (0.0 to 1.0). Default: 0.5.",
           "hcaptchaModeLabel": "hCaptcha mode",
-          "hcaptchaModeHelp": "Uses invisible hCaptcha on registration. Verify your domain in the hCaptcha dashboard and save the matching secret.",
+          "hcaptchaModeHelp": "Shows the hCaptcha widget on the registration form. Verify your domain in the hCaptcha dashboard and save the matching secret.",
           "apply": "Save CAPTCHA",
           "applying": "Saving...",
           "toast": {
