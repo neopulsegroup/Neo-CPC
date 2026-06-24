@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onContactMessageCreated = exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.applyRecaptchaSettings = exports.uploadCvSecure = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.testResendConnection = exports.onMailCreated = void 0;
+exports.onContactMessageCreated = exports.scheduledReminders = exports.onSessionCreated = exports.onJobOfferCreated = exports.onApplicationStatusChanged = exports.onApplicationCreated = exports.onCompanyCreated = exports.onMigrantCreated = exports.revisePdi = exports.acceptPdi = exports.validateAndSendPdi = exports.generatePdiFromT0 = exports.submitScasAssessment = exports.applyRecaptchaSettings = exports.uploadCvSecure = exports.requestPasswordReset = exports.submitContactForm = exports.registerUserSecure = exports.testSmtpConnection = exports.testResendConnection = exports.onMailCreated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const systemSettingsPermissions_1 = require("./systemSettingsPermissions");
@@ -16,6 +16,13 @@ const sendPasswordReset_1 = require("./sendPasswordReset");
 Object.defineProperty(exports, "requestPasswordReset", { enumerable: true, get: function () { return sendPasswordReset_1.requestPasswordReset; } });
 const uploadCvSecure_1 = require("./uploadCvSecure");
 Object.defineProperty(exports, "uploadCvSecure", { enumerable: true, get: function () { return uploadCvSecure_1.uploadCvSecure; } });
+const submitScasAssessment_1 = require("./submitScasAssessment");
+Object.defineProperty(exports, "submitScasAssessment", { enumerable: true, get: function () { return submitScasAssessment_1.submitScasAssessment; } });
+const pdiFunctions_1 = require("./pdiFunctions");
+Object.defineProperty(exports, "acceptPdi", { enumerable: true, get: function () { return pdiFunctions_1.acceptPdi; } });
+Object.defineProperty(exports, "generatePdiFromT0", { enumerable: true, get: function () { return pdiFunctions_1.generatePdiFromT0; } });
+Object.defineProperty(exports, "revisePdi", { enumerable: true, get: function () { return pdiFunctions_1.revisePdi; } });
+Object.defineProperty(exports, "validateAndSendPdi", { enumerable: true, get: function () { return pdiFunctions_1.validateAndSendPdi; } });
 // TASK-08 — Triggers de notificação automática por email.
 // Cada trigger enfileira em `mail/{id}` e é consumido por `onMailCreated`.
 // Falha de envio não bloqueia operação principal; apenas log estruturado.

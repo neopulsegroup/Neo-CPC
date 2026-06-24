@@ -10,6 +10,13 @@ import { registerUserSecure } from './registerUserSecure';
 import { submitContactForm } from './contactForm';
 import { requestPasswordReset } from './sendPasswordReset';
 import { uploadCvSecure } from './uploadCvSecure';
+import { submitScasAssessment } from './submitScasAssessment';
+import {
+  acceptPdi,
+  generatePdiFromT0,
+  revisePdi,
+  validateAndSendPdi,
+} from './pdiFunctions';
 
 // TASK-08 — Triggers de notificação automática por email.
 // Cada trigger enfileira em `mail/{id}` e é consumido por `onMailCreated`.
@@ -75,7 +82,18 @@ export const testSmtpConnection = onCall(async (request) => {
   }
 });
 
-export { registerUserSecure, submitContactForm, requestPasswordReset, uploadCvSecure, applyRecaptchaSettings };
+export {
+  registerUserSecure,
+  submitContactForm,
+  requestPasswordReset,
+  uploadCvSecure,
+  applyRecaptchaSettings,
+  submitScasAssessment,
+  generatePdiFromT0,
+  validateAndSendPdi,
+  acceptPdi,
+  revisePdi,
+};
 
 // TASK-08 — exports dos 5 triggers de notificação.
 export {

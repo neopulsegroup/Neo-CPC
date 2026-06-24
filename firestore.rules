@@ -782,6 +782,130 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ===== SCAS (Sociocultural Adaptation Scale) =====
+
+    // Catálogo dos 21 itens (seed). Escrita apenas via Admin SDK (seed script).
+    match /scas_items/{itemId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Sessões de preenchimento. A submissão (status SUBMITTED, is_locked,
+    // scores) é exclusiva da Cloud Function (Admin SDK). O cliente só cria/
+    // edita sessões IN_PROGRESS e nunca pode bloquear nem atribuir scores.
+    match /scas_assessments/{assessmentId} {
+      function isParticipantOwner() {
+        return isAuthenticated() && resource.data.participant_id == request.auth.uid;
+      }
+      function createIsUnlockedInProgress() {
+        return request.resource.data.status == 'IN_PROGRESS'
+          && request.resource.data.is_locked == false
+          && request.resource.data.submitted_at == null
+          && request.resource.data.score_global == null
+          && request.resource.data.score_d1 == null
+          && request.resource.data.score_d2 == null
+          && request.resource.data.score_d3 == null
+          && request.resource.data.score_d4 == null;
+      }
+      function createAutonomous() {
+        return isAccountEnabled()
+          && request.resource.data.participant_id == request.auth.uid
+          && request.resource.data.mode == 'AUTONOMO'
+          && createIsUnlockedInProgress();
+      }
+      function createAssisted() {
+        return isCpcStaff()
+          && request.resource.data.mode == 'ASSISTIDO'
+          && request.resource.data.assisted_by_user_id == request.auth.uid
+          && createIsUnlockedInProgress();
+      }
+      allow read: if isCpcStaff() || isParticipantOwner();
+      allow create: if createAutonomous() || createAssisted();
+      allow update: if (isParticipantOwner() || isCpcStaff())
+        && resource.data.is_locked == false
+        && resource.data.status == 'IN_PROGRESS'
+        && request.resource.data.status == 'IN_PROGRESS'
+        && request.resource.data.is_locked == false
+        && request.resource.data.submitted_at == null
+        && request.resource.data.score_global == null
+        && request.resource.data.participant_id == resource.data.participant_id;
+      allow delete: if false;
+    }
+
+    // Respostas a itens. Escrita apenas enquanto a sessão-mãe está IN_PROGRESS.
+    match /scas_responses/{responseId} {
+      function parentData() {
+        return get(/databases/$(database)/documents/scas_assessments/$(request.resource.data.assessment_id)).data;
+      }
+      function existingParentData() {
+        return get(/databases/$(database)/documents/scas_assessments/$(resource.data.assessment_id)).data;
+      }
+      function canWriteToParent(parent) {
+        return parent.is_locked == false
+          && parent.status == 'IN_PROGRESS'
+          && (parent.participant_id == request.auth.uid || isCpcStaff());
+      }
+      function isValidResponseWrite() {
+        return request.resource.data.assessment_id is string
+          && request.resource.data.item_id is int
+          && request.resource.data.item_id >= 1
+          && request.resource.data.item_id <= 21
+          && request.resource.data.value is int
+          && request.resource.data.value >= 1
+          && request.resource.data.value <= 5;
+      }
+      allow read: if isAuthenticated()
+        && (isCpcStaff() || existingParentData().participant_id == request.auth.uid);
+      allow create, update: if isAuthenticated()
+        && isValidResponseWrite()
+        && canWriteToParent(parentData());
+      allow delete: if false;
+    }
+
+    // Log de auditoria imutável (escrito apenas pela Cloud Function via Admin SDK).
+    match /scas_audit_log/{logId} {
+      allow read: if isCpcStaff();
+      allow create, update, delete: if false;
+    }
+
+    // ===== PDI (Plano de Desenvolvimento Individual) =====
+    function isPdiEditableStatus(status) {
+      return status in ['DRAFT_GENERATED', 'IN_REVIEW'];
+    }
+
+    match /pdi/{pdiId} {
+      allow read: if isCpcStaff()
+        || (
+          isAuthenticated()
+          && resource.data.participant_id == request.auth.uid
+          && resource.data.status in ['VALIDATED', 'ACCEPTED']
+        );
+      allow create: if false;
+      allow update: if (
+          isCpcStaff()
+          && isPdiEditableStatus(resource.data.status)
+          && request.resource.data.status in ['DRAFT_GENERATED', 'IN_REVIEW', 'VALIDATED']
+          && request.resource.data.participant_id == resource.data.participant_id
+        )
+        || (
+          isAuthenticated()
+          && resource.data.participant_id == request.auth.uid
+          && resource.data.status == 'VALIDATED'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['review_sections_viewed'])
+        );
+      allow delete: if false;
+    }
+
+    match /pdi_acceptance/{acceptanceId} {
+      allow read: if isCpcStaff() || isOwner(resource.data.participant_id);
+      allow create, update, delete: if false;
+    }
+
+    match /pdi_version_log/{logId} {
+      allow read: if isCpcStaff();
+      allow create, update, delete: if false;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

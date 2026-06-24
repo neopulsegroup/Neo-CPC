@@ -259,6 +259,14 @@
         { "fieldPath": "module_id", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "pdi",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participant_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

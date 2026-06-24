@@ -47,6 +47,7 @@ import {
   Trash2,
   Search,
   ScrollText,
+  Target,
 } from 'lucide-react';
 import {
   addCalendarDaysIso,
@@ -1330,6 +1331,7 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/trilhas', label: t.get('cpc.menu.trails'), icon: BookOpen },
     { to: '/dashboard/cpc/equipa', label: t.get('cpc.menu.team'), icon: UserCog },
     { to: '/dashboard/cpc/estatisticas', label: t.get('cpc.menu.statistics'), icon: TrendingUp },
+    { to: '/dashboard/cpc/scas', label: t.get('scas.dashboard.title'), icon: Target },
     { to: '/dashboard/cpc/traducoes', label: t.get('cpcTranslations.title'), icon: Languages },
   ];
 
@@ -1674,7 +1676,9 @@ export default function CPCDashboard() {
               <Routes>
                 <Route path="candidatos/:candidateId" element={<CandidateProfilePage />} />
                 <Route path="migrantes/:migrantId/perfil" element={<MigrantProfilePage />} />
+                <Route path="migrantes/:migrantId/scas" element={<ScasAssistedPage />} />
                 <Route path="migrantes" element={<MigrantsAdminPage />} />
+                <Route path="scas" element={<ScasDashboardPage />} />
                 <Route path="atividades" element={<ActivitiesPage />} />
                 <Route path="atividades/nova" element={<ActivityEditorPage />} />
                 <Route path="atividades/:activityId" element={<ActivityDetailsPage />} />
@@ -1738,3 +1742,5 @@ import CpcCompanyDetailPage from './cpc/CpcCompanyDetailPage';
 import StatisticsPage from './cpc/StatisticsPage';
 import CPCSettingsPage from './cpc/SettingsPage';
 import EventLogPage from './cpc/EventLogPage';
+import ScasAssistedPage from './cpc/ScasAssistedPage';
+import ScasDashboardPage from './cpc/ScasDashboardPage';

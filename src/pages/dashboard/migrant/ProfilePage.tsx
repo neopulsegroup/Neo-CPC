@@ -17,6 +17,8 @@ import { PhoneInput, formatPhoneValueForDisplay } from '@/components/ui/phone-in
 import { fetchMigrantProfile, type MigrantProfileDoc, type MigrantProfileResponse } from '@/api/migrantProfile';
 import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
 import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
+import { ScasParticipantPanel } from '@/features/scas/ScasParticipantPanel';
+import { PdiParticipantPanel } from '@/features/pdi/PdiParticipantPanel';
 import { CVUploadButton } from '@/features/cv/CVUploadButton';
 import { deleteMigrantUserCvFiles, deleteProfileExternalCvFiles } from '@/features/cv/deleteCvFile';
 import { updateDocument } from '@/integrations/firebase/firestore';
@@ -1615,6 +1617,16 @@ export default function ProfilePage() {
     <div className="space-y-6">
       {isViewingOtherUser && needsProfile.items.length > 0 ? (
         <NeedsProfileCard profile={needsProfile} layout="grid" />
+      ) : null}
+      {isViewingOtherUser && targetUserId ? (
+        <ScasParticipantPanel
+          participantId={targetUserId}
+          participantName={edit.name || profileDoc.email || ''}
+          canAssist
+        />
+      ) : null}
+      {isViewingOtherUser && targetUserId ? (
+        <PdiParticipantPanel participantId={targetUserId} />
       ) : null}
       <div className="cpc-card p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
