@@ -66,6 +66,7 @@ interface Trail {
   is_active: boolean;
   image_url?: string | null;
   image_path?: string | null;
+  scas_domain?: 'D1' | 'D2' | 'D3' | 'D4' | null;
 }
 
 interface Module {
@@ -292,6 +293,7 @@ export default function TrailEditorPage() {
         is_active: trail.is_active,
         image_url: trail.image_url ?? null,
         image_path: trail.image_path ?? null,
+        scas_domain: trail.scas_domain ?? null,
         modules_count: modules.length,
         duration_minutes: totalDuration,
       });
@@ -781,6 +783,28 @@ export default function TrailEditorPage() {
                 <option value="advanced">Avançado</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Domínio SCAS</label>
+            <select
+              value={trail.scas_domain ?? ''}
+              onChange={(e) =>
+                setTrail({
+                  ...trail,
+                  scas_domain: (e.target.value || null) as Trail['scas_domain'],
+                })
+              }
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+            >
+              <option value="">Sem domínio (não dispara SCAS por trilha)</option>
+              <option value="D1">D1 — Habilidades Interpessoais e Comunicação</option>
+              <option value="D2">D2 — Adaptação ao Ambiente Social</option>
+              <option value="D3">D3 — Habilidades Práticas no Contexto Português</option>
+              <option value="D4">D4 — Adaptação no Trabalho e Estudo</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Liga a trilha a um domínio SCAS para avaliação após a conclusão (T_TRILHA).
+            </p>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">

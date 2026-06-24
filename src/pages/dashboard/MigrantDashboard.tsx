@@ -9,6 +9,8 @@ import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
 import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
 import { inferFirstActions } from '@/features/recommendations/firstActions';
 import { FirstActionsCard } from '@/features/recommendations/FirstActionsCard';
+import { ScasPendingBanner } from '@/features/scas/ScasPendingBanner';
+import { PdiPendingBanner } from '@/features/pdi/PdiPendingBanner';
 import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
 import { formatActivityDurationShort, formatActivityStatusListLabel } from '@/features/activities/model';
 import { loadParticipantActivitiesForUser, MAX_PARTICIPANT_ACTIVITIES_QUERY_LIMIT } from '@/features/activities/participantActivityList';
@@ -44,6 +46,7 @@ import {
   Search,
   ListChecks,
   Trash2,
+  FileCheck,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
@@ -96,6 +99,8 @@ import SessionsPage from './migrant/SessionsPage';
 import MigrantActivitiesListPage from './migrant/MigrantActivitiesListPage';
 import MigrantActivityDetailPage from './migrant/MigrantActivityDetailPage';
 import MigrantMessagesPage from './migrant/MessagesPage';
+import ScasPage from './migrant/ScasPage';
+import PdiPage from './migrant/PdiPage';
 import MigrantJobsAccessGate from './migrant/MigrantJobsAccessGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
 import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
@@ -736,6 +741,8 @@ function MigrantHome() {
 
   return (
     <>
+      <ScasPendingBanner />
+      <PdiPendingBanner />
       {(needsProfile.hasUrgentNeeds || firstActions.length > 0) ? (
         <div className="grid gap-6 mb-8 lg:grid-cols-2">
           {needsProfile.hasUrgentNeeds ? <NeedsProfileCard profile={needsProfile} /> : null}
@@ -1196,6 +1203,8 @@ export default function MigrantDashboard() {
     // TASK-02: nova entrada "Minhas Candidaturas" logo após Emprego (fluxo natural).
     { to: '/dashboard/migrante/candidaturas', label: t.get('dashboard.applications'), icon: ListChecks },
     { to: '/dashboard/migrante/trilhas', label: t.get('dashboard.trails'), icon: BookOpen },
+    { to: '/dashboard/migrante/scas', label: t.get('scas.shortTitle'), icon: ClipboardList },
+    { to: '/dashboard/migrante/pdi', label: t.get('pdi.shortTitle'), icon: FileCheck },
   ];
   const role = normalizeDashboardRole(profile?.role);
   const isMigrant = role === 'migrant' || role === 'migrante' || role.length === 0;
@@ -1292,6 +1301,8 @@ export default function MigrantDashboard() {
                 <Route path="curriculo" element={<CurriculumPage />} />
                 <Route path="curriculo/ver/:migrantId" element={<CurriculumViewPage />} />
                 <Route path="mensagens" element={<MigrantMessagesPage />} />
+                <Route path="scas" element={<ScasPage />} />
+                <Route path="pdi" element={<PdiPage />} />
               </Routes>
             </div>
           </div>
