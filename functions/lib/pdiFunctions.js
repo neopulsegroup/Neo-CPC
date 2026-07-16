@@ -241,6 +241,14 @@ exports.acceptPdi = (0, https_1.onCall)({ region: 'us-central1' }, async (reques
     if (uid !== participantId) {
         throw new https_1.HttpsError('permission-denied', 'Sem permissão.', { error: 'FORBIDDEN', requestId });
     }
+    const classSnap = await db.doc(`migrant_classifications/${participantId}`).get();
+    const eligibility = classSnap.exists ? classSnap.data()?.eligibility_profile : null;
+    if (eligibility !== 'A') {
+        throw new https_1.HttpsError('permission-denied', 'PDI disponível apenas para Perfil A.', {
+            error: 'PROFILE_A_REQUIRED',
+            requestId,
+        });
+    }
     if (data.status !== 'VALIDATED') {
         throw new https_1.HttpsError('failed-precondition', 'O PDI não está disponível para aceite.', { error: 'INVALID_STATUS', requestId });
     }

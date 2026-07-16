@@ -102,8 +102,10 @@ import MigrantMessagesPage from './migrant/MessagesPage';
 import ScasPage from './migrant/ScasPage';
 import PdiPage from './migrant/PdiPage';
 import MigrantJobsAccessGate from './migrant/MigrantJobsAccessGate';
+import MigrantProfileAGate from './migrant/MigrantProfileAGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
 import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
+import { useMigrantProfileAAccess } from '@/hooks/useMigrantProfileAAccess';
 import {
   buildMigrantJobsAccessProfile,
   canAccessMigrantJobs,
@@ -149,6 +151,7 @@ function MigrantHome() {
   const { formatDate, language } = useAppDateTime();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -761,8 +764,12 @@ function MigrantHome() {
 
   return (
     <>
-      <ScasPendingBanner />
-      <PdiPendingBanner />
+      {!profileALoading && canAccessScasPdi ? (
+        <>
+          <ScasPendingBanner />
+          <PdiPendingBanner />
+        </>
+      ) : null}
       {(needsProfile.hasUrgentNeeds || firstActions.length > 0) ? (
         <div className="grid gap-6 mb-8 lg:grid-cols-2">
           {needsProfile.hasUrgentNeeds ? <NeedsProfileCard profile={needsProfile} /> : null}
@@ -1213,19 +1220,27 @@ export default function MigrantDashboard() {
   const { profile } = useAuth();
   const migrantDisplayName = useDashboardDisplayName();
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
+  const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
   const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
-  const sidebarItemsMain = [
-    { to: '/dashboard/migrante', label: t.get('dashboard.overview'), icon: TrendingUp },
-    { to: '/dashboard/migrante/sessoes', label: t.get('dashboard.sessions'), icon: Calendar },
-    { to: '/dashboard/migrante/atividades', label: t.get('dashboard.activities'), icon: ClipboardList },
-    { to: '/dashboard/migrante/emprego', label: t.get('dashboard.employment'), icon: Briefcase },
-    // TASK-02: nova entrada "Minhas Candidaturas" logo após Emprego (fluxo natural).
-    { to: '/dashboard/migrante/candidaturas', label: t.get('dashboard.applications'), icon: ListChecks },
-    { to: '/dashboard/migrante/trilhas', label: t.get('dashboard.trails'), icon: BookOpen },
-    { to: '/dashboard/migrante/scas', label: t.get('dashboard.scas'), icon: ClipboardList },
-    { to: '/dashboard/migrante/pdi', label: t.get('dashboard.pdi'), icon: FileCheck },
-  ];
+  const sidebarItemsMain = useMemo(() => {
+    const items = [
+      { to: '/dashboard/migrante', label: t.get('dashboard.overview'), icon: TrendingUp },
+      { to: '/dashboard/migrante/sessoes', label: t.get('dashboard.sessions'), icon: Calendar },
+      { to: '/dashboard/migrante/atividades', label: t.get('dashboard.activities'), icon: ClipboardList },
+      { to: '/dashboard/migrante/emprego', label: t.get('dashboard.employment'), icon: Briefcase },
+      // TASK-02: nova entrada "Minhas Candidaturas" logo após Emprego (fluxo natural).
+      { to: '/dashboard/migrante/candidaturas', label: t.get('dashboard.applications'), icon: ListChecks },
+      { to: '/dashboard/migrante/trilhas', label: t.get('dashboard.trails'), icon: BookOpen },
+    ];
+    if (!profileALoading && canAccessScasPdi) {
+      items.push(
+        { to: '/dashboard/migrante/scas', label: t.get('dashboard.scas'), icon: ClipboardList },
+        { to: '/dashboard/migrante/pdi', label: t.get('dashboard.pdi'), icon: FileCheck },
+      );
+    }
+    return items;
+  }, [canAccessScasPdi, profileALoading, t]);
   const role = normalizeDashboardRole(profile?.role);
   const isMigrant = role === 'migrant' || role === 'migrante' || role.length === 0;
   const sidebarItemsProfile = [
@@ -1321,8 +1336,8 @@ export default function MigrantDashboard() {
                 <Route path="curriculo" element={<CurriculumPage />} />
                 <Route path="curriculo/ver/:migrantId" element={<CurriculumViewPage />} />
                 <Route path="mensagens" element={<MigrantMessagesPage />} />
-                <Route path="scas" element={<ScasPage />} />
-                <Route path="pdi" element={<PdiPage />} />
+                <Route path="scas" element={<MigrantProfileAGate><ScasPage /></MigrantProfileAGate>} />
+                <Route path="pdi" element={<MigrantProfileAGate><PdiPage /></MigrantProfileAGate>} />
               </Routes>
             </div>
           </div>
