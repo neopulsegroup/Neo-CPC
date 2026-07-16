@@ -566,6 +566,12 @@
     "accountCreated": "Account created successfully!",
     "backToSelection": "Back to profile selection",
     "registerAs": "Register as:",
+    "consent": {
+      "prefix": "I have read and agree to the",
+      "linkLabel": "Privacy Policy",
+      "suffix": "and authorize the processing of my personal data for the use of the platform.",
+      "required": "You must accept the Privacy Policy to complete registration."
+    },
     "captcha": {
       "label": "Security check",
       "instruction": "Type the characters shown in the image",

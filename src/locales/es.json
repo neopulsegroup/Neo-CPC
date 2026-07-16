@@ -566,6 +566,12 @@
     "accountCreated": "Cuenta creada correctamente",
     "backToSelection": "Volver a la selección de perfil",
     "registerAs": "Registrarse Como:",
+    "consent": {
+      "prefix": "He leído y acepto la",
+      "linkLabel": "Política de Privacidad",
+      "suffix": "y autorizo el tratamiento de mis datos personales para el uso de la plataforma.",
+      "required": "Debe aceptar la Política de Privacidad para completar el registro."
+    },
     "captcha": {
       "label": "Verificación de seguridad",
       "instruction": "Escriba los caracteres que aparecen en la imagen",

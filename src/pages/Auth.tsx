@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { mapAuthErrorToMessage } from '@/lib/authErrorMapper';
@@ -76,6 +77,7 @@ export default function Auth() {
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [hcaptchaVerified, setHcaptchaVerified] = useState(true);
   const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -169,6 +171,12 @@ export default function Auth() {
           setIsLoading(false);
           return;
         }
+        // RGPD: aceite da Política de Privacidade obrigatório para concluir o registo.
+        if (!privacyAccepted) {
+          toast.error(t.get('auth.consent.required'));
+          setIsLoading(false);
+          return;
+        }
         // TASK-05: validar e resolver activity_area apenas para empresa.
         let activityAreaResolved: string | undefined;
         if (selectedRole === 'company') {
@@ -199,6 +207,7 @@ export default function Auth() {
           role: selectedRole,
           nif: selectedRole === 'company' ? formData.nif : undefined,
           activityArea: activityAreaResolved,
+          privacyConsent: true,
         });
       toast.success(t.auth.accountCreated);
       
@@ -237,6 +246,7 @@ export default function Auth() {
     setCaptchaVerified(false);
     setHcaptchaVerified(true);
     setCaptchaResetSignal((n) => n + 1);
+    setPrivacyAccepted(false);
   }, [selectedRole, mode]);
 
   if (authLoading) {
@@ -460,6 +470,31 @@ export default function Auth() {
               )}
 
               {mode === 'register' && (
+                <div className="flex items-start gap-3 rounded-lg border border-muted bg-muted/30 p-3">
+                  <Checkbox
+                    id="privacyConsent"
+                    checked={privacyAccepted}
+                    onCheckedChange={(v) => setPrivacyAccepted(Boolean(v))}
+                    aria-required="true"
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="privacyConsent" className="text-sm leading-snug text-muted-foreground cursor-pointer">
+                    {t.get('auth.consent.prefix')}{' '}
+                    <a
+                      href="/privacidade"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t.get('auth.consent.linkLabel')}
+                    </a>{' '}
+                    {t.get('auth.consent.suffix')}
+                  </label>
+                </div>
+              )}
+
+              {mode === 'register' && (
                 <HumanVerificationCaptcha
                   verified={captchaVerified}
                   onVerifiedChange={setCaptchaVerified}
@@ -477,7 +512,7 @@ export default function Auth() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading || (mode === 'register' && (!captchaVerified || !hcaptchaVerified))}
+                disabled={isLoading || (mode === 'register' && (!captchaVerified || !hcaptchaVerified || !privacyAccepted))}
               >
                 {isLoading ? (
                   <>

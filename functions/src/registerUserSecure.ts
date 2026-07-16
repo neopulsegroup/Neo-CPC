@@ -30,6 +30,8 @@ type RegisterPayload = {
    * o utilizador escolheu "Outro"). Persistido em `companies.activity_area`.
    */
   activityArea?: unknown;
+  /** RGPD: aceite da Política de Privacidade no registo (obrigatório). */
+  privacyConsent?: unknown;
   captchaToken?: unknown;
 };
 
@@ -223,6 +225,7 @@ function validatePayload(payload: RegisterPayload, requestId: string) {
   const role = normalizeRole(payload.role);
   const nif = normalizeNif(payload.nif);
   const activityArea = normalizeActivityArea(payload.activityArea);
+  const privacyConsent = payload.privacyConsent === true;
 
   if (!email || !name || !password) {
     throw new HttpsError('invalid-argument', 'Não foi possível concluir o cadastro.', {
@@ -253,7 +256,15 @@ function validatePayload(payload: RegisterPayload, requestId: string) {
     });
   }
 
-  return { email, name, password, role, nif, activityArea };
+  // RGPD: registo de migrante/empresa exige aceite da Política de Privacidade.
+  if ((role === 'migrant' || role === 'company') && !privacyConsent) {
+    throw new HttpsError('invalid-argument', 'Não foi possível concluir o cadastro.', {
+      error: 'PRIVACY_CONSENT_REQUIRED',
+      requestId,
+    });
+  }
+
+  return { email, name, password, role, nif, activityArea, privacyConsent };
 }
 
 export const registerUserSecure = onCall(
@@ -274,7 +285,7 @@ export const registerUserSecure = onCall(
     const ip = getClientIp(rawRequest);
 
     try {
-      const { email, name, password, role, nif, activityArea } = validatePayload(payload, requestId);
+      const { email, name, password, role, nif, activityArea, privacyConsent } = validatePayload(payload, requestId);
       await assertRateLimit(ip, email, requestId);
       await verifyCaptchaIfRequired(payload.captchaToken, requestId, request.rawRequest);
       await assertEmailNotAlreadyRegistered(email, requestId);
@@ -300,6 +311,7 @@ export const registerUserSecure = onCall(
         createdAt: now,
         updatedAt: now,
         ...(nif ? { nif } : {}),
+        ...(privacyConsent ? { privacyConsentAccepted: true, privacyConsentAcceptedAt: now } : {}),
       };
       const profileDoc = {
         name,

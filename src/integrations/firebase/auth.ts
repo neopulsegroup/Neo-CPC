@@ -25,6 +25,9 @@ export interface UserProfile {
     blockedBy?: string | null;
     createdAt: unknown;
     updatedAt: unknown;
+    /** RGPD: aceite da Política de Privacidade no registo. */
+    privacyConsentAccepted?: boolean;
+    privacyConsentAcceptedAt?: unknown | null;
 }
 
 function normalizeRole(role: unknown): UserProfile['role'] {
@@ -111,12 +114,15 @@ async function registerUserWithClientFallback(
     password: string,
     name: string,
     role: UserProfile['role'],
-    additionalData?: { nif?: string; activityArea?: string }
+    additionalData?: { nif?: string; activityArea?: string; privacyConsent?: boolean }
 ) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
     const now = serverTimestamp();
+    const privacyConsentFields = additionalData?.privacyConsent
+        ? { privacyConsentAccepted: true, privacyConsentAcceptedAt: now }
+        : {};
     const userProfile: UserProfile = {
         email,
         name,
@@ -129,6 +135,7 @@ async function registerUserWithClientFallback(
         createdAt: now,
         updatedAt: now,
         ...(additionalData?.nif && { nif: additionalData.nif }),
+        ...privacyConsentFields,
     };
 
     try {
@@ -203,7 +210,7 @@ export async function registerUser(
     password: string,
     name: string,
     role: 'migrant' | 'company' | 'admin' | 'mediator' | 'lawyer' | 'psychologist' | 'manager' | 'consultant' | 'coordinator' | 'trainer' = 'migrant',
-    additionalData?: { nif?: string; activityArea?: string }
+    additionalData?: { nif?: string; activityArea?: string; privacyConsent?: boolean }
 ) {
     const normalizedEmail = normalizeRegisterEmail(email);
     const trimmedName = name.trim();
@@ -216,6 +223,7 @@ export async function registerUser(
                 role: UserProfile['role'];
                 nif?: string;
                 activityArea?: string;
+                privacyConsent?: boolean;
                 captchaToken?: string;
             },
             { ok: boolean; requestId?: string }
@@ -239,6 +247,7 @@ export async function registerUser(
                 ...(captchaToken ? { captchaToken } : {}),
                 ...(additionalData?.nif ? { nif: additionalData.nif } : {}),
                 ...(additionalData?.activityArea ? { activityArea: additionalData.activityArea } : {}),
+                ...(additionalData?.privacyConsent ? { privacyConsent: true } : {}),
             });
         } catch (functionError) {
             if (!allowClientRegisterFallback() || !isFunctionFallbackEligible(functionError)) {
