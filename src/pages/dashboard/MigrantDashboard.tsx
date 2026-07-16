@@ -105,6 +105,7 @@ import MigrantJobsAccessGate from './migrant/MigrantJobsAccessGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
 import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
 import {
+  buildMigrantJobsAccessProfile,
   canAccessMigrantJobs,
   hasEmployerProfessionalAuthorization,
   MIGRANT_JOBS_ACCESS_PROFILE_PATH,
@@ -400,13 +401,32 @@ function MigrantHome() {
   const completedSessionsCount = useMemo(() => countMigrantCompletedSessions(sessions), [sessions]);
   const completedModulesCount = useMemo(() => countMigrantCompletedModules(progress), [progress]);
 
+  const mergedProfileDoc = useMemo((): MigrantDashboardProfileDoc | null => {
+    if (!profileDoc && !extras) return profileDoc;
+    return {
+      ...(profileDoc || {}),
+      nationality: profileDoc?.nationality || extras?.nationality || null,
+      skills: profileDoc?.skills || extras?.skills || null,
+      languagesList: profileDoc?.languagesList || extras?.languagesList || null,
+      professionalTitle: profileDoc?.professionalTitle || extras?.professionalTitle || null,
+      professionalExperience: profileDoc?.professionalExperience || extras?.professionalExperience || null,
+      mainNeeds: profileDoc?.mainNeeds || extras?.mainNeeds || null,
+      contactPreference: profileDoc?.contactPreference || extras?.contactPreference || null,
+    };
+  }, [profileDoc, extras]);
+
+  const effectiveJobsProfile = useMemo(
+    () => buildMigrantJobsAccessProfile({ profile: profileDoc, extras }),
+    [profileDoc, extras]
+  );
+
   const profileCompleteness = useMemo(
     () =>
-      computeMigrantProfileCompletenessPercent(profileDoc || undefined, {
+      computeMigrantProfileCompletenessPercent(mergedProfileDoc || undefined, {
         authName: profile?.name,
         authPhone: (profile as { phone?: string | null } | null)?.phone,
       }),
-    [profile, profileDoc]
+    [mergedProfileDoc, profile]
   );
 
   const triageProgress = useMemo(() => {
@@ -491,7 +511,7 @@ function MigrantHome() {
     };
     const validateRegion = (raw: string) => ['Lisboa', 'Norte', 'Centro', 'Alentejo', 'Algarve', 'Outra'].includes(raw);
 
-    const p = profileDoc || {};
+    const p = mergedProfileDoc || {};
 
     const missingPersonal: string[] = [];
     const missingProfessional: string[] = [];
@@ -557,7 +577,7 @@ function MigrantHome() {
       type: 'warning',
       href: '/dashboard/migrante/perfil',
     };
-  }, [profile?.name, profile, profileDoc]);
+  }, [mergedProfileDoc, profile?.name, profile]);
 
   const jobsAccessAlert = useMemo(() => {
     if (hasEmployerProfessionalAuthorization(profileDoc)) return null;
@@ -928,7 +948,7 @@ function MigrantHome() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold flex items-center gap-2"><Briefcase className="h-5 w-5 text-primary" /> {t.dashboard.employment_area}</h2>
               <Link
-                to={canAccessMigrantJobs(profileDoc) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}
+                to={canAccessMigrantJobs(effectiveJobsProfile) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}
                 className="text-sm text-primary hover:underline"
               >
                 {t.dashboard.view_all}
@@ -942,7 +962,7 @@ function MigrantHome() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="sm">
-                <Link to={canAccessMigrantJobs(profileDoc) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}>
+                <Link to={canAccessMigrantJobs(effectiveJobsProfile) ? '/dashboard/migrante/emprego' : MIGRANT_JOBS_ACCESS_PROFILE_PATH}>
                   <Briefcase className="h-4 w-4 mr-2" />
                   {t.dashboard.view_vacancies}
                 </Link>
@@ -960,7 +980,7 @@ function MigrantHome() {
                   <Link
                     key={job.id}
                     to={
-                      canAccessMigrantJobs(profileDoc)
+                      canAccessMigrantJobs(effectiveJobsProfile)
                         ? `/dashboard/migrante/emprego/${job.id}`
                         : MIGRANT_JOBS_ACCESS_PROFILE_PATH
                     }
@@ -1203,8 +1223,8 @@ export default function MigrantDashboard() {
     // TASK-02: nova entrada "Minhas Candidaturas" logo após Emprego (fluxo natural).
     { to: '/dashboard/migrante/candidaturas', label: t.get('dashboard.applications'), icon: ListChecks },
     { to: '/dashboard/migrante/trilhas', label: t.get('dashboard.trails'), icon: BookOpen },
-    { to: '/dashboard/migrante/scas', label: t.get('scas.shortTitle'), icon: ClipboardList },
-    { to: '/dashboard/migrante/pdi', label: t.get('pdi.shortTitle'), icon: FileCheck },
+    { to: '/dashboard/migrante/scas', label: t.get('dashboard.scas'), icon: ClipboardList },
+    { to: '/dashboard/migrante/pdi', label: t.get('dashboard.pdi'), icon: FileCheck },
   ];
   const role = normalizeDashboardRole(profile?.role);
   const isMigrant = role === 'migrant' || role === 'migrante' || role.length === 0;
@@ -1242,8 +1262,8 @@ export default function MigrantDashboard() {
                       `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`
                     }
                   >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="leading-snug">{item.label}</span>
                   </NavLink>
                   );
                 })}

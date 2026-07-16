@@ -464,43 +464,45 @@ export function PdiParticipantPanel({ participantId }: PdiParticipantPanelProps)
             {displayPdi.apoios.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t.get('pdi.cpc.noApoios')}</p>
             ) : (
-              displayPdi.apoios.map((apoio, index) => (
-                <div key={index} className="rounded border p-3 space-y-2">
-                  {editable ? (
-                    <Select
-                      value={apoio.type}
-                      onValueChange={(v) => updateApoio(index, { type: v as PdiApoioType })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {APOIO_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {t.get(`pdi.apoios.${type}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm font-medium">{t.get(`pdi.apoios.${apoio.type}`)}</p>
-                  )}
-                  {apoio.notes || editable ? (
-                    <Textarea
-                      value={apoio.notes ?? ''}
-                      onChange={(e) => updateApoio(index, { notes: e.target.value })}
-                      placeholder={t.get('pdi.cpc.apoioNotes')}
-                      disabled={!editable}
-                      rows={2}
-                    />
-                  ) : null}
-                  {editable ? (
-                    <Button size="sm" variant="ghost" onClick={() => removeApoio(index)}>
-                      {t.get('pdi.cpc.remove')}
-                    </Button>
-                  ) : null}
-                </div>
-              ))
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {displayPdi.apoios.map((apoio, index) => (
+                  <div key={index} className="rounded border p-3 space-y-2">
+                    {editable ? (
+                      <Select
+                        value={apoio.type}
+                        onValueChange={(v) => updateApoio(index, { type: v as PdiApoioType })}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {APOIO_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {t.get(`pdi.apoios.${type}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm font-medium">{t.get(`pdi.apoios.${apoio.type}`)}</p>
+                    )}
+                    {apoio.notes || editable ? (
+                      <Textarea
+                        value={apoio.notes ?? ''}
+                        onChange={(e) => updateApoio(index, { notes: e.target.value })}
+                        placeholder={t.get('pdi.cpc.apoioNotes')}
+                        disabled={!editable}
+                        rows={2}
+                      />
+                    ) : null}
+                    {editable ? (
+                      <Button size="sm" variant="ghost" onClick={() => removeApoio(index)}>
+                        {t.get('pdi.cpc.remove')}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

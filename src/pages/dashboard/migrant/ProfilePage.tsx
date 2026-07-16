@@ -51,6 +51,7 @@ import {
 } from '@/lib/migrantEligibility';
 import { CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 import {
+  buildMigrantJobsAccessProfile,
   getMissingProfessionalFieldsForJobs,
   MIGRANT_JOBS_ACCESS_PROFILE_HASH,
 } from '@/lib/migrantJobsAccess';
@@ -507,9 +508,37 @@ export default function ProfilePage() {
   }, [data?.progress]);
 
   const profileDoc: MigrantProfileDoc | null = data?.profile || null;
+  const profileExtras = useMemo(
+    () => (targetUserId ? readProfileExtrasFromStorage(targetUserId) : null),
+    [targetUserId, data?.profile]
+  );
+  const effectiveJobsProfile = useMemo(
+    () =>
+      buildMigrantJobsAccessProfile({
+        profile: profileDoc,
+        extras: profileExtras,
+        draft: !isViewingOtherUser
+          ? {
+              professionalTitle: edit.professionalTitle,
+              professionalExperience: edit.professionalExperience,
+              skills: edit.skills,
+              languagesList: edit.languagesList,
+            }
+          : null,
+      }),
+    [
+      profileDoc,
+      profileExtras,
+      isViewingOtherUser,
+      edit.professionalTitle,
+      edit.professionalExperience,
+      edit.skills,
+      edit.languagesList,
+    ]
+  );
   const missingJobsProfessionalFields = useMemo(
-    () => getMissingProfessionalFieldsForJobs(profileDoc),
-    [profileDoc]
+    () => getMissingProfessionalFieldsForJobs(effectiveJobsProfile),
+    [effectiveJobsProfile]
   );
   const triage = data?.triage || null;
   const needsProfile = useMemo(() => inferNeedsProfile(triage), [triage]);
@@ -818,15 +847,17 @@ export default function ProfilePage() {
       if (birthDateTrim) payload.birthDate = birthDateTrim;
       if (nationalityTrim) payload.nationality = nationalityTrim;
 
-      // Ano de Registo: '' = não definido (mantém null); número válido = persiste.
-      const yearStr = edit.registrationYear.trim();
-      if (yearStr) {
-        const yearNum = Number.parseInt(yearStr, 10);
-        if (Number.isFinite(yearNum) && yearNum >= 1900 && yearNum <= 2200) {
-          payload.registrationYear = yearNum;
+      if (isViewingOtherUser) {
+        // Ano de Registo: apenas equipa CPC; '' = não definido (mantém null); número válido = persiste.
+        const yearStr = edit.registrationYear.trim();
+        if (yearStr) {
+          const yearNum = Number.parseInt(yearStr, 10);
+          if (Number.isFinite(yearNum) && yearNum >= 1900 && yearNum <= 2200) {
+            payload.registrationYear = yearNum;
+          }
+        } else {
+          payload.registrationYear = null;
         }
-      } else {
-        payload.registrationYear = null;
       }
 
       if (isViewingOtherUser) {
@@ -932,21 +963,38 @@ export default function ProfilePage() {
 
   async function handleToggleEmployerAuthorization(nextChecked: boolean) {
     if (!targetUserId || isViewingOtherUser || updatingEmployerAuthorization) return;
+
+    const missingPersisted = getMissingProfessionalFieldsForJobs(profileDoc);
+    if (nextChecked && missingJobsProfessionalFields.length > 0) {
+      toast({
+        title: t.get('migrant.profile.employerAuthorization.errorTitle'),
+        description: t.get('migrant.profile.employerAuthorization.missingFieldsHint'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const previous = authorizeEmployersProfessionalProfile;
     setAuthorizeEmployersProfessionalProfile(nextChecked);
     setUpdatingEmployerAuthorization(true);
     try {
-      await updateDocument('profiles', targetUserId, { authorizeEmployersProfessionalProfile: nextChecked });
-      setData((prev) => {
-        if (!prev?.profile) return prev;
-        return {
-          ...prev,
-          profile: {
-            ...prev.profile,
-            authorizeEmployersProfessionalProfile: nextChecked,
-          },
-        };
-      });
+      const payload: Record<string, unknown> = {
+        authorizeEmployersProfessionalProfile: nextChecked,
+      };
+      if (nextChecked && missingPersisted.length > 0) {
+        payload.professionalTitle = effectiveJobsProfile.professionalTitle ?? null;
+        payload.professionalExperience = effectiveJobsProfile.professionalExperience ?? null;
+        payload.skills = effectiveJobsProfile.skills ?? null;
+        payload.languagesList = effectiveJobsProfile.languagesList ?? null;
+      }
+
+      await updateDocument('profiles', targetUserId, payload);
+      const res = await fetchMigrantProfile(targetUserId);
+      setData(res);
+      const p = res.profile;
+      const merged = p ? mergeProfileWithExtrasForUser(p, targetUserId) : null;
+      setEdit(buildEditStateFromMergedProfile(res, merged));
+      setProfileSaveFeedback('saved');
       toast({
         title: nextChecked
           ? t.get('migrant.profile.employerAuthorization.enabledTitle')
@@ -1883,20 +1931,22 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
+            <div className="min-w-0 sm:col-span-2">
               <p className="text-[11px] tracking-wider text-muted-foreground uppercase">Telefone</p>
               {editMode ? (
                 <>
                   <Label htmlFor="profile-phone" className="sr-only">Telefone</Label>
-                  <PhoneInput
-                    id="profile-phone"
-                    value={edit.phone}
-                    onChange={(v) => {
-                      setEdit((s) => ({ ...s, phone: v }));
-                      if (personalInfoErrors.phone) setPersonalInfoErrors((prev) => ({ ...prev, phone: undefined }));
-                    }}
-                    className="mt-2"
-                  />
+                  <div className="mt-2 min-w-0 max-w-full">
+                    <PhoneInput
+                      id="profile-phone"
+                      value={edit.phone}
+                      onChange={(v) => {
+                        setEdit((s) => ({ ...s, phone: v }));
+                        if (personalInfoErrors.phone) setPersonalInfoErrors((prev) => ({ ...prev, phone: undefined }));
+                      }}
+                      className="w-full min-w-0"
+                    />
+                  </div>
                   {personalInfoErrors.phone ? (
                     <p className="text-sm font-medium text-destructive mt-2">{personalInfoErrors.phone}</p>
                   ) : null}
@@ -1905,32 +1955,7 @@ export default function ProfilePage() {
                 <p className="mt-1 font-medium">{profileReadOnlyFields.phone || '—'}</p>
               )}
             </div>
-            <div>
-              <p className="text-[11px] tracking-wider text-muted-foreground uppercase">Nacionalidade</p>
-              {editMode ? (
-                <>
-                  <Label htmlFor="profile-nationality" className="sr-only">Nacionalidade</Label>
-                  <Input
-                    id="profile-nationality"
-                    aria-label="Nacionalidade"
-                    value={edit.nationality}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setEdit((s) => ({ ...s, nationality: v }));
-                      if (personalInfoErrors.nationality) setPersonalInfoErrors((prev) => ({ ...prev, nationality: undefined }));
-                    }}
-                    className="mt-2"
-                    placeholder="Ex.: Brasil"
-                  />
-                  {personalInfoErrors.nationality ? (
-                    <p className="text-sm font-medium text-destructive mt-2">{personalInfoErrors.nationality}</p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="mt-1 font-medium">{profileReadOnlyFields.nationality || '—'}</p>
-              )}
-            </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[11px] tracking-wider text-muted-foreground uppercase">Data de nascimento</p>
               {editMode ? (
                 <>
@@ -1955,8 +1980,34 @@ export default function ProfilePage() {
                 <p className="mt-1 font-medium">{profileReadOnlyFields.birth || '—'}</p>
               )}
             </div>
+            <div className="min-w-0">
+              <p className="text-[11px] tracking-wider text-muted-foreground uppercase">Nacionalidade</p>
+              {editMode ? (
+                <>
+                  <Label htmlFor="profile-nationality" className="sr-only">Nacionalidade</Label>
+                  <Input
+                    id="profile-nationality"
+                    aria-label="Nacionalidade"
+                    value={edit.nationality}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEdit((s) => ({ ...s, nationality: v }));
+                      if (personalInfoErrors.nationality) setPersonalInfoErrors((prev) => ({ ...prev, nationality: undefined }));
+                    }}
+                    className="mt-2"
+                    placeholder="Ex.: Brasil"
+                  />
+                  {personalInfoErrors.nationality ? (
+                    <p className="text-sm font-medium text-destructive mt-2">{personalInfoErrors.nationality}</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="mt-1 font-medium">{profileReadOnlyFields.nationality || '—'}</p>
+              )}
+            </div>
 
-            <div>
+            {isViewingOtherUser ? (
+            <div className="min-w-0">
               <p className="text-[11px] tracking-wider text-muted-foreground uppercase">Ano de Registo</p>
               {editMode ? (
                 <>
@@ -1991,6 +2042,7 @@ export default function ProfilePage() {
                 </p>
               )}
             </div>
+            ) : null}
 
             <div className="sm:col-span-2">
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">

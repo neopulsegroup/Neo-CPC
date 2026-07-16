@@ -34,6 +34,7 @@ import {
   markPdiSectionViewed,
 } from '@/lib/pdi/repository';
 import { downloadPdiPdf } from '@/features/pdi/pdiPdf';
+import { formatAppDateAtTime } from '@/lib/appDateTime';
 import { cn } from '@/lib/utils';
 
 interface TrailRow {
@@ -55,8 +56,8 @@ function trailTagClass(state: PdiTrilhaEntry['recommended_state']): string {
 }
 
 export default function PdiPage() {
-  const { user } = useAuth();
-  const { t } = useLanguage();
+  const { user, profile } = useAuth();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [pdi, setPdi] = useState<PdiDoc | null>(null);
@@ -65,6 +66,7 @@ export default function PdiPage() {
   const [viewed, setViewed] = useState<Set<PdiReviewSection>>(new Set());
   const [declared, setDeclared] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [showAllOptional, setShowAllOptional] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -186,12 +188,26 @@ export default function PdiPage() {
   };
 
   const handleDownloadPdf = async () => {
-    if (!pdi) return;
+    if (!pdi || exportingPdf) return;
+    setExportingPdf(true);
     try {
-      await downloadPdiPdf(pdi, new Map(trails.map((tr) => [tr.id, tr.title])), t);
+      const progressByTrail = new Map<string, { percent: number; completed: boolean }>();
+      for (const detail of progressSummary?.details ?? []) {
+        progressByTrail.set(detail.trail_id, {
+          percent: detail.percent,
+          completed: detail.completed,
+        });
+      }
+      await downloadPdiPdf(pdi, new Map(trails.map((tr) => [tr.id, tr.title])), t, {
+        participantName: profile?.name ?? null,
+        progressByTrail,
+        locale: language,
+      });
     } catch (error) {
       console.error(error);
       toast.error(t.get('pdi.errors.pdf'));
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -323,8 +339,13 @@ export default function PdiPage() {
             {t.get('pdi.fields.version')}: {pdi.version} · {t.get(`pdi.status.${pdi.status}`)}
           </p>
         </div>
-        <Button variant="outline" className="shrink-0 gap-2" onClick={() => void handleDownloadPdf()}>
-          <Download className="h-4 w-4" />
+        <Button
+          variant="outline"
+          className="shrink-0 gap-2"
+          disabled={exportingPdf}
+          onClick={() => void handleDownloadPdf()}
+        >
+          {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {t.get('pdi.migrant.exportPdi')}
         </Button>
       </div>
@@ -377,8 +398,9 @@ export default function PdiPage() {
 
         <button
           type="button"
+          disabled={exportingPdf}
           onClick={() => void handleDownloadPdf()}
-          className="rounded-xl border bg-card p-5 shadow-sm text-left hover:bg-muted/30 transition-colors"
+          className="rounded-xl border bg-card p-5 shadow-sm text-left hover:bg-muted/30 transition-colors disabled:opacity-60"
         >
           <h2 className="font-semibold">{t.get('pdi.migrant.documentTitle')}</h2>
           <p className="text-xs text-muted-foreground mt-1">{t.get('pdi.migrant.documentDesc')}</p>
@@ -551,7 +573,9 @@ export default function PdiPage() {
         ) : (
           <p className="text-sm text-green-700 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {t.get('pdi.migrant.alreadyAccepted', { date: pdi.accepted_at?.slice(0, 10) ?? '' })}
+            {t.get('pdi.migrant.alreadyAccepted', {
+              date: formatAppDateAtTime(pdi.accepted_at, { locale: language }),
+            })}
           </p>
         )}
       </section>

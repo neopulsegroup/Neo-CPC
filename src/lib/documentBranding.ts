@@ -1,4 +1,6 @@
-import { getDocument } from '@/integrations/firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+
+import { db } from '@/integrations/firebase/client';
 
 export type BrandingSection = 'left' | 'center' | 'right';
 export type BrandingContentType = 'image' | 'pagination' | 'title';
@@ -103,8 +105,10 @@ export function normalizeBranding(input: BrandingSettingsDoc | null | undefined)
 
 export async function fetchDocumentBranding(): Promise<BrandingSettings> {
   try {
-    const doc = await getDocument<BrandingSettingsDoc>('system_settings', 'document_branding');
-    return normalizeBranding(doc);
+    const docRef = doc(db, 'system_settings', 'document_branding');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return defaultBranding();
+    return normalizeBranding({ id: docSnap.id, ...docSnap.data() } as BrandingSettingsDoc);
   } catch {
     return defaultBranding();
   }

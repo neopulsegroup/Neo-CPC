@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
@@ -75,6 +75,16 @@ import {
 } from 'lucide-react';
 import CpcCreateSessionDialog from './CpcCreateSessionDialog';
 import type { AgendaCategory as CreateAgendaCategory } from '@/lib/cpcSpecialists';
+import { fetchMigrantProfile, type MigrantProfileResponse } from '@/api/migrantProfile';
+import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
+import {
+  buildSessionRecordActivities,
+  buildSessionRecordScreening,
+  needCategoryBadgeClass,
+  personInitials,
+  readSessionRecordFields,
+  shortMigrantId,
+} from '@/lib/sessionRecord';
 
 type AgendaCategory = 'legal' | 'psychology' | 'mediation' | 'collective';
 type SessionColor = 'blue' | 'green' | 'purple';
@@ -92,6 +102,11 @@ type SessionDoc = {
   specialist_name?: string | null;
   meeting_url?: string | null;
   created_at?: string | null;
+  notes?: string | null;
+  notes_urgent?: boolean | null;
+  recommended_track?: string | null;
+  immediate_next_step?: string | null;
+  notes_updated_at?: string | null;
 };
 
 type AgendaSession = {
@@ -332,6 +347,10 @@ export default function TeamAgendaPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [eventInfoOpen, setEventInfoOpen] = useState(false);
   const [sessionRecordOpen, setSessionRecordOpen] = useState(false);
+  const [sessionRecordLoading, setSessionRecordLoading] = useState(false);
+  const [sessionRecordSaving, setSessionRecordSaving] = useState(false);
+  const [migrantProfileData, setMigrantProfileData] = useState<MigrantProfileResponse | null>(null);
+  const sessionRecordHydratedRef = useRef(false);
   const [sessionNotes, setSessionNotes] = useState('');
   const [sessionUrgent, setSessionUrgent] = useState(false);
   const [recommendedTrack, setRecommendedTrack] = useState<string>('');
@@ -485,6 +504,116 @@ export default function TeamAgendaPage() {
     const endLabel = `${String(endHour).padStart(2, '0')}:${String(selectedSession.startMinute).padStart(2, '0')}`;
     return `${dateLabel} • ${selectedSession.timeLabel} - ${endLabel}`;
   }, [selectedSession, locale]);
+
+  const migrantDisplayName = useMemo(() => {
+    return (
+      migrantProfileData?.profile?.name?.trim() ||
+      selectedSession?.personName?.trim() ||
+      t.get('cpc.agenda.event.unknownPerson')
+    );
+  }, [migrantProfileData?.profile?.name, selectedSession?.personName, t]);
+
+  const sessionRecordNeeds = useMemo(() => {
+    if (!migrantProfileData?.triage) return [];
+    return inferNeedsProfile(migrantProfileData.triage).items;
+  }, [migrantProfileData?.triage]);
+
+  const sessionRecordScreening = useMemo(
+    () =>
+      buildSessionRecordScreening(
+        migrantProfileData?.triage ?? null,
+        migrantProfileData?.profile ?? null,
+        t,
+        (iso) => formatAppDate(iso, { locale, day: '2-digit', month: 'short', year: 'numeric' })
+      ),
+    [migrantProfileData?.profile, migrantProfileData?.triage, locale, t]
+  );
+
+  const sessionRecordActivities = useMemo(() => {
+    if (!selectedSession || !migrantProfileData) return [];
+    return buildSessionRecordActivities({
+      sessions: migrantProfileData.sessions,
+      currentSessionId: selectedSession.id,
+      progress: migrantProfileData.progress,
+      trails: migrantProfileData.trails,
+      formatDate: (iso) => formatAppDate(iso, { locale, day: '2-digit', month: 'short', year: 'numeric' }),
+      sessionTitle: (session) =>
+        session.service_label?.trim() || session.session_type?.trim() || t.get('cpc.agenda.sessionRecord.activity.sessionFallback'),
+      sessionMeta: (session) => {
+        const time = session.scheduled_time?.trim();
+        return time ? `${session.scheduled_date} • ${time}` : session.scheduled_date;
+      },
+      trailProgressLabel: (percent) => t.get('cpc.agenda.sessionRecord.activity.trailProgress', { percent }),
+    });
+  }, [locale, migrantProfileData, selectedSession, t]);
+
+  const sessionRecordTechLabel = useMemo(() => {
+    const specialist = selectedSession?.specialistName?.trim();
+    if (!specialist) return t.get('cpc.agenda.sessionRecord.header.techUnknown');
+    return t.get('cpc.agenda.sessionRecord.header.tech', { name: specialist });
+  }, [selectedSession?.specialistName, t]);
+
+  async function persistSessionRecord(options?: { finalize?: boolean; silent?: boolean }) {
+    if (!selectedSession || sessionRecordSaving) return false;
+    setSessionRecordSaving(true);
+    try {
+      const now = new Date().toISOString();
+      await updateDocument('sessions', selectedSession.id, {
+        notes: sessionNotes.trim() || null,
+        notes_urgent: sessionUrgent,
+        recommended_track: recommendedTrack || null,
+        immediate_next_step: immediateNextStep || null,
+        notes_updated_at: now,
+      });
+      setLastAutosavedAt(Date.now());
+      if (options?.finalize) {
+        setSessionRecordOpen(false);
+        if (!options.silent) {
+          toast({ title: t.get('cpc.agenda.sessionRecord.header.finalizeSuccess') });
+        }
+      } else if (!options?.silent) {
+        toast({ title: t.get('cpc.agenda.sessionRecord.header.saveDraftSuccess') });
+      }
+      return true;
+    } catch (error) {
+      console.error('Erro ao guardar nota de sessão', error);
+      if (!options?.silent) {
+        toast({ title: t.get('cpc.agenda.sessionRecord.header.saveError'), variant: 'destructive' });
+      }
+      return false;
+    } finally {
+      setSessionRecordSaving(false);
+    }
+  }
+
+  async function openSessionRecord() {
+    if (!selectedSession?.migrantId) return;
+    setEventInfoOpen(false);
+    setSessionRecordOpen(true);
+    setSessionRecordLoading(true);
+    setMigrantProfileData(null);
+    sessionRecordHydratedRef.current = false;
+    try {
+      const [sessionDoc, migrantData] = await Promise.all([
+        getDocument<SessionDoc>('sessions', selectedSession.id),
+        fetchMigrantProfile(selectedSession.migrantId),
+      ]);
+      const fields = readSessionRecordFields(sessionDoc);
+      setSessionNotes(fields.notes);
+      setSessionUrgent(fields.notesUrgent);
+      setRecommendedTrack(fields.recommendedTrack);
+      setImmediateNextStep(fields.immediateNextStep);
+      setLastAutosavedAt(fields.notesUpdatedAt ? new Date(fields.notesUpdatedAt).getTime() : null);
+      setMigrantProfileData(migrantData);
+      sessionRecordHydratedRef.current = true;
+    } catch (error) {
+      console.error('Erro ao carregar nota de sessão', error);
+      toast({ title: t.get('cpc.agenda.sessionRecord.loadError'), variant: 'destructive' });
+      setSessionRecordOpen(false);
+    } finally {
+      setSessionRecordLoading(false);
+    }
+  }
 
   function sessionStatusLabel(status: string | null): string {
     const normalized = (status ?? '').toLowerCase();
@@ -744,14 +873,14 @@ export default function TeamAgendaPage() {
   }
 
   useEffect(() => {
-    if (!sessionRecordOpen) return;
+    if (!sessionRecordOpen || !selectedSession || sessionRecordLoading || !sessionRecordHydratedRef.current) return;
     const handle = window.setTimeout(() => {
-      setLastAutosavedAt(Date.now());
+      void persistSessionRecord({ silent: true });
     }, 900);
     return () => {
       window.clearTimeout(handle);
     };
-  }, [sessionNotes, sessionRecordOpen]);
+  }, [sessionNotes, sessionUrgent, recommendedTrack, immediateNextStep, sessionRecordOpen, sessionRecordLoading, selectedSession?.id]);
 
   const lastAutosavedLabel = useMemo(() => {
     if (!lastAutosavedAt) return t.get('cpc.agenda.sessionRecord.notes.lastAutosaved', { relative: t.get('cpc.agenda.sessionRecord.notes.justNow') });
@@ -844,8 +973,7 @@ export default function TeamAgendaPage() {
                 variant="outline"
                 className="h-9 flex-1 rounded-lg border-slate-200 text-sm font-semibold text-slate-700"
                 onClick={() => {
-                  setEventInfoOpen(false);
-                  setSessionRecordOpen(true);
+                  void openSessionRecord();
                 }}
               >
                 {t.get('cpc.agenda.sessionRecord.open')}
@@ -874,7 +1002,10 @@ export default function TeamAgendaPage() {
             setSessionUrgent(false);
             setRecommendedTrack('');
             setImmediateNextStep('');
-            setLastAutosavedAt(Date.now() - 2 * 60 * 1000);
+            setLastAutosavedAt(null);
+            setMigrantProfileData(null);
+            setSessionRecordLoading(false);
+            sessionRecordHydratedRef.current = false;
           }
         }}
       >
@@ -886,7 +1017,7 @@ export default function TeamAgendaPage() {
                 <span className="mx-2 text-slate-300">/</span>
                 <span>{t.get('cpc.agenda.sessionRecord.breadcrumbs.migrants')}</span>
                 <span className="mx-2 text-slate-300">/</span>
-                <span className="font-semibold text-slate-700">{t.get('cpc.agenda.sessionRecord.profile.name')}</span>
+                <span className="font-semibold text-slate-700">{migrantDisplayName}</span>
                 <span className="mx-2 text-slate-300">/</span>
                 <span>{t.get('cpc.agenda.sessionRecord.breadcrumbs.record')}</span>
               </div>
@@ -897,97 +1028,125 @@ export default function TeamAgendaPage() {
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarDays className="h-4 w-4 text-slate-400" />
-                      {t.get('cpc.agenda.sessionRecord.header.dateTime')}
+                      {selectedSessionDateTime}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <User className="h-4 w-4 text-slate-400" />
-                      {t.get('cpc.agenda.sessionRecord.header.tech')}
+                      {sessionRecordTechLabel}
                     </span>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   className="h-9 shrink-0 rounded-lg border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700"
-                  onClick={() => setLastAutosavedAt(Date.now())}
+                  disabled={sessionRecordLoading || sessionRecordSaving || !selectedSession}
+                  onClick={() => {
+                    void persistSessionRecord();
+                  }}
                 >
+                  {sessionRecordSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {t.get('cpc.agenda.sessionRecord.header.saveDraft')}
                 </Button>
               </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              {sessionRecordLoading ? (
+                <div className="flex min-h-[240px] items-center justify-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  {t.get('cpc.agenda.sessionRecord.loading')}
+                </div>
+              ) : (
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
                 <div className="space-y-6">
                   <section className="rounded-xl border bg-white p-5 shadow-sm">
                     <div className="flex items-start gap-4">
                       <div className="relative">
                         <Avatar className="h-12 w-12">
+                          {migrantProfileData?.profile?.photoUrl ? (
+                            <AvatarImage src={migrantProfileData.profile.photoUrl} alt={migrantDisplayName} />
+                          ) : null}
                           <AvatarFallback className="bg-slate-100 text-sm font-semibold text-slate-600">
-                            {t.get('cpc.agenda.sessionRecord.profile.initials')}
+                            {personInitials(migrantDisplayName)}
                           </AvatarFallback>
                         </Avatar>
                         <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="truncate text-base font-semibold text-slate-900">{t.get('cpc.agenda.sessionRecord.profile.name')}</h2>
+                          <h2 className="truncate text-base font-semibold text-slate-900">{migrantDisplayName}</h2>
                           <Badge variant="secondary" className="h-5 rounded-full bg-emerald-50 px-2 text-[11px] font-semibold text-emerald-700">
                             {t.get('cpc.agenda.sessionRecord.profile.statusActive')}
                           </Badge>
                         </div>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {t.get('cpc.agenda.sessionRecord.profile.idLabel')} <span className="font-semibold text-slate-600">{t.get('cpc.agenda.sessionRecord.profile.idValue')}</span>
+                          {t.get('cpc.agenda.sessionRecord.profile.idLabel')}{' '}
+                          <span className="font-semibold text-slate-600">
+                            {shortMigrantId(selectedSession?.migrantId ?? migrantProfileData?.profile?.id ?? '')}
+                          </span>
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-5 border-t pt-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.get('cpc.agenda.sessionRecord.needs.title')}</h3>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Badge variant="secondary" className="rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
-                          {t.get('cpc.agenda.sessionRecord.needs.languageSupport')}
-                        </Badge>
-                        <Badge variant="secondary" className="rounded-md bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700">
-                          {t.get('cpc.agenda.sessionRecord.needs.cvWorkshop')}
-                        </Badge>
-                        <Badge variant="secondary" className="rounded-md bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">
-                          {t.get('cpc.agenda.sessionRecord.needs.housing')}
-                        </Badge>
-                      </div>
+                      {sessionRecordNeeds.length === 0 ? (
+                        <p className="mt-3 text-sm text-slate-500">{t.get('cpc.agenda.sessionRecord.emptyNeeds')}</p>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {sessionRecordNeeds.map((item) => (
+                            <Badge
+                              key={item.category}
+                              variant="secondary"
+                              className={cn('rounded-md px-2 py-1 text-[11px] font-semibold', needCategoryBadgeClass(item.category))}
+                            >
+                              {t.get(`needs.category.${item.category}`)}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-5 border-t pt-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.get('cpc.agenda.sessionRecord.screening.title')}</h3>
                       <div className="mt-3 rounded-lg border bg-slate-50 p-4 text-sm leading-relaxed text-slate-600">
-                        <p>{t.get('cpc.agenda.sessionRecord.screening.p1')}</p>
-                        <p className="mt-3">
-                          <span className="font-semibold text-slate-700">{t.get('cpc.agenda.sessionRecord.screening.primaryChallengeLabel')}</span> {t.get('cpc.agenda.sessionRecord.screening.primaryChallengeText')}
-                        </p>
-                        <p className="mt-3">{t.get('cpc.agenda.sessionRecord.screening.p2')}</p>
+                        {sessionRecordScreening.isEmpty ? (
+                          <p>{t.get('cpc.agenda.sessionRecord.emptyScreening')}</p>
+                        ) : (
+                          <>
+                            {sessionRecordScreening.p1 ? <p>{sessionRecordScreening.p1}</p> : null}
+                            {sessionRecordScreening.primaryChallenge ? (
+                              <p className="mt-3">
+                                <span className="font-semibold text-slate-700">{t.get('cpc.agenda.sessionRecord.screening.primaryChallengeLabel')}</span>{' '}
+                                {sessionRecordScreening.primaryChallenge}
+                              </p>
+                            ) : null}
+                            {sessionRecordScreening.p2 ? <p className="mt-3">{sessionRecordScreening.p2}</p> : null}
+                          </>
+                        )}
                       </div>
                     </div>
                   </section>
 
                   <section className="rounded-xl border bg-white p-5 shadow-sm">
                     <h3 className="text-sm font-semibold text-slate-900">{t.get('cpc.agenda.sessionRecord.activity.title')}</h3>
-                    <div className="mt-4 space-y-4">
-                      <div className="flex gap-3">
-                        <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-slate-300" />
-                        <div className="min-w-0">
-                          <p className="text-xs text-slate-400">{t.get('cpc.agenda.sessionRecord.activity.item1.date')}</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-700">{t.get('cpc.agenda.sessionRecord.activity.item1.title')}</p>
-                          <p className="mt-1 text-xs font-semibold text-emerald-600">{t.get('cpc.agenda.sessionRecord.activity.item1.status')}</p>
-                        </div>
+                    {sessionRecordActivities.length === 0 ? (
+                      <p className="mt-4 text-sm text-slate-500">{t.get('cpc.agenda.sessionRecord.emptyActivity')}</p>
+                    ) : (
+                      <div className="mt-4 space-y-4">
+                        {sessionRecordActivities.map((item, index) => (
+                          <div key={`${item.title}-${index}`} className="flex gap-3">
+                            <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-slate-300" />
+                            <div className="min-w-0">
+                              <p className="text-xs text-slate-400">{item.date}</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-700">{item.title}</p>
+                              {item.status ? <p className="mt-1 text-xs font-semibold text-emerald-600">{item.status}</p> : null}
+                              {item.meta ? <p className="mt-1 text-xs text-slate-500">{item.meta}</p> : null}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex gap-3">
-                        <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-slate-300" />
-                        <div className="min-w-0">
-                          <p className="text-xs text-slate-400">{t.get('cpc.agenda.sessionRecord.activity.item2.date')}</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-700">{t.get('cpc.agenda.sessionRecord.activity.item2.title')}</p>
-                          <p className="mt-1 text-xs text-slate-500">{t.get('cpc.agenda.sessionRecord.activity.item2.meta')}</p>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </section>
                 </div>
 
@@ -1068,15 +1227,19 @@ export default function TeamAgendaPage() {
                     <div className="mt-5 flex justify-end">
                       <Button
                         className="h-10 rounded-lg bg-blue-600 px-5 text-sm font-semibold hover:bg-blue-700"
-                        onClick={() => setSessionRecordOpen(false)}
+                        disabled={sessionRecordLoading || sessionRecordSaving || !selectedSession}
+                        onClick={() => {
+                          void persistSessionRecord({ finalize: true });
+                        }}
                       >
-                        <Save className="mr-2 h-4 w-4" />
+                        {sessionRecordSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         {t.get('cpc.agenda.sessionRecord.outcomes.finalize')}
                       </Button>
                     </div>
                   </section>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </DialogContent>
