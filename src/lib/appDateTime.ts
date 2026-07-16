@@ -121,6 +121,37 @@ export function formatAppMonthYear(value: AppDateInput, options?: AppFormatOptio
   }
 }
 
+/** Formato fixo: dd-mm-yyyy às hh:mm (Lisboa), com conector localizado. */
+export function formatAppDateAtTime(value: AppDateInput, options?: AppFormatOptions): string {
+  const date = toAppDate(value);
+  if (!date) return options?.fallback ?? '—';
+  const { locale, fallback } = resolveFormatArgs(options);
+  const atWord =
+    locale.startsWith('pt')
+      ? 'às'
+      : locale.startsWith('es')
+        ? 'a las'
+        : locale.startsWith('fr')
+          ? 'à'
+          : 'at';
+  try {
+    const parts = new Intl.DateTimeFormat(locale, {
+      timeZone: APP_TIME_ZONE,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const get = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((p) => p.type === type)?.value ?? '';
+    return `${get('day')}-${get('month')}-${get('year')} ${atWord} ${get('hour')}:${get('minute')}`;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Partes para exibição tipo "em 18/06/26, às 15:20" (data curta + hora 24h, Lisboa). */
 export function formatAppNotificationTimestampParts(
   value: AppDateInput,

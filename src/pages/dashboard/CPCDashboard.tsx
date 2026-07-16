@@ -1322,6 +1322,7 @@ export default function CPCDashboard() {
   const sidebarItemsMain = [
     { to: '/dashboard/cpc', label: t.get('cpc.menu.overview'), icon: TrendingUp },
     { to: '/dashboard/cpc/migrantes', label: t.get('cpc.menu.migrants'), icon: Users },
+    { to: '/dashboard/cpc/scas', label: t.get('scas.dashboard.title'), icon: Target },
     { to: '/dashboard/cpc/atividades', label: t.get('cpc.menu.activities'), icon: ClipboardList },
     { to: '/dashboard/cpc/agenda', label: t.get('cpc.menu.agenda'), icon: Calendar },
     { to: '/dashboard/cpc/sessoes', label: t.get('cpc.menu.sessions'), icon: ListChecks },
@@ -1331,7 +1332,6 @@ export default function CPCDashboard() {
     { to: '/dashboard/cpc/trilhas', label: t.get('cpc.menu.trails'), icon: BookOpen },
     { to: '/dashboard/cpc/equipa', label: t.get('cpc.menu.team'), icon: UserCog },
     { to: '/dashboard/cpc/estatisticas', label: t.get('cpc.menu.statistics'), icon: TrendingUp },
-    { to: '/dashboard/cpc/scas', label: t.get('scas.dashboard.title'), icon: Target },
     { to: '/dashboard/cpc/traducoes', label: t.get('cpcTranslations.title'), icon: Languages },
   ];
 

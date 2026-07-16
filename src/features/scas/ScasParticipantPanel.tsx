@@ -4,14 +4,17 @@ import { Loader2, MessageSquarePlus, Download, ClipboardList } from 'lucide-reac
 
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAppDateTime } from '@/hooks/useAppDateTime';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { getCollection } from '@/integrations/firebase/firestore';
 import {
   summarizeParticipantScas,
   type ScasAssessmentDoc,
+  fetchAssessmentResponses,
 } from '@/lib/scas/repository';
 import { fetchParticipantAssessments } from '@/lib/scas/repository';
 import { buildParticipantScasCsv, downloadCsv } from './scasExport';
+import { downloadScasAssessmentPdf } from './scasPdf';
 
 interface TrailRow {
   id: string;
@@ -32,10 +35,12 @@ export function ScasParticipantPanel({
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { formatDateTime } = useAppDateTime();
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [assessments, setAssessments] = useState<ScasAssessmentDoc[]>([]);
   const [trails, setTrails] = useState<TrailRow[]>([]);
+  const [exportingAssessmentId, setExportingAssessmentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +74,46 @@ export function ScasParticipantPanel({
     const csv = buildParticipantScasCsv(participantName, summary);
     downloadCsv(`scas_${participantId}.csv`, csv);
   }, [participantName, summary, participantId]);
+
+  const handleExportAssessmentPdf = useCallback(
+    async (assessment: ScasAssessmentDoc) => {
+      if (exportingAssessmentId) return;
+      setExportingAssessmentId(assessment.id);
+      try {
+        const responses = await fetchAssessmentResponses(assessment.id);
+        await downloadScasAssessmentPdf(assessment, {
+          participantName,
+          trailTitle: assessment.trail_id ? trailTitleById.get(assessment.trail_id) ?? assessment.trail_id : null,
+          responses,
+          uiLabels: {
+            title: t.get('scas.title'),
+            participant: t.get('scas.cpc.pdfParticipant'),
+            moment: t.get('scas.cpc.moment'),
+            date: t.get('scas.cpc.date'),
+            mode: t.get('scas.cpc.mode'),
+            language: t.get('scas.cpc.language'),
+            trail: t.get('scas.cpc.pdfTrail'),
+            scores: t.get('scas.cpc.pdfScores'),
+            global: t.get('scas.cpc.global'),
+            responses: t.get('scas.cpc.pdfResponses'),
+            autonomous: t.get('scas.mode.AUTONOMO'),
+            assisted: t.get('scas.mode.ASSISTIDO'),
+            item: t.get('scas.cpc.pdfItem'),
+          },
+        });
+      } catch (error) {
+        console.error('Erro ao exportar PDF SCAS', error);
+        toast({
+          title: t.get('scas.cpc.exportTitle'),
+          description: t.get('scas.cpc.pdfError'),
+          variant: 'destructive',
+        });
+      } finally {
+        setExportingAssessmentId(null);
+      }
+    },
+    [exportingAssessmentId, participantName, t, toast, trailTitleById]
+  );
 
   if (loading) {
     return (
@@ -149,6 +194,7 @@ export function ScasParticipantPanel({
                 <th className="py-2 pr-3">{t.get('scas.cpc.global')}</th>
                 <th className="py-2 pr-3">{t.get('scas.cpc.mode')}</th>
                 <th className="py-2 pr-3">{t.get('scas.cpc.language')}</th>
+                <th className="py-2 w-10" aria-label={t.get('scas.cpc.exportAssessmentPdfAria')} />
               </tr>
             </thead>
             <tbody>
@@ -176,6 +222,23 @@ export function ScasParticipantPanel({
                       : t.get('scas.mode.AUTONOMO')}
                   </td>
                   <td className="py-2 pr-3 uppercase">{a.language}</td>
+                  <td className="py-2 text-right">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={exportingAssessmentId === a.id}
+                      aria-label={t.get('scas.cpc.exportAssessmentPdfAria')}
+                      onClick={() => void handleExportAssessmentPdf(a)}
+                    >
+                      {exportingAssessmentId === a.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>

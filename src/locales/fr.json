@@ -11,7 +11,7 @@
   },
   "scas": {
     "title": "Questionnaire d'adaptation socioculturelle",
-    "shortTitle": "SCAS",
+    "shortTitle": "Questionnaire d'adaptation",
     "intro": "Pour chaque situation, indiquez à quel point vous vous sentez compétent. Il n'y a pas de bonnes ou de mauvaises réponses.",
     "languageLabel": "Langue du questionnaire",
     "domains": {
@@ -117,7 +117,14 @@
       "pdiState": "État",
       "pdiTrail": "Parcours",
       "exportTitle": "Exporter SCAS",
-      "exportCsv": "Exporter CSV (T0 vs T-PDI)"
+      "exportCsv": "Exporter CSV (T0 vs T-PDI)",
+      "exportAssessmentPdfAria": "Télécharger le PDF de cette évaluation",
+      "pdfError": "Impossible de générer le PDF de l'évaluation.",
+      "pdfParticipant": "Participant",
+      "pdfScores": "Scores par domaine",
+      "pdfResponses": "Réponses par item",
+      "pdfItem": "Réponse",
+      "pdfTrail": "Parcours"
     },
     "dashboard": {
       "title": "Impact SCAS",
@@ -135,7 +142,7 @@
     }
   },
   "pdi": {
-    "shortTitle": "PDI",
+    "shortTitle": "Plan de développement",
     "sections": {
       "trilhas": "Parcours recommandés",
       "apoios": "Accompagnements personnalisés",
@@ -1068,6 +1075,8 @@
     "triage": "Situation Initiale",
     "trails": "Pistes",
     "sessions": "Séances",
+    "scas": "Questionnaire d'adaptation",
+    "pdi": "Plan de développement",
     "profile": "Profil",
     "curriculum": "Reprendre",
     "messages": "Messagerie",
@@ -2400,7 +2409,12 @@
         "close": "Pour fermer"
       },
       "sessionRecord": {
-        "open": "Voir note de séance",
+        "open": "Note de séance",
+        "loading": "Chargement des données du migrant...",
+        "loadError": "Impossible de charger les données du migrant.",
+        "emptyNeeds": "Aucun besoin identifié dans la situation initiale.",
+        "emptyScreening": "Situation initiale pas encore terminée.",
+        "emptyActivity": "Aucune activité récente enregistrée.",
         "breadcrumbs": {
           "home": "Commencer",
           "migrants": "Migrants",
@@ -2408,42 +2422,35 @@
         },
         "header": {
           "title": "Inscription à la séance",
-          "dateTime": "24 février 2024 • 14h30",
-          "tech": "Technicien : Sarah J.",
-          "saveDraft": "Enregistrer le brouillon"
+          "tech": "Spécialiste : {name}",
+          "techUnknown": "Spécialiste à attribuer",
+          "saveDraft": "Enregistrer le brouillon",
+          "saveDraftSuccess": "Brouillon enregistré.",
+          "saveError": "Impossible d'enregistrer la note de séance.",
+          "finalizeSuccess": "Note de séance enregistrée."
         },
         "profile": {
-          "name": "Mateo Silva",
-          "initials": "MS",
           "idLabel": "IDENTIFIANT:",
-          "idValue": "#94821",
           "statusActive": "Actif"
         },
         "needs": {
-          "title": "Besoins identifiés",
-          "languageSupport": "Prise en charge linguistique",
-          "cvWorkshop": "Atelier CV",
-          "housing": "Logement"
+          "title": "Besoins identifiés"
         },
         "screening": {
           "title": "Résumé de la Situation Initiale",
-          "p1": "Première admission effectuée le 15 janvier 2024. Mateo fait preuve d'une forte motivation pour l'emploi dans le secteur de la construction, notamment la menuiserie.",
           "primaryChallengeLabel": "Défi principal :",
-          "primaryChallengeText": "Le niveau de langue actuel (A2) est insuffisant pour répondre aux conditions d’accès à la formation professionnelle (B1 requis).",
-          "p2": "Situation de logement stable mais temporaire. J'ai demandé un soutien juridique pour le regroupement familial."
+          "completed": "Situation initiale terminée.",
+          "completedOn": "Situation initiale terminée le {date}.",
+          "workStatus": "Situation professionnelle : {status}.",
+          "professionalTitle": "Domaine professionnel : {title}.",
+          "housingStatus": "Logement : {status}.",
+          "legalStatus": "Situation juridique : {status}.",
+          "languageLevel": "Niveau de langue : {level}."
         },
         "activity": {
           "title": "Activité récente",
-          "item1": {
-            "date": "10 février 2024",
-            "title": "Participation à l'atelier CV",
-            "status": "Complété"
-          },
-          "item2": {
-            "date": "28 janvier 2024",
-            "title": "Évaluation linguistique",
-            "meta": "Note : A2"
-          }
+          "trailProgress": "{percent}% terminé",
+          "sessionFallback": "Séance"
         },
         "notes": {
           "title": "Notes de séance",

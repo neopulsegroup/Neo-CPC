@@ -716,6 +716,7 @@ service cloud.firestore {
     match /system_settings/{docId} {
       allow read: if (docId == 'contact')
         || (docId == 'recaptcha_public')
+        || (docId == 'document_branding' && isAccountEnabled())
         || (isAccountEnabled() && userRole() in ['admin', 'manager']);
       allow create, update, delete: if isAccountEnabled() && userRole() in ['admin', 'manager'];
     }

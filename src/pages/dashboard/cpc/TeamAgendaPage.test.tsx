@@ -46,23 +46,36 @@ const messages = {
         status: { approved: 'Aprovado', declined: 'Recusado', assigned: 'Horário atribuído' },
         eventModal: { close: 'Fechar' },
         sessionRecord: {
-          open: 'Ver nota de sessão',
+          open: 'Nota de sessão',
+          loading: 'A carregar dados do migrante...',
+          loadError: 'Não foi possível carregar os dados do migrante.',
+          emptyNeeds: 'Sem necessidades identificadas na situação inicial.',
+          emptyScreening: 'Situação inicial ainda não concluída.',
+          emptyActivity: 'Sem atividade recente registada.',
           breadcrumbs: { home: 'Início', migrants: 'Migrantes', record: 'Registo de Sessão' },
-          header: { title: 'Registo de Sessão', dateTime: '24 de fevereiro, 2024 • 14:30', tech: 'Técnico: Sarah J.', saveDraft: 'Guardar rascunho' },
-          profile: { name: 'Mateo Silva', initials: 'MS', idLabel: 'ID:', idValue: '#94821', statusActive: 'Ativo' },
-          needs: { title: 'Necessidades identificadas', languageSupport: 'Apoio de Língua', cvWorkshop: 'Workshop de CV', housing: 'Habitação' },
+          header: {
+            title: 'Registo de Sessão',
+            tech: 'Técnico: {name}',
+            techUnknown: 'Técnico por atribuir',
+            saveDraft: 'Guardar rascunho',
+            saveDraftSuccess: 'Rascunho guardado.',
+            saveError: 'Não foi possível guardar a nota de sessão.',
+            finalizeSuccess: 'Nota de sessão guardada.',
+          },
+          profile: { idLabel: 'ID:', statusActive: 'Ativo' },
+          needs: { title: 'Necessidades identificadas' },
           screening: {
             title: 'Resumo de Situação Inicial',
-            p1: 'Admissão inicial realizada em 15 de jan de 2024. Mateo demonstra elevada motivação para emprego no setor da construção, especificamente carpintaria.',
             primaryChallengeLabel: 'Desafio principal:',
-            primaryChallengeText: 'Nível atual de língua (A2) é insuficiente para requisitos de entrada em formação vocacional (necessário B1).',
-            p2: 'Situação habitacional estável mas temporária. Solicitou apoio jurídico sobre reagrupamento familiar.',
+            completed: 'Situação inicial concluída.',
+            completedOn: 'Situação inicial concluída em {date}.',
+            workStatus: 'Situação laboral: {status}.',
+            professionalTitle: 'Área profissional: {title}.',
+            housingStatus: 'Habitação: {status}.',
+            legalStatus: 'Situação legal: {status}.',
+            languageLevel: 'Nível de língua: {level}.',
           },
-          activity: {
-            title: 'Atividade recente',
-            item1: { date: '10 fev, 2024', title: 'Participação em Workshop de CV', status: 'Concluído' },
-            item2: { date: '28 jan, 2024', title: 'Avaliação de Língua', meta: 'Pontuação: A2' },
-          },
+          activity: { title: 'Atividade recente', trailProgress: '{percent}% concluído', sessionFallback: 'Sessão' },
           notes: {
             title: 'Notas da sessão',
             placeholder: 'Registe detalhes da conversa, objetivos definidos e observações aqui...',
@@ -103,6 +116,22 @@ const messages = {
           r2: { category: 'PSICOLOGIA', title: 'Aconselhamento de Emergência', person: 'Nia J.', team: 'Pedido Assistente Social', when: '', timeAgo: 'há 5h', urgent: 'Urgente: ASAP' },
           r3: { category: 'MEDIAÇÃO', title: 'Resolução de Conflito', person: 'Marcus T.', team: 'Pedido Habitação', when: 'Qua, 1 Nov • 14:00', timeAgo: 'há 1d' },
         },
+      },
+    },
+    needs: {
+      category: {
+        legal: 'Apoio Jurídico',
+        housing: 'Habitação',
+        employment: 'Emprego',
+        language: 'Apoio Linguístico',
+        psychological: 'Apoio Psicológico',
+        social: 'Apoio Social',
+      },
+      reason: {
+        employment: { unemployed: 'À procura de emprego' },
+        language: { basic: 'Nível básico de português' },
+        legal: { in_process: 'Processo legal em curso' },
+        housing: { precarious: 'Habitação precária' },
       },
     },
   },
@@ -246,6 +275,22 @@ const messages = {
       },
     },
   },
+  needs: {
+    category: {
+      legal: 'Apoio Jurídico',
+      housing: 'Habitação',
+      employment: 'Emprego',
+      language: 'Apoio Linguístico',
+      psychological: 'Apoio Psicológico',
+      social: 'Apoio Social',
+    },
+    reason: {
+      employment: { unemployed: 'À procura de emprego' },
+      language: { basic: 'Nível básico de português' },
+      legal: { in_process: 'Processo legal em curso' },
+      housing: { precarious: 'Habitação precária' },
+    },
+  },
 };
 
 function getPathValue(path: string) {
@@ -279,6 +324,60 @@ vi.mock('@/contexts/LanguageContext', () => ({
 }));
 
 vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
+
+vi.mock('@/api/migrantProfile', () => ({
+  fetchMigrantProfile: vi.fn(async (uid: string) => {
+    const todayIso = (() => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Lisbon',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(new Date());
+      const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+      const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+      const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+      return `${y}-${m}-${d}`;
+    })();
+
+    const profileName = uid === 'm2' ? 'Lucas Dubois' : 'Ahmed Khan';
+    return {
+      userProfile: null,
+      profile: {
+        id: uid,
+        name: profileName,
+        email: `${uid}@example.com`,
+        professionalTitle: uid === 'm2' ? 'Carpinteiro' : null,
+      },
+      triage:
+        uid === 'm2'
+          ? {
+              id: uid,
+              userId: uid,
+              completed: true,
+              completedAt: '2024-01-15',
+              work_status: 'unemployed_seeking',
+              housing_status: 'temporary',
+              legal_status: 'pending',
+              language_level: 'basic',
+            }
+          : null,
+      sessions: [
+        {
+          id: 's-other',
+          migrant_id: uid,
+          session_type: 'jurista',
+          service_label: 'Consulta Jurídica',
+          scheduled_date: todayIso,
+          scheduled_time: '09:00',
+          status: 'Agendada',
+        },
+      ],
+      progress: [],
+      trails: {},
+    };
+  }),
+}));
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -513,13 +612,13 @@ describe('TeamAgendaPage', () => {
 
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /Acompanhamento/ }));
-    await user.click(screen.getByRole('button', { name: 'Ver nota de sessão' }));
+    await user.click(screen.getByRole('button', { name: 'Nota de sessão' }));
 
-    expect(screen.getByRole('heading', { name: 'Registo de Sessão' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Registo de Sessão' })).toBeInTheDocument();
     const dialog = screen.getByRole('dialog');
     expect(dialog.querySelector('div[class*="overflow-y-auto"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Guardar rascunho' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Mateo Silva' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Lucas Dubois' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Necessidades identificadas' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Resumo de Situação Inicial' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Atividade recente' })).toBeInTheDocument();

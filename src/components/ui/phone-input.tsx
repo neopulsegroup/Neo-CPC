@@ -158,7 +158,7 @@ export function PhoneInput({ id, name, value = '', onChange, placeholder, classN
   };
 
   return (
-    <div className={cn("flex gap-2", className)}>
+    <div className={cn('flex w-full min-w-0 gap-2', className)}>
       <Popover
         open={disabled ? false : open}
         onOpenChange={(next) => {
@@ -171,7 +171,7 @@ export function PhoneInput({ id, name, value = '', onChange, placeholder, classN
             role="combobox"
             aria-expanded={open}
             disabled={disabled}
-            className="w-[140px] justify-between px-3 shrink-0"
+            className="w-[140px] min-w-0 shrink-0 justify-between px-3"
           >
             <span className="flex items-center gap-2 truncate">
               <span className="text-lg">{selectedCountry.flag}</span>
@@ -216,7 +216,7 @@ export function PhoneInput({ id, name, value = '', onChange, placeholder, classN
         value={getPhoneNumber()}
         onChange={handlePhoneChange}
         disabled={disabled}
-        className="flex-1"
+        className="min-w-0 flex-1"
       />
     </div>
   )

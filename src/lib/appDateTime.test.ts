@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatAppDate,
+  formatAppDateAtTime,
   formatAppDateTime,
   formatAppNotificationTimestampParts,
   languageToAppLocale,
@@ -32,6 +33,12 @@ describe('appDateTime', () => {
 
   it('formata datas civis sem deslocar o dia', () => {
     expect(formatAppDate('2026-06-17', { locale: 'pt' })).toMatch(/17/);
+  });
+
+  it('formata data e hora no padrão dd-mm-yyyy às hh:mm', () => {
+    const formatted = formatAppDateAtTime('2026-06-18T14:20:00.000Z', { locale: 'pt' });
+    expect(formatted).toMatch(/^\d{2}-\d{2}-\d{4} às \d{2}:\d{2}$/);
+    expect(formatted).toContain('18-06-2026 às');
   });
 
   it('extrai partes de data/hora para notificações', () => {

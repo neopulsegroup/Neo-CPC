@@ -11,7 +11,7 @@
   },
   "scas": {
     "title": "Sociocultural Adaptation Questionnaire",
-    "shortTitle": "SCAS",
+    "shortTitle": "Adaptation Questionnaire",
     "intro": "For each situation, indicate how competent you feel. There are no right or wrong answers.",
     "languageLabel": "Questionnaire language",
     "domains": {
@@ -117,7 +117,14 @@
       "pdiState": "State",
       "pdiTrail": "Trail",
       "exportTitle": "Export SCAS",
-      "exportCsv": "Export CSV (T0 vs T-PDI)"
+      "exportCsv": "Export CSV (T0 vs T-PDI)",
+      "exportAssessmentPdfAria": "Download PDF for this assessment",
+      "pdfError": "Could not generate the assessment PDF.",
+      "pdfParticipant": "Participant",
+      "pdfScores": "Domain scores",
+      "pdfResponses": "Item responses",
+      "pdfItem": "Answer",
+      "pdfTrail": "Trail"
     },
     "dashboard": {
       "title": "SCAS impact",
@@ -135,7 +142,7 @@
     }
   },
   "pdi": {
-    "shortTitle": "PDI",
+    "shortTitle": "Development Plan",
     "sections": {
       "trilhas": "Recommended trails",
       "apoios": "Personalized support",
@@ -1068,6 +1075,8 @@
     "triage": "Initial Situation",
     "trails": "Trails",
     "sessions": "Sessions",
+    "scas": "Adaptation Questionnaire",
+    "pdi": "Development Plan",
     "profile": "Profile",
     "curriculum": "Resume",
     "messages": "Messages",
@@ -2401,6 +2410,11 @@
       },
       "sessionRecord": {
         "open": "Session Record",
+        "loading": "Loading migrant data...",
+        "loadError": "Could not load migrant data.",
+        "emptyNeeds": "No needs identified in the initial situation.",
+        "emptyScreening": "Initial situation not yet completed.",
+        "emptyActivity": "No recent activity recorded.",
         "breadcrumbs": {
           "home": "Home",
           "migrants": "Migrants",
@@ -2408,42 +2422,35 @@
         },
         "header": {
           "title": "Session Record",
-          "dateTime": "February 24, 2024 • 14:30",
-          "tech": "Tech: Sarah J.",
-          "saveDraft": "Save Draft"
+          "tech": "Specialist: {name}",
+          "techUnknown": "Specialist to be assigned",
+          "saveDraft": "Save Draft",
+          "saveDraftSuccess": "Draft saved.",
+          "saveError": "Could not save the session note.",
+          "finalizeSuccess": "Session note saved."
         },
         "profile": {
-          "name": "Mateo Silva",
-          "initials": "MS",
           "idLabel": "ID:",
-          "idValue": "#94821",
           "statusActive": "Active"
         },
         "needs": {
-          "title": "Identified Needs",
-          "languageSupport": "Language Support",
-          "cvWorkshop": "CV Workshop",
-          "housing": "Housing"
+          "title": "Identified Needs"
         },
         "screening": {
           "title": "Initial Situation Summary",
-          "p1": "Initial intake conducted on Jan 15, 2024. Mateo shows high motivation for employment in the construction sector, specifically carpentry.",
           "primaryChallengeLabel": "Primary challenge:",
-          "primaryChallengeText": "Current language proficiency (A2) is insufficient for vocational training entry requirements (B1 needed).",
-          "p2": "Living situation is stable but temporary. Has requested legal assistance regarding family reunification paperwork."
+          "completed": "Initial situation completed.",
+          "completedOn": "Initial situation completed on {date}.",
+          "workStatus": "Employment status: {status}.",
+          "professionalTitle": "Professional area: {title}.",
+          "housingStatus": "Housing: {status}.",
+          "legalStatus": "Legal status: {status}.",
+          "languageLevel": "Language level: {level}."
         },
         "activity": {
           "title": "Recent Activity",
-          "item1": {
-            "date": "Feb 10, 2024",
-            "title": "CV Workshop Attendance",
-            "status": "Completed"
-          },
-          "item2": {
-            "date": "Jan 28, 2024",
-            "title": "Language Assessment",
-            "meta": "Scored: A2"
-          }
+          "trailProgress": "{percent}% completed",
+          "sessionFallback": "Session"
         },
         "notes": {
           "title": "Session Notes",

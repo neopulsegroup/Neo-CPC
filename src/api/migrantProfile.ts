@@ -9,6 +9,7 @@ export type MigrantSession = {
   scheduled_time: string;
   professional_id?: string | null;
   status?: string | null;
+  service_label?: string | null;
 };
 
 export type TrailProgress = {
