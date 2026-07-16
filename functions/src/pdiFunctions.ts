@@ -302,6 +302,15 @@ export const acceptPdi = onCall({ region: 'us-central1' }, async (request) => {
     throw new HttpsError('permission-denied', 'Sem permissão.', { error: 'FORBIDDEN', requestId });
   }
 
+  const classSnap = await db.doc(`migrant_classifications/${participantId}`).get();
+  const eligibility = classSnap.exists ? classSnap.data()?.eligibility_profile : null;
+  if (eligibility !== 'A') {
+    throw new HttpsError('permission-denied', 'PDI disponível apenas para Perfil A.', {
+      error: 'PROFILE_A_REQUIRED',
+      requestId,
+    });
+  }
+
   if (data.status !== 'VALIDATED') {
     throw new HttpsError(
       'failed-precondition',

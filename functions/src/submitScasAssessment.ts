@@ -98,6 +98,18 @@ export const submitScasAssessment = onCall(
       throw new HttpsError('permission-denied', 'Sem permissão.', { error: 'FORBIDDEN', requestId });
     }
 
+    // Migrante autónomo: SCAS só para Perfil A.
+    if (isParticipant && !isStaff) {
+      const classSnap = await db.doc(`migrant_classifications/${participantId}`).get();
+      const eligibility = classSnap.exists ? classSnap.data()?.eligibility_profile : null;
+      if (eligibility !== 'A') {
+        throw new HttpsError('permission-denied', 'SCAS disponível apenas para Perfil A.', {
+          error: 'PROFILE_A_REQUIRED',
+          requestId,
+        });
+      }
+    }
+
     if (assessment.is_locked === true || assessment.status === 'SUBMITTED') {
       throw new HttpsError('failed-precondition', 'Avaliação já submetida.', {
         error: 'ALREADY_SUBMITTED',

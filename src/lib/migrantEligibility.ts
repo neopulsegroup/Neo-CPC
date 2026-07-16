@@ -1,15 +1,16 @@
 import { deleteDocument, getDocument, serverTimestamp, setDocument } from '@/integrations/firebase/firestore';
 import { auditTimerStart, writeAuditLog } from '@/lib/auditLog';
+import { isCpcManagementRole } from '@/lib/cpcRoles';
 
 /**
- * Classificação interna de migrantes (uso exclusivo da equipa de gestão CPC).
+ * Classificação interna de migrantes (gestão CPC).
  *
  * - Perfil A: elegível no âmbito do projeto (migrante residente no Algarve).
  * - Perfil B: não elegível.
  * - `null`: ainda sem perfil definido.
  *
- * Esta classificação é interna: fica numa coleção (`migrant_classifications`)
- * que os migrantes não conseguem ler (ver firestore.rules).
+ * O migrante pode ler o próprio documento apenas para controlo de acesso
+ * (ex.: SCAS/PDI). A UI de classificação permanece exclusiva da equipa CPC.
  */
 export type EligibilityProfile = 'A' | 'B';
 
@@ -21,6 +22,11 @@ export const MIGRANT_CLASSIFICATIONS_COLLECTION = 'migrant_classifications';
 
 export const ELIGIBILITY_PROFILE_OPTIONS: EligibilityProfile[] = ['A', 'B'];
 
+/** SCAS e PDI no dashboard migrante: apenas Perfil A. */
+export function canAccessScasAndPdi(eligibility: EligibilityProfile | null | undefined): boolean {
+  return eligibility === 'A';
+}
+
 export function isEligibilityProfile(value: unknown): value is EligibilityProfile {
   return value === 'A' || value === 'B';
 }
@@ -29,8 +35,6 @@ export function isEligibilityProfile(value: unknown): value is EligibilityProfil
 export function normalizeEligibilityProfile(value: unknown): EligibilityProfile | null {
   return isEligibilityProfile(value) ? value : null;
 }
-
-import { isCpcManagementRole } from '@/lib/cpcRoles';
 
 export function canManageMigrantEligibility(role: string | undefined | null): boolean {
   return isCpcManagementRole(role ?? null);

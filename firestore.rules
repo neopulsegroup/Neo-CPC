@@ -375,10 +375,10 @@ service cloud.firestore {
       allow delete: if isAccountEnabled() && hasRole('admin');
     }
 
-    // Classificação interna de elegibilidade (Perfil A/B).
-    // Uso exclusivo da equipa de gestão CPC; invisível para o próprio migrante.
+    // Classificação de elegibilidade (Perfil A/B).
+    // Equipa CPC gere; o próprio migrante pode ler o seu doc (acesso SCAS/PDI).
     match /migrant_classifications/{userId} {
-      allow read: if isAccountEnabled() && isCpcStaff();
+      allow read: if isOwner(userId) || (isAccountEnabled() && isCpcStaff());
       allow create, update: if canManageCpcTeam()
         && request.resource.data.eligibility_profile in ['A', 'B'];
       allow delete: if canManageCpcTeam();
