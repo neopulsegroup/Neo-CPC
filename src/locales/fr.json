@@ -565,6 +565,12 @@
     "passwordLengthError": "Le mot de passe doit comporter au moins 6 caractères",
     "accountCreated": "Compte créé avec succès !",
     "backToSelection": "Revenir à la sélection du profil",
+    "consent": {
+      "prefix": "J'ai lu et j'accepte la",
+      "linkLabel": "Politique de confidentialité",
+      "suffix": "et j'autorise le traitement de mes données personnelles pour l'utilisation de la plateforme.",
+      "required": "Vous devez accepter la Politique de confidentialité pour finaliser l'inscription."
+    },
     "registerAs": "Inscrivez-vous en tant que :",
     "captcha": {
       "label": "Vérification de sécurité",

@@ -60,6 +60,8 @@ interface RegisterData {
    * Opcional aqui para não quebrar callers de outros roles.
    */
   activityArea?: string;
+  /** RGPD: aceite da Política de Privacidade no registo (obrigatório na UI). */
+  privacyConsent?: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -288,6 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await registerUser(data.email, data.password, data.name, data.role, {
         nif: data.nif,
         activityArea: data.activityArea,
+        privacyConsent: data.privacyConsent,
       });
       // onAuthStateChanged will handle the rest
     } catch (error: unknown) {
