@@ -3006,7 +3006,15 @@
       },
       "trails": {
         "title": "Rutas formativas",
-        "subtitle": "Crear y editar rutas formativas y sus módulos."
+        "subtitle": "Crear y editar rutas formativas y sus módulos.",
+        "delete": {
+          "action": "Eliminar",
+          "title": "Eliminar ruta",
+          "confirm": "¿Seguro que desea eliminar la ruta \"{title}\"? Esta acción elimina módulos, comentarios y progreso asociados y no se puede deshacer.",
+          "success": "Ruta eliminada.",
+          "error": "No se pudo eliminar la ruta. Inténtelo de nuevo.",
+          "deleting": "Eliminando…"
+        }
       },
       "contentEditor": {
         "title": "Editor de contenido",

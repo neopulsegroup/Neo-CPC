@@ -5,8 +5,20 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { addDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { storage } from '@/integrations/firebase/client';
+import { deleteTrailCascade } from '@/lib/deleteTrailCascade';
 import { filterNonDemoTrails } from '@/lib/trailDemoTitles';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +39,7 @@ import {
   Pencil,
   Upload,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 
 interface Trail {
@@ -40,6 +53,7 @@ interface Trail {
   is_active: boolean;
   created_at?: string | null;
   image_url?: string | null;
+  image_path?: string | null;
 }
 
 const TRAILS_CACHE_KEY = 'cpc-trails-cache:v1';
@@ -79,6 +93,7 @@ export default function TrailsAdminPage() {
   const { t } = useLanguage();
   const { formatDate } = useAppDateTime();
   const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [trails, setTrails] = useState<Trail[]>([]);
@@ -100,6 +115,8 @@ export default function TrailsAdminPage() {
   });
   const [form, setForm] = useState(EMPTY_FORM);
   const [togglingTrailId, setTogglingTrailId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Trail | null>(null);
+  const [deletingTrailId, setDeletingTrailId] = useState<string | null>(null);
 
   const fetchTrails = useCallback(async (isBackgroundRefresh: boolean) => {
     setError(null);
@@ -267,6 +284,30 @@ export default function TrailsAdminPage() {
     }
   }
 
+  async function confirmDeleteTrail() {
+    if (!deleteTarget || deletingTrailId) return;
+    const target = deleteTarget;
+    setDeletingTrailId(target.id);
+    try {
+      await deleteTrailCascade(target);
+      setTrails((prev) => {
+        const next = prev.filter((trail) => trail.id !== target.id);
+        writeTrailsCache(next);
+        return next;
+      });
+      setDeleteTarget(null);
+      toast({ title: t.get('cpc.pages.trails.delete.success') });
+    } catch (e) {
+      console.error('Erro ao eliminar trilha', e);
+      toast({
+        title: t.get('cpc.pages.trails.delete.error'),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingTrailId(null);
+    }
+  }
+
   function renderTrailActiveSwitch(trail: Trail) {
     const switchId = `trail-active-${trail.id}`;
     return (
@@ -400,7 +441,25 @@ export default function TrailsAdminPage() {
                       </div>
                       <div className="mt-3 text-xs text-muted-foreground">Criada em: {formatCreatedAt(trail.created_at)}</div>
                     </Link>
-                    <div className="mt-3 border-t pt-3">{renderTrailActiveSwitch(trail)}</div>
+                    <div className="mt-3 border-t pt-3 flex items-center justify-between gap-2">
+                      {renderTrailActiveSwitch(trail)}
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="gap-2"
+                        disabled={deletingTrailId === trail.id}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setDeleteTarget(trail);
+                        }}
+                        aria-label={`${t.get('cpc.pages.trails.delete.action')}: ${trail.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t.get('cpc.pages.trails.delete.action')}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -449,6 +508,18 @@ export default function TrailsAdminPage() {
                                 <Pencil className="h-4 w-4" />
                                 Editar
                               </Link>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="gap-2"
+                              disabled={deletingTrailId === trail.id}
+                              onClick={() => setDeleteTarget(trail)}
+                              aria-label={`${t.get('cpc.pages.trails.delete.action')}: ${trail.title}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t.get('cpc.pages.trails.delete.action')}
                             </Button>
                           </div>
                         </div>
@@ -592,6 +663,42 @@ export default function TrailsAdminPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deletingTrailId) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.get('cpc.pages.trails.delete.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t.get('cpc.pages.trails.delete.confirm', { title: deleteTarget?.title ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingTrailId}>{t.get('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingTrailId}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDeleteTrail();
+              }}
+            >
+              {deletingTrailId ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t.get('cpc.pages.trails.delete.deleting')}
+                </span>
+              ) : (
+                t.get('cpc.pages.trails.delete.action')
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
