@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildNewModuleCommentPayload,
   filterCommentsForViewer,
   getCommentStatusLabel,
   isCommentVisibleToViewer,
+  queryModuleComments,
   sortCommentsNewestFirst,
   type TrailModuleComment,
 } from '@/lib/moduleComments';
+
+const mockQueryDocuments = vi.fn();
+
+vi.mock('@/integrations/firebase/firestore', () => ({
+  queryDocuments: (...args: unknown[]) => mockQueryDocuments(...args),
+}));
 
 const baseComment = (overrides: Partial<TrailModuleComment>): TrailModuleComment => ({
   id: 'c1',
@@ -23,6 +30,10 @@ const baseComment = (overrides: Partial<TrailModuleComment>): TrailModuleComment
 });
 
 describe('moduleComments', () => {
+  beforeEach(() => {
+    mockQueryDocuments.mockReset();
+  });
+
   it('ordena comentários do mais recente para o mais antigo', () => {
     const sorted = sortCommentsNewestFirst([
       baseComment({ id: 'old', created_at: '2026-01-01T09:00:00.000Z' }),
@@ -68,5 +79,29 @@ describe('moduleComments', () => {
     expect(getCommentStatusLabel('pending')).toBe('Em moderação');
     expect(getCommentStatusLabel('rejected')).toBe('Não aprovado');
     expect(getCommentStatusLabel('approved')).toBeNull();
+  });
+
+  it('queryModuleComments junta aprovados e próprios do viewer (alinhado às rules)', async () => {
+    mockQueryDocuments.mockImplementation(async (_collection: string, filters: Array<{ field: string; value: unknown }>) => {
+      const statusFilter = filters.find((f) => f.field === 'status');
+      const userFilter = filters.find((f) => f.field === 'user_id');
+      if (statusFilter?.value === 'approved') {
+        return [
+          baseComment({ id: 'approved-other', status: 'approved', user_id: 'u2', created_at: '2026-01-01T10:00:00.000Z' }),
+          baseComment({ id: 'approved-own', status: 'approved', user_id: 'u1', created_at: '2026-01-02T10:00:00.000Z' }),
+        ];
+      }
+      if (userFilter?.value === 'u1') {
+        return [
+          baseComment({ id: 'approved-own', status: 'approved', user_id: 'u1', created_at: '2026-01-02T10:00:00.000Z' }),
+          baseComment({ id: 'pending-own', status: 'pending', user_id: 'u1', created_at: '2026-01-03T10:00:00.000Z' }),
+        ];
+      }
+      return [];
+    });
+
+    const docs = await queryModuleComments('m1', 'u1');
+    expect(docs.map((c) => c.id)).toEqual(['pending-own', 'approved-own', 'approved-other']);
+    expect(mockQueryDocuments).toHaveBeenCalledTimes(2);
   });
 });

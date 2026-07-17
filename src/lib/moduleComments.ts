@@ -67,11 +67,36 @@ export function buildNewModuleCommentPayload(args: {
   };
 }
 
-export async function queryModuleComments(moduleId: string): Promise<TrailModuleComment[]> {
-  const docs = await queryDocuments<TrailModuleComment>(TRAIL_MODULE_COMMENTS_COLLECTION, [
+/**
+ * Carrega comentários visíveis ao migrante, alinhado às regras Firestore:
+ * - status == 'approved' (todos leem)
+ * - ou user_id == viewerUid (próprios pending/rejected)
+ *
+ * Uma query só por `module_id` falha com permission-denied porque pode
+ * incluir pending/rejected de outros autores.
+ */
+export async function queryModuleComments(
+  moduleId: string,
+  viewerUid?: string | null
+): Promise<TrailModuleComment[]> {
+  const approvedPromise = queryDocuments<TrailModuleComment>(TRAIL_MODULE_COMMENTS_COLLECTION, [
     { field: 'module_id', operator: '==', value: moduleId },
+    { field: 'status', operator: '==', value: 'approved' },
   ]);
-  return sortCommentsNewestFirst(docs || []);
+
+  const ownPromise = viewerUid
+    ? queryDocuments<TrailModuleComment>(TRAIL_MODULE_COMMENTS_COLLECTION, [
+        { field: 'module_id', operator: '==', value: moduleId },
+        { field: 'user_id', operator: '==', value: viewerUid },
+      ])
+    : Promise.resolve([] as TrailModuleComment[]);
+
+  const [approved, own] = await Promise.all([approvedPromise, ownPromise]);
+  const byId = new Map<string, TrailModuleComment>();
+  for (const doc of [...(approved ?? []), ...(own ?? [])]) {
+    byId.set(doc.id, doc);
+  }
+  return filterCommentsForViewer(Array.from(byId.values()), viewerUid);
 }
 
 export async function queryPendingTrailComments(trailId: string): Promise<TrailModuleComment[]> {

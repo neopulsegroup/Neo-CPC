@@ -230,7 +230,7 @@ export default function ModuleViewerPage() {
         return;
       }
       try {
-        const docs = await queryModuleComments(moduleId);
+        const docs = await queryModuleComments(moduleId, user?.uid);
         if (!cancelled) setComments(docs);
       } catch (err) {
         console.error('ModuleViewerPage: falha ao carregar comentários', err);
