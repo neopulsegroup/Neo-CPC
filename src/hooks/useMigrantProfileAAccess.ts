@@ -13,7 +13,7 @@ type ClassificationDoc = {
 };
 
 /**
- * Acesso a SCAS/PDI no dashboard migrante: apenas classificação Perfil A.
+ * Acesso a SCAS, PDI e marcação de sessões no dashboard migrante: apenas Perfil A.
  */
 export function useMigrantProfileAAccess() {
   const { user } = useAuth();

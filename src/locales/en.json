@@ -1288,7 +1288,8 @@
   },
   "migrant": {
     "menu": {
-      "title": "Migrant Menu"
+      "title": "Migrant Menu",
+      "sessionsLocked": "Available only to migrants classified as Profile A by the CPC team."
     },
     "applications": {
       "title": "My Applications",

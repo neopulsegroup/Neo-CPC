@@ -47,6 +47,7 @@ import {
   ListChecks,
   Trash2,
   FileCheck,
+  Lock,
 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { todayIsoAppCalendar } from '@/lib/appCalendar';
@@ -152,6 +153,7 @@ function MigrantHome() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
+  const canBookSessions = !profileALoading && canAccessScasPdi;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -775,10 +777,14 @@ function MigrantHome() {
           {needsProfile.hasUrgentNeeds ? <NeedsProfileCard profile={needsProfile} /> : null}
           <FirstActionsCard
             actions={firstActions}
-            onBook={(area) => {
-              setBookArea(area ?? null);
-              setBookOpen(true);
-            }}
+            onBook={
+              canBookSessions
+                ? (area) => {
+                    setBookArea(area ?? null);
+                    setBookOpen(true);
+                  }
+                : undefined
+            }
           />
         </div>
       ) : null}
@@ -820,7 +826,16 @@ function MigrantHome() {
             <Card className="p-0">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <h3 className="font-semibold flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> {t.dashboard.upcomingSessions}</h3>
-                <Link to="/dashboard/migrante/sessoes" className="text-sm text-primary hover:underline">{t.dashboard.view_all}</Link>
+                <Link
+                  to={canBookSessions ? '/dashboard/migrante/sessoes' : '#'}
+                  className={cn('text-sm text-primary hover:underline', !canBookSessions && 'pointer-events-none opacity-50')}
+                  aria-disabled={!canBookSessions}
+                  onClick={(e) => {
+                    if (!canBookSessions) e.preventDefault();
+                  }}
+                >
+                  {t.dashboard.view_all}
+                </Link>
               </CardHeader>
               <CardContent>
                 {sessionsError ? (
@@ -850,7 +865,10 @@ function MigrantHome() {
                   variant="default"
                   size="sm"
                   className="w-full"
+                  disabled={!canBookSessions}
+                  title={!canBookSessions ? t.get('migrant.menu.sessionsLocked') : undefined}
                   onClick={() => {
+                    if (!canBookSessions) return;
                     setBookArea(null);
                     setBookOpen(true);
                   }}
@@ -1221,6 +1239,7 @@ export default function MigrantDashboard() {
   const migrantDisplayName = useDashboardDisplayName();
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
   const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
+  const sessionsMenuLocked = !profileALoading && !canAccessScasPdi;
   const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
   const sidebarItemsMain = useMemo(() => {
@@ -1268,6 +1287,23 @@ export default function MigrantDashboard() {
               <nav className="space-y-1">
                 {sidebarItemsMain.map((item) => {
                   const to = item.to === '/dashboard/migrante/emprego' ? jobsMenuPath : item.to;
+                  const isSessionsItem = item.to === '/dashboard/migrante/sessoes';
+
+                  if (isSessionsItem && sessionsMenuLocked) {
+                    return (
+                      <div
+                        key={item.to}
+                        title={t.get('migrant.menu.sessionsLocked')}
+                        aria-disabled="true"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 opacity-70" />
+                        <span className="leading-snug flex-1">{item.label}</span>
+                        <Lock className="h-4 w-4 shrink-0 ml-auto" aria-hidden />
+                      </div>
+                    );
+                  }
+
                   return (
                   <NavLink
                     key={item.to}
@@ -1322,7 +1358,7 @@ export default function MigrantDashboard() {
 
               <Routes>
                 <Route index element={<MigrantHome />} />
-                <Route path="sessoes" element={<SessionsPage />} />
+                <Route path="sessoes" element={<MigrantProfileAGate><SessionsPage /></MigrantProfileAGate>} />
                 <Route path="trilhas" element={<TrailsPage />} />
                 <Route path="trilhas/:trailId" element={<TrailDetailPage />} />
                 <Route path="trilhas/:trailId/modulo/:moduleId" element={<ModuleViewerPage />} />

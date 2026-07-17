@@ -22,9 +22,14 @@ export const MIGRANT_CLASSIFICATIONS_COLLECTION = 'migrant_classifications';
 
 export const ELIGIBILITY_PROFILE_OPTIONS: EligibilityProfile[] = ['A', 'B'];
 
-/** SCAS e PDI no dashboard migrante: apenas Perfil A. */
+/** SCAS, PDI e marcação de sessões no dashboard migrante: apenas Perfil A. */
 export function canAccessScasAndPdi(eligibility: EligibilityProfile | null | undefined): boolean {
   return eligibility === 'A';
+}
+
+/** Marcar sessões no dashboard migrante: apenas Perfil A (classificação CPC). */
+export function canBookMigrantSessions(eligibility: EligibilityProfile | null | undefined): boolean {
+  return canAccessScasAndPdi(eligibility);
 }
 
 export function isEligibilityProfile(value: unknown): value is EligibilityProfile {
