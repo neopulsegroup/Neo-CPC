@@ -107,6 +107,7 @@ import MigrantProfileAGate from './migrant/MigrantProfileAGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
 import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
 import { useMigrantProfileAAccess } from '@/hooks/useMigrantProfileAAccess';
+import { useMigrantScasPending } from '@/hooks/useMigrantScasPending';
 import {
   buildMigrantJobsAccessProfile,
   canAccessMigrantJobs,
@@ -1240,6 +1241,7 @@ export default function MigrantDashboard() {
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
   const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
   const sessionsMenuLocked = !profileALoading && !canAccessScasPdi;
+  const scasPending = useMigrantScasPending(!profileALoading && canAccessScasPdi);
   const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
   const sidebarItemsMain = useMemo(() => {
@@ -1314,7 +1316,16 @@ export default function MigrantDashboard() {
                     }
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="leading-snug">{item.label}</span>
+                    <span className="leading-snug flex-1">{item.label}</span>
+                    {item.to === '/dashboard/migrante/scas' && scasPending ? (
+                      <span
+                        className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white"
+                        title={t.get('migrant.menu.scasPending')}
+                        aria-label={t.get('migrant.menu.scasPending')}
+                      >
+                        1
+                      </span>
+                    ) : null}
                   </NavLink>
                   );
                 })}

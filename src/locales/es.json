@@ -1289,7 +1289,8 @@
   "migrant": {
     "menu": {
       "title": "Menú Migrante",
-      "sessionsLocked": "Disponible solo para migrantes clasificados como Perfil A por el equipo CPC."
+      "sessionsLocked": "Disponible solo para migrantes clasificados como Perfil A por el equipo CPC.",
+      "scasPending": "Tiene un cuestionario SCAS pendiente."
     },
     "applications": {
       "title": "Mis Candidaturas",
@@ -1960,7 +1961,8 @@
       "messages": "Mensagens",
       "administrationSection": "Administración",
       "settingsSection": "Configuración",
-      "eventLog": "Logs de auditoría"
+      "eventLog": "Logs de auditoría",
+      "pendingBadge": "{count} pendiente(s)"
     },
     "profile": {
       "title": "Perfil",

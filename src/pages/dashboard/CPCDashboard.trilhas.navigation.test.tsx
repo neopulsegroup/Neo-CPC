@@ -62,6 +62,8 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   serverTimestamp: (...args: unknown[]) => mockServerTimestamp(...args),
+  subscribeQuery: () => () => {},
+  subscribeDocument: () => () => {},
 }));
 
 describe('CPCDashboard - navegação (inclui Trilhas)', () => {
@@ -329,7 +331,9 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     const migrantsIndex = links.indexOf('Migrantes');
     const activitiesIndex = links.indexOf('Atividades');
     expect(migrantsIndex).toBeGreaterThanOrEqual(0);
-    expect(activitiesIndex).toBe(migrantsIndex + 1);
+    expect(activitiesIndex).toBeGreaterThan(migrantsIndex);
+    // SCAS fica entre Migrantes e Atividades no menu principal.
+    expect(activitiesIndex).toBe(migrantsIndex + 2);
   });
 
   it('mantém "Trilhas" como ativo ao abrir o editor /trilhas/:trailId', async () => {
