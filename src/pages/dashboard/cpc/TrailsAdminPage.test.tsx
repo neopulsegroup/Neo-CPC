@@ -41,14 +41,16 @@ vi.mock('@/components/layout/Layout', () => ({
 }));
 
 vi.mock('@/contexts/LanguageContext', () => {
-  function tGet(path: string): string {
+  function tGet(path: string, params?: Record<string, string | number>): string {
     const value = path.split('.').reduce<unknown>((acc, key) => {
       if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
         return (acc as Record<string, unknown>)[key];
       }
       return undefined;
     }, ptJson);
-    return typeof value === 'string' ? value : path;
+    const template = typeof value === 'string' ? value : path;
+    if (!params) return template;
+    return template.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k] ?? `{${k}}`));
   }
   return {
     useLanguage: () => ({
@@ -63,6 +65,16 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   queryDocuments: (...args: unknown[]) => mockQueryDocuments(...args),
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
+  deleteDocument: vi.fn(),
+}));
+
+const mockDeleteTrailCascade = vi.fn();
+vi.mock('@/lib/deleteTrailCascade', () => ({
+  deleteTrailCascade: (...args: unknown[]) => mockDeleteTrailCascade(...args),
+}));
+
+vi.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
 }));
 
 function deferred<T>() {
@@ -84,6 +96,7 @@ describe('TrailsAdminPage (CPC)', () => {
     mockQueryDocuments.mockReset();
     mockAddDocument.mockReset();
     mockUpdateDocument.mockReset().mockResolvedValue(undefined);
+    mockDeleteTrailCascade.mockReset().mockResolvedValue(undefined);
     mockNavigate.mockReset();
     mockUploadBytes.mockReset().mockResolvedValue(undefined);
     mockGetDownloadURL.mockReset().mockResolvedValue('https://example.com/cover.jpg');
@@ -329,5 +342,44 @@ describe('TrailsAdminPage (CPC) - alternância de visualização', () => {
 
     expect(await screen.findByText('Trilha 1')).toBeInTheDocument();
     expect(screen.getByLabelText('Trilhas existentes - lista')).toBeInTheDocument();
+  });
+
+  it('pede confirmação e elimina a trilha', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([
+      {
+        id: 't1',
+        title: 'Trilha a apagar',
+        description: 'Descrição',
+        category: 'work',
+        difficulty: 'beginner',
+        duration_minutes: 10,
+        modules_count: 1,
+        is_active: true,
+        created_at: '2025-01-01T00:00:00.000Z',
+        image_url: null,
+      },
+    ]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <TrailsAdminPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Trilha a apagar')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Eliminar: Trilha a apagar' }));
+
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getByText(/Tem a certeza de que deseja eliminar a trilha "Trilha a apagar"/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(mockDeleteTrailCascade).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 't1', title: 'Trilha a apagar' })
+      );
+    });
+    expect(screen.queryByText('Trilha a apagar')).toBeNull();
   });
 });

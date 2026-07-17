@@ -3006,7 +3006,15 @@
       },
       "trails": {
         "title": "Trails",
-        "subtitle": "Create and edit learning trails and their modules."
+        "subtitle": "Create and edit learning trails and their modules.",
+        "delete": {
+          "action": "Delete",
+          "title": "Delete trail",
+          "confirm": "Are you sure you want to delete the trail \"{title}\"? This removes modules, comments and related progress and cannot be undone.",
+          "success": "Trail deleted.",
+          "error": "Could not delete the trail. Please try again.",
+          "deleting": "Deleting…"
+        }
       },
       "contentEditor": {
         "title": "Content editor",

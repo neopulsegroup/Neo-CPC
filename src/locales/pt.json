@@ -3007,7 +3007,15 @@
       },
       "trails": {
         "title": "Trilhas",
-        "subtitle": "Criar e editar trilhas formativas e respetivos módulos."
+        "subtitle": "Criar e editar trilhas formativas e respetivos módulos.",
+        "delete": {
+          "action": "Eliminar",
+          "title": "Eliminar trilha",
+          "confirm": "Tem a certeza de que deseja eliminar a trilha \"{title}\"? Esta ação remove módulos, comentários e progresso associados e não pode ser desfeita.",
+          "success": "Trilha eliminada.",
+          "error": "Não foi possível eliminar a trilha. Tente novamente.",
+          "deleting": "A eliminar…"
+        }
       },
       "contentEditor": {
         "title": "Editor de Conteúdo",

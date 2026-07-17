@@ -3006,7 +3006,15 @@
       },
       "trails": {
         "title": "Sentiers",
-        "subtitle": "Créer et modifier des parcours de formation et des modules respectifs."
+        "subtitle": "Créer et modifier des parcours de formation et des modules respectifs.",
+        "delete": {
+          "action": "Supprimer",
+          "title": "Supprimer le parcours",
+          "confirm": "Voulez-vous vraiment supprimer le parcours « {title} » ? Cette action supprime les modules, commentaires et progressions associés et est irréversible.",
+          "success": "Parcours supprimé.",
+          "error": "Impossible de supprimer le parcours. Réessayez.",
+          "deleting": "Suppression…"
+        }
       },
       "contentEditor": {
         "title": "Éditeur de contenu",
