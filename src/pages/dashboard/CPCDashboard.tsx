@@ -78,6 +78,12 @@ import {
   sortDashboardNotificationsNewestFirst,
 } from '@/lib/dashboardNotifications';
 import { useAppDateTime } from '@/hooks/useAppDateTime';
+import { useCpcMenuPendingIndicators } from '@/hooks/useCpcMenuPendingIndicators';
+import {
+  formatPendingBadgeLabel,
+  pendingCountForMenuPath,
+} from '@/lib/cpcMenuPending';
+import { cn } from '@/lib/utils';
 import { useDashboardDisplayName } from '@/hooks/useDashboardDisplayName';
 
 type CpcDashboardSessionDoc = {
@@ -211,6 +217,7 @@ export default function CPCDashboard() {
   const canAccessServiceAreas = canManageServiceAreas(profile?.role);
 
   const cpcDisplayName = useDashboardDisplayName();
+  const menuPendingCounts = useCpcMenuPendingIndicators();
 
   const [loading, setLoading] = useState(true);
   const [period] = useState<'today' | 'week' | 'month'>('week');
@@ -1371,19 +1378,35 @@ export default function CPCDashboard() {
                 <p className="font-semibold">{cpcDisplayName}</p>
               </div>
               <nav className="space-y-1">
-                {sidebarItemsMain.map((item) => (
+                {sidebarItemsMain.map((item) => {
+                  const pendingCount = pendingCountForMenuPath(item.to, menuPendingCounts);
+                  const pendingLabel = formatPendingBadgeLabel(pendingCount);
+                  return (
                   <NavLink
                     key={item.to}
                     to={item.to}
                     end={item.to === '/dashboard/cpc'}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`
+                      cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                        isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                      )
                     }
                   >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="leading-snug flex-1">{item.label}</span>
+                    {pendingLabel ? (
+                      <span
+                        className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white"
+                        title={t.get('cpc.menu.pendingBadge', { count: pendingCount })}
+                        aria-label={t.get('cpc.menu.pendingBadge', { count: pendingCount })}
+                      >
+                        {pendingLabel}
+                      </span>
+                    ) : null}
                   </NavLink>
-                ))}
+                  );
+                })}
 
                 {isCpcAdmin ? (
                   <Accordion

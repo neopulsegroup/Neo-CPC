@@ -1289,7 +1289,8 @@
   "migrant": {
     "menu": {
       "title": "Migrant Menu",
-      "sessionsLocked": "Available only to migrants classified as Profile A by the CPC team."
+      "sessionsLocked": "Available only to migrants classified as Profile A by the CPC team.",
+      "scasPending": "You have a pending SCAS questionnaire."
     },
     "applications": {
       "title": "My Applications",
@@ -1960,7 +1961,8 @@
       "messages": "Messages",
       "administrationSection": "Administration",
       "settingsSection": "Settings",
-      "eventLog": "Audit Logs"
+      "eventLog": "Audit Logs",
+      "pendingBadge": "{count} pending"
     },
     "profile": {
       "title": "Profile",

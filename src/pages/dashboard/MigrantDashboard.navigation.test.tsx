@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import MigrantDashboard from './MigrantDashboard';
 
 const stableUser = { uid: 'u1' };
-let authState: { user?: { uid: string } | null; profile?: { name?: string; role?: string } } = { user: stableUser, profile: { name: 'Ana', role: 'migrant' } };
+let authState: { user?: { uid: string } | null; profile?: { name?: string; role?: string }; triage?: { completed?: boolean } | null } = { user: stableUser, profile: { name: 'Ana', role: 'migrant' } };
 
 vi.mock('@/components/layout/Layout', () => ({
   Layout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -65,6 +65,7 @@ vi.mock('@/contexts/LanguageContext', () => ({
           'dashboard.triage': 'Situação Inicial',
           'migrant.menu.title': 'Menu Migrante',
           'migrant.menu.sessionsLocked': 'Disponível apenas para migrantes classificados como Perfil A pela equipa CPC.',
+          'migrant.menu.scasPending': 'Tem um questionário SCAS pendente.',
           'cpc.menu.user_fallback': 'Utilizador',
           'sidebar.sections.settings': 'Definições',
           'sidebar.sections.messages': 'Mensagens',
@@ -93,6 +94,10 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   getDocument: (...args: unknown[]) => mockGetDocument(...args),
   queryDocuments: (...args: unknown[]) => mockQueryDocuments(...args),
+  setDocument: vi.fn(),
+  updateDocument: vi.fn(),
+  deleteDocument: vi.fn(),
+  serverTimestamp: vi.fn(),
   subscribeDocument: (...args: unknown[]) => mockSubscribeDocument(...args),
   subscribeQuery: (...args: unknown[]) => mockSubscribeQuery(...args),
 }));
@@ -185,6 +190,34 @@ describe('MigrantDashboard - navegação', () => {
     expect(screen.queryByRole('link', { name: 'Sessões' })).not.toBeInTheDocument();
     expect(within(nav).getByTitle('Disponível apenas para migrantes classificados como Perfil A pela equipa CPC.')).toBeInTheDocument();
     expect(within(nav).getByText('Sessões').closest('div')?.querySelector('.lucide-lock')).toBeTruthy();
+  });
+
+  it('mostra badge de SCAS pendente no menu para Perfil A com T0 por preencher', async () => {
+    authState = { user: stableUser, profile: { name: 'Ana', role: 'migrant' }, triage: { completed: true } };
+    mockSubscribeDocument.mockImplementation((args: unknown) => {
+      const a = args as { collectionName: string; onNext: (doc: unknown) => void };
+      if (a.collectionName === 'migrant_classifications') {
+        a.onNext({ eligibility_profile: 'A' });
+        return () => {};
+      }
+      a.onNext(null);
+      return () => {};
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard/migrante/perfil']}>
+        <Routes>
+          <Route path="/dashboard/migrante/*" element={<MigrantDashboard />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const nav = screen.getByRole('navigation');
+    await waitFor(() => {
+      expect(within(nav).getByTitle('Tem um questionário SCAS pendente.')).toBeInTheDocument();
+    });
+    const scasLink = nav.querySelector('a[href="/dashboard/migrante/scas"]');
+    expect(scasLink?.querySelector('span.ml-auto')?.textContent).toBe('1');
   });
 
   it('regressão visual (estrutura + active/hover): classNames do menu em /mensagens (rota ainda acessível)', async () => {
