@@ -5,6 +5,7 @@ import {
   filterCommentsForViewer,
   getCommentStatusLabel,
   isCommentVisibleToViewer,
+  queryApprovedTrailComments,
   queryModuleComments,
   sortCommentsNewestFirst,
   type TrailModuleComment,
@@ -103,5 +104,19 @@ describe('moduleComments', () => {
     const docs = await queryModuleComments('m1', 'u1');
     expect(docs.map((c) => c.id)).toEqual(['pending-own', 'approved-own', 'approved-other']);
     expect(mockQueryDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it('queryApprovedTrailComments filtra por trilha e status approved', async () => {
+    mockQueryDocuments.mockResolvedValueOnce([
+      baseComment({ id: 'a1', status: 'approved', created_at: '2026-01-02T10:00:00.000Z' }),
+      baseComment({ id: 'a2', status: 'approved', created_at: '2026-01-03T10:00:00.000Z' }),
+    ]);
+
+    const docs = await queryApprovedTrailComments('t1');
+    expect(mockQueryDocuments).toHaveBeenCalledWith('trail_module_comments', [
+      { field: 'trail_id', operator: '==', value: 't1' },
+      { field: 'status', operator: '==', value: 'approved' },
+    ]);
+    expect(docs.map((c) => c.id)).toEqual(['a2', 'a1']);
   });
 });
