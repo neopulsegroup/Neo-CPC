@@ -106,3 +106,11 @@ export async function queryPendingTrailComments(trailId: string): Promise<TrailM
   ]);
   return sortCommentsNewestFirst(docs || []);
 }
+
+export async function queryApprovedTrailComments(trailId: string): Promise<TrailModuleComment[]> {
+  const docs = await queryDocuments<TrailModuleComment>(TRAIL_MODULE_COMMENTS_COLLECTION, [
+    { field: 'trail_id', operator: '==', value: trailId },
+    { field: 'status', operator: '==', value: 'approved' },
+  ]);
+  return sortCommentsNewestFirst(docs || []);
+}

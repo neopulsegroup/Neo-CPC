@@ -23,12 +23,24 @@ import {
 } from '@/lib/trailModuleStorage';
 import { queryTrailModules } from '@/lib/trailModules';
 import {
+  queryApprovedTrailComments,
   queryPendingTrailComments,
+  sortCommentsNewestFirst,
   TRAIL_MODULE_COMMENTS_COLLECTION,
   type TrailModuleComment,
 } from '@/lib/moduleComments';
 import { SimpleHtmlEditor } from '@/components/trails/SimpleHtmlEditor';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -153,8 +165,11 @@ export default function TrailEditorPage() {
   });
   const [quizError, setQuizError] = useState<string | null>(null);
   const [pendingComments, setPendingComments] = useState<TrailModuleComment[]>([]);
+  const [publishedComments, setPublishedComments] = useState<TrailModuleComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [moderatingCommentId, setModeratingCommentId] = useState<string | null>(null);
+  const [deleteCommentTarget, setDeleteCommentTarget] = useState<TrailModuleComment | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (trailId) fetchData();
@@ -170,6 +185,7 @@ export default function TrailEditorPage() {
     setTrail(null);
     setModules([]);
     setPendingComments([]);
+    setPublishedComments([]);
 
     try {
       const trailDoc = await getDocument<Trail>('trails', trailId);
@@ -188,11 +204,16 @@ export default function TrailEditorPage() {
 
     try {
       setLoadingComments(true);
-      const comments = await queryPendingTrailComments(trailId);
-      setPendingComments(comments);
+      const [pending, published] = await Promise.all([
+        queryPendingTrailComments(trailId),
+        queryApprovedTrailComments(trailId),
+      ]);
+      setPendingComments(pending);
+      setPublishedComments(published);
     } catch (e) {
-      console.error('Erro ao carregar comentários pendentes', e);
+      console.error('Erro ao carregar comentários', e);
       setPendingComments([]);
+      setPublishedComments([]);
     } finally {
       setLoadingComments(false);
       setLoading(false);
@@ -205,15 +226,20 @@ export default function TrailEditorPage() {
     return map;
   }, [modules]);
 
-  async function refreshPendingComments() {
+  async function refreshTrailComments() {
     if (!trailId) return;
     setLoadingComments(true);
     try {
-      const comments = await queryPendingTrailComments(trailId);
-      setPendingComments(comments);
+      const [pending, published] = await Promise.all([
+        queryPendingTrailComments(trailId),
+        queryApprovedTrailComments(trailId),
+      ]);
+      setPendingComments(pending);
+      setPublishedComments(published);
     } catch (e) {
-      console.error('Erro ao carregar comentários pendentes', e);
+      console.error('Erro ao carregar comentários', e);
       setPendingComments([]);
+      setPublishedComments([]);
     } finally {
       setLoadingComments(false);
     }
@@ -223,16 +249,46 @@ export default function TrailEditorPage() {
     if (!user?.uid) return;
     setModeratingCommentId(commentId);
     try {
+      const moderatedAt = new Date().toISOString();
       await updateDocument(TRAIL_MODULE_COMMENTS_COLLECTION, commentId, {
         status,
-        moderated_at: new Date().toISOString(),
+        moderated_at: moderatedAt,
         moderated_by: user.uid,
       });
+      const moderated = pendingComments.find((comment) => comment.id === commentId);
       setPendingComments((prev) => prev.filter((comment) => comment.id !== commentId));
+      if (status === 'approved' && moderated) {
+        setPublishedComments((prev) =>
+          sortCommentsNewestFirst([
+            {
+              ...moderated,
+              status: 'approved',
+              moderated_at: moderatedAt,
+              moderated_by: user.uid,
+            },
+            ...prev.filter((comment) => comment.id !== commentId),
+          ])
+        );
+      }
     } catch (e) {
       console.error('Erro ao moderar comentário', e);
     } finally {
       setModeratingCommentId(null);
+    }
+  }
+
+  async function confirmDeletePublishedComment() {
+    if (!deleteCommentTarget || deletingCommentId) return;
+    const target = deleteCommentTarget;
+    setDeletingCommentId(target.id);
+    try {
+      await deleteDocument(TRAIL_MODULE_COMMENTS_COLLECTION, target.id);
+      setPublishedComments((prev) => prev.filter((comment) => comment.id !== target.id));
+      setDeleteCommentTarget(null);
+    } catch (e) {
+      console.error('Erro ao eliminar comentário publicado', e);
+    } finally {
+      setDeletingCommentId(null);
     }
   }
 
@@ -1169,7 +1225,7 @@ export default function TrailEditorPage() {
               </span>
             ) : null}
           </h2>
-          <Button type="button" variant="outline" size="sm" onClick={() => void refreshPendingComments()} disabled={loadingComments}>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refreshTrailComments()} disabled={loadingComments}>
             {loadingComments ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Atualizar'}
           </Button>
         </div>
@@ -1222,6 +1278,100 @@ export default function TrailEditorPage() {
           </div>
         )}
       </div>
+
+      <div className="cpc-card p-6 w-full mt-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Comentários
+            {publishedComments.length > 0 ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                {publishedComments.length}
+              </span>
+            ) : null}
+          </h2>
+        </div>
+
+        {loadingComments ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : publishedComments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Ainda não há comentários publicados nesta trilha.</p>
+        ) : (
+          <div className="space-y-3">
+            {publishedComments.map((comment) => (
+              <div key={comment.id} className="rounded-lg border p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{comment.user_name}</span>
+                      <span>•</span>
+                      <span>{moduleTitleById.get(comment.module_id) || 'Módulo desconhecido'}</span>
+                      <span>•</span>
+                      <span>{formatDateTime(comment.created_at)}</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                        Publicado
+                      </span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap break-words">{comment.content}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2 shrink-0"
+                    disabled={deletingCommentId === comment.id}
+                    onClick={() => setDeleteCommentTarget(comment)}
+                    aria-label={`Eliminar comentário de ${comment.user_name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AlertDialog
+        open={!!deleteCommentTarget}
+        onOpenChange={(open) => {
+          if (!open && !deletingCommentId) setDeleteCommentTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar comentário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem a certeza de que deseja eliminar o comentário publicado de{' '}
+              <span className="font-medium text-foreground">{deleteCommentTarget?.user_name ?? 'este utilizador'}</span>?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingCommentId}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingCommentId}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDeletePublishedComment();
+              }}
+            >
+              {deletingCommentId ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  A eliminar…
+                </span>
+              ) : (
+                'Eliminar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
