@@ -3,7 +3,7 @@ import { useMigrantProfileAAccess } from '@/hooks/useMigrantProfileAAccess';
 
 const MIGRANT_HOME_PATH = '/dashboard/migrante';
 
-/** Bloqueia SCAS/PDI a migrantes que não sejam Perfil A. */
+/** Bloqueia SCAS, PDI e sessões a migrantes que não sejam Perfil A. */
 export default function MigrantProfileAGate({ children }: { children: React.ReactNode }) {
   const { loading, canAccess } = useMigrantProfileAAccess();
 

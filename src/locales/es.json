@@ -1288,7 +1288,8 @@
   },
   "migrant": {
     "menu": {
-      "title": "Menú Migrante"
+      "title": "Menú Migrante",
+      "sessionsLocked": "Disponible solo para migrantes clasificados como Perfil A por el equipo CPC."
     },
     "applications": {
       "title": "Mis Candidaturas",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessScasAndPdi, normalizeEligibilityProfile } from './migrantEligibility';
+import { canAccessScasAndPdi, canBookMigrantSessions, normalizeEligibilityProfile } from './migrantEligibility';
 
 describe('migrantEligibility SCAS/PDI access', () => {
   it('só Perfil A tem acesso a SCAS e PDI', () => {
@@ -7,6 +7,12 @@ describe('migrantEligibility SCAS/PDI access', () => {
     expect(canAccessScasAndPdi('B')).toBe(false);
     expect(canAccessScasAndPdi(null)).toBe(false);
     expect(canAccessScasAndPdi(undefined)).toBe(false);
+  });
+
+  it('só Perfil A pode marcar sessões', () => {
+    expect(canBookMigrantSessions('A')).toBe(true);
+    expect(canBookMigrantSessions('B')).toBe(false);
+    expect(canBookMigrantSessions(null)).toBe(false);
   });
 
   it('normaliza valores inválidos para null', () => {
