@@ -1,4 +1,4 @@
-export type PageId = 'home' | 'about' | 'how-it-works' | 'contact';
+export type PageId = 'home' | 'about' | 'how-it-works' | 'contact' | 'terms' | 'privacy' | 'cookies';
 export type FieldType = 'text' | 'textarea';
 
 export interface FieldDefinition {
@@ -129,6 +129,57 @@ export const PAGE_SCHEMAS: PageSchema[] = [
       { key: 'contact.faqs.1.a', label: 'FAQ 2 - resposta', type: 'textarea', section: 'FAQ', maxLength: 220 },
       { key: 'contact.faqs.2.q', label: 'FAQ 3 - pergunta', type: 'text', section: 'FAQ', maxLength: 120 },
       { key: 'contact.faqs.2.a', label: 'FAQ 3 - resposta', type: 'textarea', section: 'FAQ', maxLength: 220 },
+    ],
+  },
+  {
+    id: 'terms',
+    title: 'Termos de Serviço',
+    route: '/termos',
+    fields: [
+      { key: 'policies.terms.title', label: 'Título da página', type: 'text', section: 'Termos', maxLength: 100 },
+      { key: 'policies.common.platform', label: 'Subtítulo / plataforma', type: 'text', section: 'Termos', maxLength: 100 },
+      {
+        key: 'policies.terms.body',
+        label: 'Corpo da página',
+        description: 'Separe parágrafos com uma linha em branco.',
+        type: 'textarea',
+        section: 'Conteúdo',
+        maxLength: 20000,
+      },
+    ],
+  },
+  {
+    id: 'privacy',
+    title: 'Política de Privacidade',
+    route: '/privacidade',
+    fields: [
+      { key: 'policies.privacy.title', label: 'Título da página', type: 'text', section: 'Privacidade', maxLength: 100 },
+      { key: 'policies.common.platform', label: 'Subtítulo / plataforma', type: 'text', section: 'Privacidade', maxLength: 100 },
+      {
+        key: 'policies.privacy.body',
+        label: 'Corpo da página',
+        description: 'Separe parágrafos com uma linha em branco.',
+        type: 'textarea',
+        section: 'Conteúdo',
+        maxLength: 30000,
+      },
+    ],
+  },
+  {
+    id: 'cookies',
+    title: 'Política de Cookies',
+    route: '/cookies',
+    fields: [
+      { key: 'policies.cookies.title', label: 'Título da página', type: 'text', section: 'Cookies', maxLength: 100 },
+      { key: 'policies.common.platform', label: 'Subtítulo / plataforma', type: 'text', section: 'Cookies', maxLength: 100 },
+      {
+        key: 'policies.cookies.body',
+        label: 'Corpo da página',
+        description: 'Separe parágrafos com uma linha em branco.',
+        type: 'textarea',
+        section: 'Conteúdo',
+        maxLength: 30000,
+      },
     ],
   },
 ];

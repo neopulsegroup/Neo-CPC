@@ -1,3 +1,5 @@
+import { shouldDisableAppCaches } from '@/lib/devNoCache';
+
 /**
  * Serviço de tradução client-side usando a Translator API nativa do navegador.
  *
@@ -5,7 +7,8 @@
  *  - Chrome 138+ e Edge 138+ (a partir de 2025)
  *  - Outros navegadores: cai em fallback (devolve texto original PT)
  *
- * Cache: cada tradução é cacheada em localStorage para não repetir o trabalho.
+ * Cache: cada tradução é cacheada em localStorage para não repetir o trabalho
+ * (desactivado em localhost / Vite DEV).
  */
 
 export type TranslatorLanguageCode = 'pt' | 'en' | 'es' | 'fr';
@@ -111,11 +114,13 @@ export async function translateText(
   if (!text || source === target) return text;
 
   const key = cacheKey(source, target, text);
-  try {
-    const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    if (cached !== null) return cached;
-  } catch {
-    void 0;
+  if (!shouldDisableAppCaches()) {
+    try {
+      const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      if (cached !== null) return cached;
+    } catch {
+      void 0;
+    }
   }
 
   const translator = await getTranslator(source, target);
@@ -123,10 +128,12 @@ export async function translateText(
 
   try {
     const translated = await translator.translate(text);
-    try {
-      localStorage.setItem(key, translated);
-    } catch {
-      void 0;
+    if (!shouldDisableAppCaches()) {
+      try {
+        localStorage.setItem(key, translated);
+      } catch {
+        void 0;
+      }
     }
     return translated;
   } catch (err) {

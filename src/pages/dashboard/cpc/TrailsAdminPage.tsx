@@ -6,6 +6,7 @@ import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { addDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { storage } from '@/integrations/firebase/client';
 import { deleteTrailCascade } from '@/lib/deleteTrailCascade';
+import { shouldDisableAppCaches } from '@/lib/devNoCache';
 import { filterNonDemoTrails } from '@/lib/trailDemoTitles';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,7 @@ const EMPTY_FORM = {
 };
 
 function readTrailsCache(): Trail[] | null {
+  if (shouldDisableAppCaches()) return null;
   try {
     const raw = localStorage.getItem(TRAILS_CACHE_KEY);
     if (!raw) return null;
@@ -82,6 +84,7 @@ function readTrailsCache(): Trail[] | null {
 }
 
 function writeTrailsCache(data: Trail[]) {
+  if (shouldDisableAppCaches()) return;
   try {
     localStorage.setItem(TRAILS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
   } catch {

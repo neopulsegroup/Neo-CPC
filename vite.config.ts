@@ -24,6 +24,9 @@ export default defineConfig(({ mode }) => ({
     host: "127.0.0.1",
     port: 8090,
     strictPort: true,
+    headers: {
+      "Cache-Control": "no-store",
+    },
     // Nominatim (OSM): CORS e User-Agent em desenvolvimento; em produção o cliente usa o URL direto.
     proxy: {
       "/osm-nominatim": {

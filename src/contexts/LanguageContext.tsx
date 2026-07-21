@@ -7,6 +7,7 @@ import {
   subscribeTranslationUpdates,
 } from '@/features/cms/translatorSyncCache';
 import { isTranslatorSupported } from '@/features/cms/translatorService';
+import { shouldDisableAppCaches } from '@/lib/devNoCache';
 
 interface LanguageContextType {
   language: Language;
@@ -145,20 +146,24 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function loadSettings() {
-      const cached = safeJsonParse<{ enabled: boolean; version: number; cachedAt: number }>(
-        safeLocalStorageGet('cpc-i18n-settings')
-      );
       const now = Date.now();
-      if (cached && now - cached.cachedAt < 10 * 60 * 1000) {
-        if (!cancelled) setSettings({ enabled: cached.enabled, version: cached.version });
-        return { enabled: cached.enabled, version: cached.version };
+      if (!shouldDisableAppCaches()) {
+        const cached = safeJsonParse<{ enabled: boolean; version: number; cachedAt: number }>(
+          safeLocalStorageGet('cpc-i18n-settings')
+        );
+        if (cached && now - cached.cachedAt < 10 * 60 * 1000) {
+          if (!cancelled) setSettings({ enabled: cached.enabled, version: cached.version });
+          return { enabled: cached.enabled, version: cached.version };
+        }
       }
 
       try {
         const doc = await getDocument<I18nSettingsDoc>('i18n', 'settings');
         const enabled = doc?.enabled !== false;
         const version = typeof doc?.version === 'number' ? doc.version : 0;
-        safeLocalStorageSet('cpc-i18n-settings', JSON.stringify({ enabled, version, cachedAt: now }));
+        if (!shouldDisableAppCaches()) {
+          safeLocalStorageSet('cpc-i18n-settings', JSON.stringify({ enabled, version, cachedAt: now }));
+        }
         if (!cancelled) setSettings({ enabled, version });
         return { enabled, version };
       } catch {
@@ -170,8 +175,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
     async function loadPtOverrides(version: number) {
       const cacheKey = `cpc-i18n-overrides-pt-v${version}`;
-      const cached = safeJsonParse<{ data: Record<string, string> }>(safeLocalStorageGet(cacheKey));
-      if (cached?.data) return cached.data;
+      if (!shouldDisableAppCaches()) {
+        const cached = safeJsonParse<{ data: Record<string, string> }>(safeLocalStorageGet(cacheKey));
+        if (cached?.data) return cached.data;
+      }
 
       const docs = await getCollection<I18nOverrideDoc>('i18n_overrides');
       const mapped: Record<string, string> = {};
@@ -179,7 +186,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         const value = d.pt;
         if (typeof value === 'string' && value.trim()) mapped[d.id] = value;
       }
-      safeLocalStorageSet(cacheKey, JSON.stringify({ data: mapped }));
+      if (!shouldDisableAppCaches()) {
+        safeLocalStorageSet(cacheKey, JSON.stringify({ data: mapped }));
+      }
       return mapped;
     }
 
