@@ -4,8 +4,6 @@ import { Button } from '@/components/ui/button';
 import { getDocument, queryDocuments, updateDocument } from '@/integrations/firebase/firestore';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAppDateTime } from '@/hooks/useAppDateTime';
-import { useAuth } from '@/contexts/AuthContext';
-import { CVUploadButton } from '@/features/cv/CVUploadButton';
 import { ApplicantProfileUnavailableBadge } from '@/pages/dashboard/company/ApplicantProfileUnavailableBadge';
 import { loadApplicantIdentityMap } from '@/pages/dashboard/company/applicantIdentity';
 import {
@@ -28,8 +26,6 @@ interface Application {
   created_at: string;
   applicantId: string;
   applicantResumeUrl: string | null;
-  migrantAttachedCvUrl: string | null;
-  companyAttachedCvUrl: string | null;
   applicant: {
     name: string;
     email: string;
@@ -47,7 +43,6 @@ export default function JobApplicationsPage() {
   const { jobId } = useParams();
   const { t } = useLanguage();
   const { formatDate } = useAppDateTime();
-  const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [job, setJob] = useState<JobOffer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +61,7 @@ export default function JobApplicationsPage() {
       if (jobData) setJob(jobData);
 
       // Fetch applications with applicant profiles
-      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string; company_attached_cv_url?: string | null; migrant_attached_cv_url?: string | null }>(
+      const appsDataRaw = await queryDocuments<{ id: string; cover_letter: string | null; status: string; created_at: string; applicant_id: string; migrant_attached_cv_url?: string | null }>(
         'job_applications',
         [{ field: 'job_id', operator: '==', value: jobId }],
         undefined
@@ -95,8 +90,6 @@ export default function JobApplicationsPage() {
               (typeof app.migrant_attached_cv_url === 'string' && app.migrant_attached_cv_url.trim()
                 ? app.migrant_attached_cv_url.trim()
                 : null),
-            migrantAttachedCvUrl: null,
-            companyAttachedCvUrl: (typeof app.company_attached_cv_url === 'string' && app.company_attached_cv_url.trim()) ? app.company_attached_cv_url.trim() : null,
             applicant: prof
               ? { name: prof.name, email: prof.email, profileUnavailable: prof.profileUnavailable }
               : { name: t.get('company.applications.unknownApplicant'), email: '', profileUnavailable: true },
@@ -121,12 +114,6 @@ export default function JobApplicationsPage() {
     await updateDocument('job_applications', applicationId, { status: newStatus });
     setApplications(prev => prev.map(app => (app.id === applicationId ? { ...app, status: newStatus } : app)));
     setSelectedApplication(null);
-  }
-
-  async function setCompanyAttachedCv(applicationId: string, url: string | null) {
-    await updateDocument('job_applications', applicationId, { company_attached_cv_url: url });
-    setApplications(prev => prev.map(app => (app.id === applicationId ? { ...app, companyAttachedCvUrl: url } : app)));
-    setSelectedApplication(prev => (prev && prev.id === applicationId ? { ...prev, companyAttachedCvUrl: url } : prev));
   }
 
   const getStatusConfig = (status: string) => {
@@ -312,20 +299,6 @@ export default function JobApplicationsPage() {
                         ) : (
                           <p className="mt-1 text-sm text-muted-foreground">{t.get('company.applications.details.noCandidateCv')}</p>
                         )}
-                      </div>
-                      <div>
-                        <label className="text-sm text-muted-foreground">{t.get('company.applications.details.labels.attachedCv')}</label>
-                        <div className="mt-1">
-                          <CVUploadButton
-                            contextId={selectedApplication.id}
-                            contextType="application"
-                            uploaderUid={user?.uid ?? ''}
-                            currentUrl={selectedApplication.companyAttachedCvUrl}
-                            onUploadComplete={(url) => void setCompanyAttachedCv(selectedApplication.id, url)}
-                            onRemove={() => void setCompanyAttachedCv(selectedApplication.id, null)}
-                            disabled={!user?.uid}
-                          />
-                        </div>
                       </div>
                     </div>
 

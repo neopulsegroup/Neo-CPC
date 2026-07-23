@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Menu Migrante",
       "sessionsLocked": "Disponível apenas para migrantes classificados como Perfil A pela equipa CPC.",
+      "personalInfoLocked": "Complete a Informação Pessoal no Perfil para desbloquear a plataforma.",
       "scasPending": "Tem um questionário SCAS pendente."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} candidaturas no total. A versão atual mostra todas; paginação chega quando exceder 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Ação necessária",
+        "bannerTitle": "Complete a Informação Pessoal",
+        "bannerBody": "A plataforma permanece bloqueada até preencher todos os campos obrigatórios desta secção.",
+        "missingLabel": "Campos em falta",
+        "cta": "Ir para o formulário",
+        "alertTitle": "Obrigatório: complete a Informação Pessoal",
+        "alertBody": "A plataforma está bloqueada até concluir a Informação Pessoal. Em falta: {fields}.",
+        "unlockedTitle": "Perfil concluído",
+        "unlockedDescription": "A Informação Pessoal está completa. Já pode utilizar a plataforma."
+      },
       "documents": {
         "cpcCvLabel": "CURRÍCULO CPC",
         "externalCvLabel": "CURRÍCULO EXTERNO",
@@ -2596,6 +2608,7 @@
         "edit": "Editar",
         "deactivate": "Desativar",
         "reactivate": "Reativar",
+        "delete": "Excluir",
         "create_user": "Criar utilizador",
         "save_changes": "Guardar alterações",
         "saving": "A guardar..."
@@ -2634,6 +2647,11 @@
         "add_title": "Adicionar novo utilizador",
         "edit_title": "Editar utilizador"
       },
+      "delete": {
+        "title": "Excluir utilizador",
+        "confirm": "Tem a certeza de que deseja excluir permanentemente “{name}”? Esta ação remove o registo da equipa e não pode ser desfeita.",
+        "deleting": "A excluir…"
+      },
       "fields": {
         "name": "Nome",
         "email": "Email",
@@ -2652,6 +2670,10 @@
         "email_in_use": "Este e-mail já está associado a uma subscrição.",
         "update_failed": "Erro ao atualizar utilizador.",
         "update_state_failed": "Erro ao atualizar estado do utilizador.",
+        "delete_failed": "Não foi possível excluir o utilizador.",
+        "delete_permission_denied": "Sem permissão para excluir utilizadores da equipa.",
+        "delete_not_persisted": "A exclusão não foi persistida. Verifique as regras/permissões do Firestore.",
+        "cannot_delete_self": "Não pode excluir o seu próprio utilizador.",
         "no_permission": "Sem permissão para gerir utilizadores. Apenas Super Admin e Admin.",
         "cannot_assign_super_admin": "Apenas Super Admin pode atribuir o perfil Super Admin."
       }
@@ -2797,7 +2819,7 @@
         },
         "no_permission": {
           "title": "Sem permissão",
-          "description": "O seu utilizador não tem permissões para excluir migrantes."
+          "description": "Apenas Super Admin e Admin podem excluir migrantes."
         },
         "success": {
           "title": "Migrante excluído",

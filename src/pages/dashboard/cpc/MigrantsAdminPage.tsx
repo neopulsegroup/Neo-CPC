@@ -61,7 +61,7 @@ import {
   type EligibilityFilter,
   type EligibilityProfile,
 } from '@/lib/migrantEligibility';
-import { CPC_MANAGEMENT_ROLES, CPC_TEAM_ROLES } from '@/lib/cpcRoles';
+import { canDeleteMigrants, CPC_TEAM_ROLES } from '@/lib/cpcRoles';
 
 type TriageAnswers = Record<string, unknown>;
 
@@ -181,6 +181,7 @@ function normalizeUrgencies(values?: string[] | null): Array<'juridico' | 'psico
 export default function MigrantsAdminPage() {
   const { t } = useLanguage();
   const { profile, user } = useAuth();
+  const canDelete = canDeleteMigrants(profile?.role);
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Array<MigrantRow>>([]);
   const [query, setQuery] = useState('');
@@ -747,8 +748,7 @@ export default function MigrantsAdminPage() {
     if (!deleteTarget) return;
     const uid = deleteTarget.user_id;
     const name = deleteTarget.name || t.get('cpc.migrantsAdmin.fallback_migrant');
-    const allowedRoles: Array<string> = [...CPC_MANAGEMENT_ROLES];
-    if (!profile || !allowedRoles.includes(profile.role)) {
+    if (!canDelete) {
       toast({
         title: t.get('cpc.migrantsAdmin.delete.no_permission.title'),
         description: t.get('cpc.migrantsAdmin.delete.no_permission.description'),
@@ -1134,15 +1134,17 @@ export default function MigrantsAdminPage() {
                     {blockingUserId === r.user_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
                     {r.blocked ? t.get('cpc.migrantsAdmin.actions.activate') : t.get('cpc.migrantsAdmin.actions.block')}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    className="inline-flex items-center justify-center gap-2 w-full"
-                    onClick={() => setDeleteTarget(r)}
-                    disabled={deletingUserId !== null}
-                  >
-                    {deletingUserId === r.user_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    {t.get('cpc.migrantsAdmin.actions.delete')}
-                  </Button>
+                  {canDelete ? (
+                    <Button
+                      variant="destructive"
+                      className="inline-flex items-center justify-center gap-2 w-full"
+                      onClick={() => setDeleteTarget(r)}
+                      disabled={deletingUserId !== null}
+                    >
+                      {deletingUserId === r.user_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      {t.get('cpc.migrantsAdmin.actions.delete')}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

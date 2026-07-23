@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Menu Migrant",
       "sessionsLocked": "Disponible uniquement pour les migrants classés Profil A par l'équipe CPC.",
+      "personalInfoLocked": "Complétez les Informations personnelles dans le Profil pour débloquer la plateforme.",
       "scasPending": "Vous avez un questionnaire SCAS en attente."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} candidatures au total. La vue actuelle les affiche toutes ; la pagination arrivera au-delà de 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Action requise",
+        "bannerTitle": "Complétez les Informations personnelles",
+        "bannerBody": "La plateforme reste verrouillée jusqu'à ce que tous les champs obligatoires de cette section soient renseignés.",
+        "missingLabel": "Champs manquants",
+        "cta": "Aller au formulaire",
+        "alertTitle": "Obligatoire : complétez les Informations personnelles",
+        "alertBody": "La plateforme est verrouillée jusqu'à ce que les Informations personnelles soient complètes. Manquants : {fields}.",
+        "unlockedTitle": "Profil terminé",
+        "unlockedDescription": "Les Informations personnelles sont complètes. Vous pouvez utiliser la plateforme."
+      },
       "documents": {
         "cpcCvLabel": "CV CPC",
         "externalCvLabel": "CV EXTERNE",
@@ -2596,6 +2608,7 @@
         "edit": "Modifier",
         "deactivate": "Désactiver",
         "reactivate": "Réactiver",
+        "delete": "Supprimer",
         "create_user": "Créer un utilisateur",
         "save_changes": "Enregistrer les modifications",
         "saving": "Garde..."
@@ -2634,6 +2647,11 @@
         "add_title": "Ajouter un nouvel utilisateur",
         "edit_title": "Modifier l'utilisateur"
       },
+      "delete": {
+        "title": "Supprimer l'utilisateur",
+        "confirm": "Voulez-vous vraiment supprimer définitivement « {name} » ? Cette action retire l'enregistrement de l'équipe et ne peut pas être annulée.",
+        "deleting": "Suppression…"
+      },
       "fields": {
         "name": "Nom",
         "email": "E-mail",
@@ -2651,6 +2669,10 @@
         "create_failed": "Erreur lors de la création de l'utilisateur.",
         "update_failed": "Erreur lors de la mise à jour de l'utilisateur.",
         "update_state_failed": "Erreur lors de la mise à jour du statut de l'utilisateur.",
+        "delete_failed": "Impossible de supprimer l'utilisateur.",
+        "delete_permission_denied": "Aucune autorisation pour supprimer les utilisateurs de l'équipe.",
+        "delete_not_persisted": "La suppression n'a pas été persistée. Vérifiez les règles/autorisations Firestore.",
+        "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre utilisateur.",
         "no_permission": "Aucune autorisation pour gérer les utilisateurs. Super Admin et Admin uniquement.",
         "cannot_assign_super_admin": "Seul Super Admin peut attribuer le profil Super Admin."
       }
@@ -2796,7 +2818,7 @@
         },
         "no_permission": {
           "title": "Sans autorisation",
-          "description": "Votre utilisateur n'est pas autorisé à supprimer des migrants."
+          "description": "Seuls Super Admin et Admin peuvent supprimer des migrants."
         },
         "success": {
           "title": "Migrant exclu",

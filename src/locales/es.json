@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Menú Migrante",
       "sessionsLocked": "Disponible solo para migrantes clasificados como Perfil A por el equipo CPC.",
+      "personalInfoLocked": "Complete la Información Personal en el Perfil para desbloquear la plataforma.",
       "scasPending": "Tiene un cuestionario SCAS pendiente."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} candidaturas en total. La vista actual las muestra todas; la paginación llegará al superar 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Acción necesaria",
+        "bannerTitle": "Complete la Información Personal",
+        "bannerBody": "La plataforma permanece bloqueada hasta completar todos los campos obligatorios de esta sección.",
+        "missingLabel": "Campos pendientes",
+        "cta": "Ir al formulario",
+        "alertTitle": "Obligatorio: complete la Información Personal",
+        "alertBody": "La plataforma está bloqueada hasta completar la Información Personal. Faltan: {fields}.",
+        "unlockedTitle": "Perfil completado",
+        "unlockedDescription": "La Información Personal está completa. Ya puede usar la plataforma."
+      },
       "documents": {
         "cpcCvLabel": "CURRÍCULO CPC",
         "externalCvLabel": "CURRÍCULO EXTERNO",
@@ -2596,6 +2608,7 @@
         "edit": "Editar",
         "deactivate": "Desativar",
         "reactivate": "Reativar",
+        "delete": "Excluir",
         "create_user": "Crear usuario",
         "save_changes": "Guardar alteraciones",
         "saving": "A guardar..."
@@ -2634,6 +2647,11 @@
         "add_title": "Añadir novo usuario",
         "edit_title": "Editar usuario"
       },
+      "delete": {
+        "title": "Excluir usuario",
+        "confirm": "¿Seguro que desea excluir permanentemente a “{name}”? Esta acción elimina el registro del equipo y no se puede deshacer.",
+        "deleting": "Excluyendo…"
+      },
       "fields": {
         "name": "Nombre",
         "email": "Correo electrónico",
@@ -2651,6 +2669,10 @@
         "create_failed": "Error ao crear usuario.",
         "update_failed": "Error ao atualizar usuario.",
         "update_state_failed": "Error ao atualizar estado do usuario.",
+        "delete_failed": "No fue posible excluir el usuario.",
+        "delete_permission_denied": "Sin permiso para excluir usuarios del equipo.",
+        "delete_not_persisted": "La exclusión no se persistió. Verifique las reglas/permisos de Firestore.",
+        "cannot_delete_self": "No puede excluir su propio usuario.",
         "no_permission": "Sin permiso para gestionar usuarios. Solo Super Admin y Admin.",
         "cannot_assign_super_admin": "Solo Super Admin puede asignar el perfil Super Admin."
       }
@@ -2796,7 +2818,7 @@
         },
         "no_permission": {
           "title": "Sin permissão",
-          "description": "O seu usuario não tem permissões para excluir migrantes."
+          "description": "Solo Super Admin y Admin pueden excluir migrantes."
         },
         "success": {
           "title": "Migrante excluído",

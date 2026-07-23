@@ -67,73 +67,25 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    // CV anexado (PDF/DOC/DOCX, máx. 5 MB).
-    // Migrante: um ficheiro por utilizador em cv_uploads/migrant/{userId}/...
+    // Currículo externo do migrante desativado: só leitura/remoção de ficheiros legados.
     match /cv_uploads/migrant/{userId}/{fileName} {
       allow read: if request.auth != null;
       allow delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
-      allow update: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
+      allow create, update: if false;
     }
 
-    // CV externo no perfil do migrante: um ficheiro por utilizador.
+    // Currículo externo no perfil desativado: só leitura/remoção de ficheiros legados.
     match /cv_uploads/profile/{userId}/{fileName} {
       allow read: if request.auth != null;
       allow delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
-      allow update: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
+      allow create, update: if false;
     }
 
-    // Empresa / outros contextos por candidatura (não inclui cv_uploads/migrant/...).
+    // Currículo externo desativado (inclui anexos de candidatura pela empresa).
     match /cv_uploads/{contextType}/{contextId}/{fileName} {
       allow read: if request.auth != null;
-      allow delete: if request.auth != null && contextType != 'migrant' && contextType != 'profile';
-      allow create: if request.auth != null
-        && contextType != 'migrant'
-        && contextType != 'profile'
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
-      allow update: if request.auth != null
-        && contextType != 'migrant'
-        && contextType != 'profile'
-        && request.resource.size < 5 * 1024 * 1024
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
+      allow delete: if request.auth != null;
+      allow create, update: if false;
     }
   }
 }

@@ -8,18 +8,8 @@ vi.mock('react-router-dom', async (orig) => {
   return { ...actual, useParams: () => ({ jobId: 'job-1' }) };
 });
 
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { uid: 'company-1' } }),
-}));
-
 vi.mock('@/contexts/LanguageContext', () => ({
   useLanguage: () => ({ language: 'pt', t: { get: (k: string) => k } }),
-}));
-
-vi.mock('@/features/cv/CVUploadButton', () => ({
-  CVUploadButton: ({ contextId }: { contextId: string }) => (
-    <div data-testid="cv-upload" data-context={contextId}>upload</div>
-  ),
 }));
 
 const mockGetDocument = vi.fn();
@@ -52,7 +42,7 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     vi.clearAllMocks();
   });
 
-  it('mostra CV do perfil e upload da empresa quando existem', async () => {
+  it('mostra CV do perfil do candidato quando existe', async () => {
     setup(
       {
         id: 'app-1',
@@ -60,7 +50,6 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
         status: 'submitted',
         cover_letter: null,
         created_at: '2026-05-01T10:00:00Z',
-        company_attached_cv_url: 'https://x/company.pdf',
         migrant_attached_cv_url: 'https://x/migrant.pdf',
       },
       { id: 'mig-1', name: 'Ana Silva', email: 'ana@x.com', resumeUrl: 'https://x/profile.pdf' }
@@ -70,11 +59,11 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     await userEvent.click(card);
 
     await waitFor(() => expect(screen.getByText('company.applications.details.viewCandidateCv')).toBeInTheDocument());
-    expect(screen.queryByText('applicationDetail.migrantAttachedCv')).toBeNull();
-    expect(screen.getByTestId('cv-upload')).toHaveAttribute('data-context', 'app-1');
+    expect(screen.queryByText('company.applications.details.labels.attachedCv')).toBeNull();
+    expect(screen.queryByTestId('cv-upload')).toBeNull();
   });
 
-  it('mostra apenas o CV do perfil quando não há CVs anexados', async () => {
+  it('mostra apenas o CV do perfil quando não há CVs anexados legados', async () => {
     setup(
       {
         id: 'app-2',
@@ -90,10 +79,7 @@ describe('JobApplicationsPage · CVs disponíveis', () => {
     await userEvent.click(card);
 
     await waitFor(() => expect(screen.getByText('company.applications.details.viewCandidateCv')).toBeInTheDocument());
-    // Sem CV anexado pelo migrante
-    expect(screen.queryByText('applicationDetail.migrantAttachedCv')).toBeNull();
-    // O upload da empresa está sempre disponível
-    expect(screen.getByTestId('cv-upload')).toBeInTheDocument();
+    expect(screen.queryByText('company.applications.details.labels.attachedCv')).toBeNull();
   });
 
   it('mostra "sem CV" quando o candidato não tem CV de perfil', async () => {

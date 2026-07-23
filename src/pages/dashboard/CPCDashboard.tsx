@@ -9,6 +9,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import ServiceAreasAdminPage from '@/pages/dashboard/cpc/ServiceAreasAdminPage';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -63,6 +73,7 @@ import {
 } from '@/lib/migrantProfileCompleteness';
 import {
   canAssignTeamRole,
+  canDeleteTeamMembers,
   canManageTeamMembers,
   getAssignableTeamRoles,
   getVisibleTeamListRoles,
@@ -303,9 +314,12 @@ export default function CPCDashboard() {
     const [editName, setEditName] = useState('');
     const [editRole, setEditRole] = useState<CpcTeamRole>('mediator');
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
     const [formError, setFormError] = useState('');
     const actorRole = profile?.role ?? null;
     const canManageTeam = canManageTeamMembers(actorRole);
+    const canDeleteTeam = canDeleteTeamMembers(actorRole);
     const assignableRoles = useMemo(() => getAssignableTeamRoles(actorRole), [actorRole]);
     const visibleTeamRoles = useMemo(() => getVisibleTeamListRoles(), []);
 
@@ -494,6 +508,58 @@ export default function CPCDashboard() {
       }
     }
 
+    async function confirmDeleteTeamUser() {
+      if (!deleteTarget) return;
+      if (!canDeleteTeam) {
+        await logUnauthorizedAttempt('cpc.team.delete', deleteTarget.id);
+        setFormError(t.get('cpc.team.errors.no_permission'));
+        setDeleteTarget(null);
+        return;
+      }
+      if (deleteTarget.id === user?.uid) {
+        setFormError(t.get('cpc.team.errors.cannot_delete_self'));
+        setDeleteTarget(null);
+        return;
+      }
+
+      setDeletingUserId(deleteTarget.id);
+      setFormError('');
+      const startedAtMs = auditTimerStart();
+      try {
+        await Promise.all([
+          deleteDocument('profiles', deleteTarget.id),
+          deleteDocument('users', deleteTarget.id),
+        ]);
+
+        const stillExists = await getDocument<{ id: string }>('users', deleteTarget.id);
+        if (stillExists) {
+          throw new Error(t.get('cpc.team.errors.delete_not_persisted'));
+        }
+
+        const actorId = user?.uid;
+        if (actorId) {
+          await writeAuditLog({
+            action: 'user.deleted',
+            actor_id: actorId,
+            target_id: deleteTarget.id,
+            context: 'cpc_team',
+            startedAtMs,
+          });
+        }
+
+        setRows((prev) => prev.filter((row) => row.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } catch (error: unknown) {
+        const rawMessage = error instanceof Error ? error.message : '';
+        const message = rawMessage.includes('Missing or insufficient permissions')
+          ? t.get('cpc.team.errors.delete_permission_denied')
+          : rawMessage || t.get('cpc.team.errors.delete_failed');
+        setFormError(message);
+      } finally {
+        setDeletingUserId(null);
+      }
+    }
+
     const filtered = useMemo(() => {
       const q = query.trim().toLowerCase();
       const list = rows.filter((r) => {
@@ -651,11 +717,21 @@ export default function CPCDashboard() {
                           variant="outline"
                           className="inline-flex items-center justify-center gap-2 w-full"
                           onClick={() => toggleActive(r)}
-                          disabled={actionLoadingId === r.id}
+                          disabled={actionLoadingId === r.id || deletingUserId === r.id}
                         >
                           {r.active ? <UserX className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                           {r.active ? t.get('cpc.team.actions.deactivate') : t.get('cpc.team.actions.reactivate')}
                         </Button>
+                        {canDeleteTeam ? (
+                          <Button
+                            variant="outline"
+                            className="inline-flex items-center justify-center gap-2 w-full text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget({ id: r.id, name: r.name })}
+                            disabled={actionLoadingId === r.id || deletingUserId === r.id || r.id === user?.uid}
+                          >
+                            <Trash2 className="h-4 w-4" /> {t.get('cpc.team.actions.delete')}
+                          </Button>
+                        ) : null}
                       </>
                     ) : null}
                   </div>
@@ -761,6 +837,35 @@ export default function CPCDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open && !deletingUserId) setDeleteTarget(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t.get('cpc.team.delete.title')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t.get('cpc.team.delete.confirm', { name: deleteTarget?.name ?? '' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={!!deletingUserId}>{t.get('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={!!deletingUserId}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmDeleteTeamUser();
+                }}
+              >
+                {deletingUserId ? t.get('cpc.team.delete.deleting') : t.get('cpc.team.actions.delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
@@ -1369,15 +1474,15 @@ export default function CPCDashboard() {
 
   return (
     <Layout>
-      <div className="cpc-section">
+      <div className="py-8 md:py-12">
         <div className="cpc-container">
           <div className="grid lg:grid-cols-[250px_minmax(0,1fr)] gap-6">
-            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24">
-              <div className="mb-4 px-2">
+            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:flex lg:flex-col">
+              <div className="mb-4 px-2 shrink-0">
                 <p className="text-sm text-muted-foreground">{t.get('cpc.menu.title')}</p>
                 <p className="font-semibold">{cpcDisplayName}</p>
               </div>
-              <nav className="space-y-1">
+              <nav className="space-y-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain cpc-sidebar-scroll">
                 {sidebarItemsMain.map((item) => {
                   const pendingCount = pendingCountForMenuPath(item.to, menuPendingCounts);
                   const pendingLabel = formatPendingBadgeLabel(pendingCount);

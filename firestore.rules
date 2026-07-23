@@ -350,7 +350,15 @@ service cloud.firestore {
         request.resource.data.blockedBy == resource.data.blockedBy &&
         request.resource.data.disabledAt == resource.data.disabledAt
       );
-      allow delete: if isAccountEnabled() && hasRole('admin') && resource.data.role == 'migrant';
+      // Super Admin/Admin: migrantes. Super Admin/Admin: membros da equipa CPC (exceto Super Admin e o próprio).
+      allow delete: if isAccountEnabled() && (
+        (canManageTeamUsers() && resource.data.role == 'migrant')
+        || (
+          canManageTeamUsers()
+          && request.auth.uid != userId
+          && resource.data.role in ['manager', 'consultant', 'coordinator', 'mediator', 'lawyer', 'psychologist', 'trainer']
+        )
+      );
     }
     
     // Profiles collection
@@ -365,14 +373,14 @@ service cloud.firestore {
         (isAccountEnabled() && hasRole('admin')) ||
         (isAccountEnabled() && hasRole('manager') && profileRoleNotAdmin() && profileRoleNotBeingSetToAdmin()) ||
         (isCpcStaff() && isEditingOtherProfile(userId) && isValidMigrantPersonalInfoForCpc());
-      allow delete: if isAccountEnabled() && hasRole('admin');
+      allow delete: if isAccountEnabled() && canManageTeamUsers() && request.auth.uid != userId;
     }
     
     // Triage collection
     match /triage/{userId} {
       allow read: if isOwner(userId) || (isAccountEnabled() && isCpcStaff());
       allow write: if isOwner(userId);
-      allow delete: if isAccountEnabled() && hasRole('admin');
+      allow delete: if isAccountEnabled() && canManageTeamUsers();
     }
 
     // Classificação de elegibilidade (Perfil A/B).

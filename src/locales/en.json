@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Migrant Menu",
       "sessionsLocked": "Available only to migrants classified as Profile A by the CPC team.",
+      "personalInfoLocked": "Complete Personal Information in Profile to unlock the platform.",
       "scasPending": "You have a pending SCAS questionnaire."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} applications total. The current view shows them all; pagination will arrive past 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Action required",
+        "bannerTitle": "Complete Personal Information",
+        "bannerBody": "The platform stays locked until you fill in all required fields in this section.",
+        "missingLabel": "Missing fields",
+        "cta": "Go to the form",
+        "alertTitle": "Required: complete Personal Information",
+        "alertBody": "The platform is locked until Personal Information is complete. Missing: {fields}.",
+        "unlockedTitle": "Profile completed",
+        "unlockedDescription": "Personal Information is complete. You can now use the platform."
+      },
       "documents": {
         "cpcCvLabel": "CPC RÉSUMÉ",
         "externalCvLabel": "EXTERNAL RÉSUMÉ",
@@ -2596,6 +2608,7 @@
         "edit": "Edit",
         "deactivate": "Deactivate",
         "reactivate": "Reactivate",
+        "delete": "Delete",
         "create_user": "Create user",
         "save_changes": "Save changes",
         "saving": "Saving..."
@@ -2634,6 +2647,11 @@
         "add_title": "Add new user",
         "edit_title": "Edit user"
       },
+      "delete": {
+        "title": "Delete user",
+        "confirm": "Are you sure you want to permanently delete “{name}”? This removes the team record and cannot be undone.",
+        "deleting": "Deleting…"
+      },
       "fields": {
         "name": "Name",
         "email": "Email",
@@ -2651,6 +2669,10 @@
         "create_failed": "Error creating user.",
         "update_failed": "Error updating user.",
         "update_state_failed": "Error updating user status.",
+        "delete_failed": "Could not delete the user.",
+        "delete_permission_denied": "No permission to delete team users.",
+        "delete_not_persisted": "Deletion was not persisted. Check Firestore rules/permissions.",
+        "cannot_delete_self": "You cannot delete your own user.",
         "no_permission": "No permission to manage users. Super Admin and Admin only.",
         "cannot_assign_super_admin": "Only Super Admin can assign the Super Admin role."
       }
@@ -2796,7 +2818,7 @@
         },
         "no_permission": {
           "title": "No permission",
-          "description": "Your user does not have permission to delete migrants."
+          "description": "Only Super Admin and Admin can delete migrants."
         },
         "success": {
           "title": "Migrant deleted",

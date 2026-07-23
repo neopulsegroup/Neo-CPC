@@ -6,7 +6,7 @@ import { useAppDateTime } from '@/hooks/useAppDateTime';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList, UserCheck, UserMinus, UserX } from 'lucide-react';
+import { AlertCircle, Calendar, BookOpen, CheckCircle2, Clock, User, Camera, Download, Loader2, ClipboardList, UserCheck, UserMinus, UserX, ArrowDown } from 'lucide-react';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,8 +19,6 @@ import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
 import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
 import { ScasParticipantPanel } from '@/features/scas/ScasParticipantPanel';
 import { PdiParticipantPanel } from '@/features/pdi/PdiParticipantPanel';
-import { CVUploadButton } from '@/features/cv/CVUploadButton';
-import { deleteMigrantUserCvFiles, deleteProfileExternalCvFiles } from '@/features/cv/deleteCvFile';
 import { updateDocument } from '@/integrations/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { storage } from '@/integrations/firebase/client';
@@ -55,6 +53,11 @@ import {
   getMissingProfessionalFieldsForJobs,
   MIGRANT_JOBS_ACCESS_PROFILE_HASH,
 } from '@/lib/migrantJobsAccess';
+import {
+  getMissingMigrantPersonalInfoFields,
+  isMigrantPersonalInfoComplete,
+} from '@/lib/migrantProfileCompleteness';
+import { useMigrantPersonalInfoAccess } from '@/hooks/useMigrantPersonalInfoAccess';
 
 function readProfileExtrasFromStorage(userKey: string): Partial<MigrantProfileDoc> | null {
   const extrasRaw =
@@ -282,7 +285,12 @@ export default function ProfilePage() {
   });
 
   const [personalInfoErrors, setPersonalInfoErrors] = useState<
-    Partial<Record<'phone' | 'birthDate' | 'nationality' | 'address' | 'addressNumber' | 'cep' | 'region' | 'regionOther', string>>
+    Partial<
+      Record<
+        'name' | 'phone' | 'birthDate' | 'nationality' | 'address' | 'addressNumber' | 'cep' | 'region' | 'regionOther',
+        string
+      >
+    >
   >({});
 
   const cepWhenEditOpenedRef = useRef<string | null>(null);
@@ -295,6 +303,12 @@ export default function ProfilePage() {
 
   const targetUserId = migrantId || user?.uid || null;
   const isViewingOtherUser = !!(migrantId && user?.uid && migrantId !== user.uid);
+  const {
+    isComplete: personalInfoComplete,
+    loading: personalInfoLoading,
+    missingFields: missingPersonalInfoFields,
+  } = useMigrantPersonalInfoAccess();
+  const requiresPersonalInfo = !isViewingOtherUser && !personalInfoLoading && !personalInfoComplete;
   const sessionsUrl = isViewingOtherUser ? '/dashboard/cpc/agenda' : '/dashboard/migrante/sessoes';
   const triageUrl = isViewingOtherUser ? '/dashboard/cpc/migrantes' : '/triagem';
   const trailsUrl = isViewingOtherUser ? '/dashboard/cpc/trilhas' : '/dashboard/migrante/trilhas';
@@ -454,6 +468,10 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [targetUserId]);
+
+  useEffect(() => {
+    if (requiresPersonalInfo) setEditMode(true);
+  }, [requiresPersonalInfo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -773,7 +791,13 @@ export default function ProfilePage() {
 
   async function save() {
     if (!user || !targetUserId) return;
-    const nextErrors: Partial<Record<'phone' | 'birthDate' | 'nationality' | 'address' | 'addressNumber' | 'cep' | 'region' | 'regionOther', string>> = {};
+    const nextErrors: Partial<
+      Record<
+        'name' | 'phone' | 'birthDate' | 'nationality' | 'address' | 'addressNumber' | 'cep' | 'region' | 'regionOther',
+        string
+      >
+    > = {};
+    const nameTrim = edit.name.trim();
     const addressTrim = edit.address.trim();
     const addressNumberTrim = edit.addressNumber.trim();
     const cepTrim = edit.cep.trim();
@@ -801,16 +825,28 @@ export default function ProfilePage() {
         else if (regionOtherTrim.length < 2) nextErrors.regionOther = 'Indique uma Região válida.';
       }
     } else {
-      if (addressTrim && addressTrim.length < 10) nextErrors.address = 'A Morada deve ter pelo menos 10 caracteres.';
+      if (!nameTrim) nextErrors.name = 'O Nome é obrigatório.';
 
-      if (addressNumberTrim && addressNumberTrim.length > 20) nextErrors.addressNumber = 'O Número deve ter no máximo 20 caracteres.';
+      if (!phoneTrim) nextErrors.phone = 'O Telefone é obrigatório.';
+      else if (phoneTrim.replace(/\D+/g, '').length < 9) nextErrors.phone = 'Indique um telefone válido.';
 
-      if (cepTrim) {
-        const cepErr = validateCep(cepTrim, false);
-        if (cepErr) nextErrors.cep = cepErr;
-      }
+      if (!birthDateTrim) nextErrors.birthDate = 'A Data de nascimento é obrigatória.';
+      else if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(birthDateTrim)) nextErrors.birthDate = 'Indique uma data válida.';
 
-      if (regionTrim && !(REGIONS as readonly string[]).includes(regionTrim)) nextErrors.region = 'A Região selecionada é inválida.';
+      if (!nationalityTrim) nextErrors.nationality = 'A Nacionalidade é obrigatória.';
+      else if (nationalityTrim.length < 2) nextErrors.nationality = 'Indique uma nacionalidade válida.';
+
+      if (!addressTrim) nextErrors.address = 'A Morada é obrigatória.';
+      else if (addressTrim.length < 10) nextErrors.address = 'A Morada deve ter pelo menos 10 caracteres.';
+
+      if (!addressNumberTrim) nextErrors.addressNumber = 'O Número é obrigatório.';
+      else if (addressNumberTrim.length > 20) nextErrors.addressNumber = 'O Número deve ter no máximo 20 caracteres.';
+
+      const cepErr = validateCep(cepTrim, true);
+      if (cepErr) nextErrors.cep = cepErr;
+
+      if (!regionTrim) nextErrors.region = 'A Região é obrigatória.';
+      else if (!(REGIONS as readonly string[]).includes(regionTrim)) nextErrors.region = 'A Região selecionada é inválida.';
 
       if (regionTrim === 'Outra') {
         if (!regionOtherTrim) nextErrors.regionOther = 'Indique a Região.';
@@ -818,12 +854,18 @@ export default function ProfilePage() {
       }
     }
 
-    if (phoneTrim) {
-      const digits = phoneTrim.replace(/\D+/g, '');
-      if (digits.length < 9) nextErrors.phone = 'Indique um telefone válido.';
+    if (isViewingOtherUser) {
+      if (phoneTrim) {
+        const phoneDigits = phoneTrim.replace(/\D+/g, '');
+        if (phoneDigits.length < 9) nextErrors.phone = 'Indique um telefone válido.';
+      }
+      if (birthDateTrim && !/^(\d{4})-(\d{2})-(\d{2})$/.test(birthDateTrim)) {
+        nextErrors.birthDate = 'Indique uma data válida.';
+      }
+      if (nationalityTrim && nationalityTrim.length < 2) {
+        nextErrors.nationality = 'Indique uma nacionalidade válida.';
+      }
     }
-    if (birthDateTrim && !/^(\d{4})-(\d{2})-(\d{2})$/.test(birthDateTrim)) nextErrors.birthDate = 'Indique uma data válida.';
-    if (nationalityTrim && nationalityTrim.length < 2) nextErrors.nationality = 'Indique uma nacionalidade válida.';
 
     setPersonalInfoErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -833,7 +875,7 @@ export default function ProfilePage() {
     try {
 
       const payload: Record<string, unknown> = {
-        name: edit.name,
+        name: nameTrim || edit.name,
         resumeUrl: edit.resumeUrl || null,
         professionalTitle: edit.professionalTitle || null,
         professionalExperience: edit.professionalExperience || null,
@@ -860,21 +902,11 @@ export default function ProfilePage() {
         }
       }
 
-      if (isViewingOtherUser) {
-        payload.address = addressTrim;
-        payload.addressNumber = addressNumberTrim;
-        payload.cep = cepTrim;
-        payload.region = regionTrim;
-        payload.regionOther = regionTrim === 'Outra' ? regionOtherTrim : null;
-      } else {
-        if (addressTrim) payload.address = addressTrim;
-        if (addressNumberTrim) payload.addressNumber = addressNumberTrim;
-        if (cepTrim) payload.cep = cepTrim;
-        if (regionTrim) {
-          payload.region = regionTrim;
-          payload.regionOther = regionTrim === 'Outra' ? regionOtherTrim || null : null;
-        }
-      }
+      payload.address = addressTrim || null;
+      payload.addressNumber = addressNumberTrim || null;
+      payload.cep = cepTrim || null;
+      payload.region = regionTrim || null;
+      payload.regionOther = regionTrim === 'Outra' ? regionOtherTrim || null : null;
 
       await updateDocument('profiles', targetUserId, payload);
 
@@ -883,10 +915,21 @@ export default function ProfilePage() {
       const p = res.profile;
       const merged = p ? mergeProfileWithExtrasForUser(p, targetUserId) : null;
       setEdit(buildEditStateFromMergedProfile(res, merged));
-      setEditMode(false);
+      const stillNeedsPersonalInfo =
+        !isViewingOtherUser &&
+        !isMigrantPersonalInfoComplete(merged, {
+          authName: authProfile?.name,
+          authPhone: (authProfile as { phone?: string | null } | null)?.phone,
+        });
+      setEditMode(stillNeedsPersonalInfo);
       setPersonalInfoErrors({});
       setProfileSaveFeedback('saved');
-      toast({ title: 'Perfil guardado', description: 'As alterações foram guardadas com sucesso.' });
+      toast({
+        title: stillNeedsPersonalInfo ? 'Perfil guardado' : t.get('migrant.profile.personalInfoGate.unlockedTitle'),
+        description: stillNeedsPersonalInfo
+          ? 'As alterações foram guardadas com sucesso.'
+          : t.get('migrant.profile.personalInfoGate.unlockedDescription'),
+      });
       if (targetUserId === user.uid) void refreshProfile();
     } catch {
       setProfileSaveFeedback('error');
@@ -898,32 +941,6 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function handleExternalCvUpload(url: string) {
-    if (!targetUserId || !user) return;
-    await updateDocument('profiles', targetUserId, { resumeUrl: url });
-    setEdit((s) => ({ ...s, resumeUrl: url }));
-    setData((prev) => {
-      if (!prev?.profile) return prev;
-      return { ...prev, profile: { ...prev.profile, resumeUrl: url } };
-    });
-    if (targetUserId === user.uid) void refreshProfile();
-  }
-
-  async function handleExternalCvRemove() {
-    if (!targetUserId || !user || isViewingOtherUser) return;
-    await Promise.all([
-      deleteProfileExternalCvFiles(targetUserId, edit.resumeUrl || null),
-      deleteMigrantUserCvFiles(targetUserId, edit.resumeUrl || null),
-    ]);
-    await updateDocument('profiles', targetUserId, { resumeUrl: null });
-    setEdit((s) => ({ ...s, resumeUrl: '' }));
-    setData((prev) => {
-      if (!prev?.profile) return prev;
-      return { ...prev, profile: { ...prev.profile, resumeUrl: null } };
-    });
-    if (targetUserId === user.uid) void refreshProfile();
   }
 
   async function handleToggleAvailability(nextChecked: boolean) {
@@ -1663,6 +1680,80 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
+      {requiresPersonalInfo ? (
+        <div
+          role="alert"
+          className="cpc-card overflow-hidden border border-amber-200/90 bg-gradient-to-br from-amber-50 via-orange-50/70 to-background shadow-sm"
+        >
+          <div className="flex flex-col gap-4 p-4 sm:p-5 md:flex-row md:items-center md:gap-5">
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 ring-1 ring-amber-200/80">
+                <AlertCircle className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 space-y-2.5">
+                <div className="space-y-1">
+                  <p className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                    {t.get('migrant.profile.personalInfoGate.badge')}
+                  </p>
+                  <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                    {t.get('migrant.profile.personalInfoGate.bannerTitle')}
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {t.get('migrant.profile.personalInfoGate.bannerBody')}
+                  </p>
+                </div>
+                {(() => {
+                  const missing = (
+                    missingPersonalInfoFields.length
+                      ? missingPersonalInfoFields
+                      : getMissingMigrantPersonalInfoFields({
+                          name: edit.name,
+                          phone: edit.phone,
+                          birthDate: edit.birthDate,
+                          nationality: edit.nationality,
+                          address: edit.address,
+                          addressNumber: edit.addressNumber,
+                          cep: edit.cep,
+                          region: edit.region,
+                          regionOther: edit.regionOther,
+                        })
+                  ).slice(0, 8);
+                  if (!missing.length) return null;
+                  return (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {t.get('migrant.profile.personalInfoGate.missingLabel')}
+                      </p>
+                      <ul className="flex flex-wrap gap-1.5">
+                        {missing.map((field) => (
+                          <li
+                            key={field}
+                            className="rounded-md border border-amber-200/80 bg-background/80 px-2 py-1 text-xs font-medium text-amber-950"
+                          >
+                            {field}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 border-amber-300 bg-background text-amber-950 hover:bg-amber-50 hover:text-amber-950"
+              onClick={() => {
+                setEditMode(true);
+                document.getElementById('informacao-pessoal')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              {t.get('migrant.profile.personalInfoGate.cta')}
+              <ArrowDown className="ml-2 h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {isViewingOtherUser && needsProfile.items.length > 0 ? (
         <NeedsProfileCard profile={needsProfile} layout="grid" />
       ) : null}
@@ -1730,9 +1821,15 @@ export default function ProfilePage() {
                     <Input
                       id="profile-name"
                       value={edit.name}
-                      onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
+                      onChange={(e) => {
+                        setEdit((s) => ({ ...s, name: e.target.value }));
+                        if (personalInfoErrors.name) setPersonalInfoErrors((prev) => ({ ...prev, name: undefined }));
+                      }}
                       className="h-10 text-base md:text-lg font-semibold"
                     />
+                    {personalInfoErrors.name ? (
+                      <p className="text-sm font-medium text-destructive mt-2">{personalInfoErrors.name}</p>
+                    ) : null}
                   </div>
                 ) : (
                   <h1 className="text-xl md:text-2xl font-bold truncate">{edit.name || '—'}</h1>
@@ -1788,6 +1885,7 @@ export default function ProfilePage() {
             <div className="flex flex-wrap items-center gap-3 md:justify-end">
             {editMode ? (
               <>
+                {!requiresPersonalInfo ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -1829,6 +1927,7 @@ export default function ProfilePage() {
                 >
                   Cancelar
                 </Button>
+                ) : null}
                 <Button type="button" onClick={save} disabled={saving || uploadingPhoto}>
                   {saving ? 'A guardar…' : 'Guardar alterações'}
                 </Button>
@@ -1924,7 +2023,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="cpc-card p-6">
+        <div id="informacao-pessoal" className="cpc-card scroll-mt-24 p-6">
           <div className="flex items-start justify-between">
             <h2 className="text-lg font-semibold">Informação Pessoal</h2>
             <User className="h-5 w-5 text-muted-foreground" />
@@ -2463,7 +2562,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-3">
               <div>
                 <p className="text-[11px] tracking-wider text-muted-foreground uppercase">
                   {t.get('migrant.profile.documents.cpcCvLabel')}
@@ -2486,36 +2585,6 @@ export default function ProfilePage() {
                         </Link>
                       ) : null}
                     </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">—</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] tracking-wider text-muted-foreground uppercase">
-                  {t.get('migrant.profile.documents.externalCvLabel')}
-                </p>
-                <div className="mt-2">
-                  {!isViewingOtherUser && user?.uid && targetUserId ? (
-                    <CVUploadButton
-                      contextId={targetUserId}
-                      contextType="migrant"
-                      uploaderUid={user.uid}
-                      currentUrl={edit.resumeUrl?.trim() || undefined}
-                      onUploadComplete={(url) => handleExternalCvUpload(url)}
-                      onRemove={() => handleExternalCvRemove()}
-                      disabled={!user?.uid}
-                    />
-                  ) : edit.resumeUrl?.trim() ? (
-                    <a
-                      href={edit.resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex text-sm text-primary hover:underline"
-                    >
-                      {t.get('cvUpload.viewUploaded')}
-                    </a>
                   ) : (
                     <p className="text-sm text-muted-foreground">—</p>
                   )}
