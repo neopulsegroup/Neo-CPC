@@ -12,6 +12,7 @@ const mockQueryDocuments = vi.fn();
 const mockCountDocuments = vi.fn();
 const mockGetDocument = vi.fn();
 const mockUpdateDocument = vi.fn();
+const mockDeleteDocument = vi.fn();
 const mockAddDocument = vi.fn();
 const mockServerTimestamp = vi.fn();
 
@@ -60,6 +61,7 @@ vi.mock('@/integrations/firebase/firestore', () => ({
   countDocuments: (...args: unknown[]) => mockCountDocuments(...args),
   getDocument: (...args: unknown[]) => mockGetDocument(...args),
   updateDocument: (...args: unknown[]) => mockUpdateDocument(...args),
+  deleteDocument: (...args: unknown[]) => mockDeleteDocument(...args),
   addDocument: (...args: unknown[]) => mockAddDocument(...args),
   serverTimestamp: (...args: unknown[]) => mockServerTimestamp(...args),
   subscribeQuery: () => () => {},
@@ -82,6 +84,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     mockCountDocuments.mockReset().mockResolvedValue(0);
     mockGetDocument.mockReset().mockResolvedValue(null);
     mockUpdateDocument.mockReset().mockResolvedValue(undefined);
+    mockDeleteDocument.mockReset().mockResolvedValue(undefined);
     mockAddDocument.mockReset().mockResolvedValue('log1');
     mockServerTimestamp.mockReset().mockReturnValue('ts');
     localStorage.clear();
@@ -133,6 +136,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     expect(screen.queryByRole('button', { name: '+ Adicionar novo' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockAddDocument).toHaveBeenCalledWith(
@@ -149,7 +153,7 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
     });
   });
 
-  it('em /equipa permite desativar utilizador apenas quando o perfil é Admin', async () => {
+  it('em /equipa permite desativar e excluir utilizador apenas quando o perfil é Admin', async () => {
     authState = {
       profile: { name: 'Ana', role: 'admin', email: 'ana@teste.com' },
       user: { uid: 'u-admin', email: 'ana@teste.com', displayName: 'Ana' },
@@ -161,6 +165,8 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
       }
       return Promise.resolve([]);
     });
+    mockDeleteDocument.mockResolvedValue(undefined);
+    mockGetDocument.mockResolvedValue(null);
 
     render(
       <MemoryRouter initialEntries={['/dashboard/cpc/equipa']}>
@@ -193,6 +199,29 @@ describe('CPCDashboard - navegação (inclui Trilhas)', () => {
           target_id: 'u2',
           ip_address: expect.any(String),
           user_agent: expect.any(String),
+          createdAt: 'ts',
+        })
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    expect(await screen.findByRole('heading', { name: 'Excluir utilizador' })).toBeInTheDocument();
+    const confirmButtons = screen.getAllByRole('button', { name: 'Excluir' });
+    await user.click(confirmButtons[confirmButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(mockDeleteDocument).toHaveBeenCalledWith('profiles', 'u2');
+      expect(mockDeleteDocument).toHaveBeenCalledWith('users', 'u2');
+    });
+
+    await waitFor(() => {
+      expect(mockAddDocument).toHaveBeenCalledWith(
+        'audit_logs',
+        expect.objectContaining({
+          action: 'user.deleted',
+          actor_id: 'u-admin',
+          target_id: 'u2',
+          context: 'cpc_team',
           createdAt: 'ts',
         })
       );

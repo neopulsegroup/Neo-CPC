@@ -25,27 +25,8 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Column 2: Plataforma */}
-          <div>
-            <h4 className="font-bold text-foreground mb-6 uppercase text-xs tracking-wider">{t.footer.column1}</h4>
-            <ul className="space-y-3">
-              <li>
-                <Link to="/em-breve?feature=find_talent" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t.footer.findTalent}
-                </Link>
-              </li>
-              <li>
-                <Link to="/em-breve?feature=find_work" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t.footer.findWork}
-                </Link>
-              </li>
-              <li>
-                <Link to="/em-breve?feature=training" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t.footer.training}
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {/* Column 2: reserved (formerly Plataforma) — kept blank to preserve layout */}
+          <div aria-hidden="true" />
 
           {/* Column 3: Suporte */}
           <div>

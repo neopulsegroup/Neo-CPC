@@ -56,6 +56,16 @@ export function canManageTeamMembers(value: string | null | undefined): boolean 
   return value === 'admin' || value === 'manager';
 }
 
+/** Super Admin ou Admin — excluir utilizadores da equipa CPC. */
+export function canDeleteTeamMembers(value: string | null | undefined): boolean {
+  return canManageTeamMembers(value);
+}
+
+/** Super Admin ou Admin — excluir migrantes. */
+export function canDeleteMigrants(value: string | null | undefined): boolean {
+  return canManageTeamMembers(value);
+}
+
 /** Super Admin ou Admin — eliminar sessões na listagem CPC. */
 export function canDeleteCpcSessions(value: string | null | undefined): boolean {
   return canManageTeamMembers(value);

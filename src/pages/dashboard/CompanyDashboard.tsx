@@ -775,16 +775,16 @@ export default function CompanyDashboard() {
 
   return (
     <Layout>
-      <div className="cpc-section">
+      <div className="py-8 md:py-12">
         <div className="cpc-container">
           <div className="grid lg:grid-cols-[250px_minmax(0,1fr)] gap-6">
-            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24">
-              <div className="mb-4 px-2">
+            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:flex lg:flex-col">
+              <div className="mb-4 px-2 shrink-0">
                 <p className="text-sm text-muted-foreground">{t.get('company.menu.title')}</p>
                 <p className="font-semibold">{displayName}</p>
               </div>
 
-              <nav className="space-y-1">
+              <nav className="space-y-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain cpc-sidebar-scroll">
                 {sidebarItemsMain.map((item) => (
                   <NavLink
                     key={item.to}

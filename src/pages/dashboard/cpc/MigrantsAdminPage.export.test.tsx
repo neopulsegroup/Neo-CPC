@@ -50,7 +50,7 @@ vi.mock('@/contexts/LanguageContext', () => ({
           'cpc.migrantsAdmin.delete.buttons.confirm': 'Confirmar',
           'cpc.migrantsAdmin.delete.buttons.cancel': 'Cancelar',
           'cpc.migrantsAdmin.delete.no_permission.title': 'Sem permissão',
-          'cpc.migrantsAdmin.delete.no_permission.description': 'O seu utilizador não tem permissões para excluir migrantes.',
+          'cpc.migrantsAdmin.delete.no_permission.description': 'Apenas Super Admin e Admin podem excluir migrantes.',
           'cpc.migrantsAdmin.delete.success.title': 'Migrante excluído',
           'cpc.migrantsAdmin.delete.success.description': 'O cadastro de {name} foi excluído com sucesso.',
           'cpc.migrantsAdmin.delete.error.title': 'Erro na exclusão',
@@ -330,17 +330,54 @@ describe('MigrantsAdminPage - exportação (Email)', () => {
     await screen.findByText('Migrantes');
     await screen.findByText('Pessoa 1');
 
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    expect(mockDeleteDocument).not.toHaveBeenCalled();
+  });
+
+  it('permite exclusão quando o perfil é Admin (manager)', async () => {
+    mockRole = 'manager';
+    const users = [
+      { id: 'u1', name: 'Pessoa 1', email: 'p1@exemplo.com' },
+      { id: 'u2', name: 'Pessoa 2', email: 'p2@exemplo.com' },
+    ];
+
+    mockQueryDocuments.mockImplementation(async (collection: string, filters?: Array<{ field: string; operator: string; value: unknown }>) => {
+      if (collection === 'users') return users.map((u) => ({ ...u, role: 'migrant' }));
+      if (collection === 'sessions') {
+        if (Array.isArray(filters) && filters.some((f) => f.field === 'migrant_id' && f.value === 'u1')) return [{ id: 's1' }];
+        return [];
+      }
+      if (collection === 'user_trail_progress') return [];
+      if (collection === 'job_applications') return [];
+      return [];
+    });
+
+    mockGetDocument.mockImplementation(async (collection: string, docId: string) => {
+      if (collection === 'profiles') return { name: docId === 'u1' ? 'Pessoa 1' : 'Pessoa 2', email: `${docId}@exemplo.com` };
+      if (collection === 'triage') return { legal_status: 'regular', answers: {} };
+      return null;
+    });
+    mockDeleteDocument.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <MigrantsAdminPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Migrantes');
+    await screen.findByText('Pessoa 1');
+
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    await user.click(screen.getAllByRole('button', { name: 'Excluir' })[0]);
     await screen.findByText('Confirmar exclusão');
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(mockDeleteDocument).not.toHaveBeenCalled();
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Sem permissão',
-        variant: 'destructive',
-      })
-    );
+    await waitFor(() => {
+      expect(screen.queryByText('Pessoa 1')).not.toBeInTheDocument();
+    });
+    expect(mockDeleteDocument).toHaveBeenCalledWith('users', 'u1');
+    expect(mockDeleteDocument).toHaveBeenCalledWith('profiles', 'u1');
+    expect(mockDeleteDocument).toHaveBeenCalledWith('triage', 'u1');
   });
 });

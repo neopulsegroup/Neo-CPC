@@ -12,6 +12,7 @@ interface ContentEditorFieldProps {
 export default function ContentEditorField({ field, value, onChange }: ContentEditorFieldProps) {
   const count = value.length;
   const overLimit = field.maxLength !== undefined && count > field.maxLength;
+  const textareaRows = field.maxLength && field.maxLength > 1000 ? 12 : 4;
 
   return (
     <div className="space-y-2">
@@ -28,7 +29,7 @@ export default function ContentEditorField({ field, value, onChange }: ContentEd
         <Textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          rows={4}
+          rows={textareaRows}
           className="min-h-[110px] bg-white"
         />
       ) : (

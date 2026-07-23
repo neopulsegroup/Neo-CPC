@@ -184,8 +184,23 @@ async function uploadCvDirect(args: UploadCvFileArgs): Promise<UploadCvFileResul
   return { url, fileName: sanitizedName, storagePath };
 }
 
+const DISABLED_EXTERNAL_CV_TYPES: ReadonlySet<CvContextType> = new Set([
+  'migrant',
+  'profile',
+  'application',
+  'job_offer',
+  'candidate_profile',
+]);
+
 export async function uploadCvFile(args: UploadCvFileArgs): Promise<UploadCvFileResult> {
   validateCvFile(args.file);
+
+  if (DISABLED_EXTERNAL_CV_TYPES.has(args.contextType)) {
+    throw new CvValidationError(
+      'invalid_type',
+      'O carregamento de currículo externo foi desativado. Use o currículo CPC.'
+    );
+  }
 
   try {
     return await uploadCvViaCallable(args);

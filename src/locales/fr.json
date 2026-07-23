@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Menu Migrant",
       "sessionsLocked": "Disponible uniquement pour les migrants classés Profil A par l'équipe CPC.",
+      "personalInfoLocked": "Complétez les Informations personnelles dans le Profil pour débloquer la plateforme.",
       "scasPending": "Vous avez un questionnaire SCAS en attente."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} candidatures au total. La vue actuelle les affiche toutes ; la pagination arrivera au-delà de 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Action requise",
+        "bannerTitle": "Complétez les Informations personnelles",
+        "bannerBody": "La plateforme reste verrouillée jusqu'à ce que tous les champs obligatoires de cette section soient renseignés.",
+        "missingLabel": "Champs manquants",
+        "cta": "Aller au formulaire",
+        "alertTitle": "Obligatoire : complétez les Informations personnelles",
+        "alertBody": "La plateforme est verrouillée jusqu'à ce que les Informations personnelles soient complètes. Manquants : {fields}.",
+        "unlockedTitle": "Profil terminé",
+        "unlockedDescription": "Les Informations personnelles sont complètes. Vous pouvez utiliser la plateforme."
+      },
       "documents": {
         "cpcCvLabel": "CV CPC",
         "externalCvLabel": "CV EXTERNE",
@@ -1527,8 +1539,13 @@
         "email": "geral@oportoforte.com"
       }
     },
+    "terms": {
+      "title": "Conditions d'utilisation",
+      "body": "Ces Conditions d'utilisation régissent l'accès et l'utilisation de la Plateforme CPC, mise à disposition pour soutenir les personnes migrantes, l'équipe CPC et les employeurs dans les processus d'intégration, de formation, de suivi et de mise en relation avec l'emploi.\n\nEn utilisant la plateforme, l'utilisateur s'engage à fournir des informations exactes, à préserver la confidentialité de ses identifiants et à utiliser les services uniquement à des fins légitimes compatibles avec l'objectif de la plateforme.\n\nLa Plateforme CPC peut inclure des fonctionnalités d'inscription, de diagnostic, de planification de sessions, de contenus de formation, de candidatures, de communication et de gestion d'informations. Certaines fonctionnalités peuvent dépendre d'une validation par l'équipe CPC ou d'autorisations spécifiques.\n\nLes contenus, documents et outils disponibles sur la plateforme soutiennent l'intégration et ne remplacent pas un conseil juridique, médical, financier ou professionnel individualisé lorsque celui-ci est nécessaire.\n\nL'équipe responsable peut suspendre ou limiter l'accès en cas d'utilisation abusive, de tentative d'accès non autorisé, d'informations fausses ou de violation de ces conditions.\n\nLes données personnelles traitées dans la plateforme sont gérées conformément à la Politique de confidentialité et à la législation applicable.\n\nCes conditions peuvent être mises à jour si nécessaire afin de refléter des changements juridiques, techniques ou opérationnels."
+    },
     "cookies": {
       "title": "Politique d'utilisation de cookies",
+      "body": "Cette Politique de cookies explique comment la Plateforme CPC utilise des cookies et technologies similaires lorsque les utilisateurs accèdent au site ou utilisent les services numériques fournis par la plateforme.\n\nLes cookies sont de petits fichiers texte stockés sur l'appareil de l'utilisateur qui permettent de reconnaître l'appareil, maintenir les sessions actives, enregistrer les préférences et améliorer l'expérience d'utilisation.\n\nLa Plateforme CPC peut utiliser des cookies strictement nécessaires à l'authentification, la sécurité, la navigation et au fonctionnement essentiel du système. Ces cookies ne peuvent pas être désactivés sans affecter les fonctionnalités de base.\n\nDes cookies optionnels de performance, statistiques ou personnalisation peuvent également être utilisés uniquement avec le consentement de l'utilisateur.\n\nL'utilisateur peut accepter, refuser ou configurer les cookies optionnels via le panneau de consentement. Les préférences peuvent être modifiées à tout moment.\n\nLorsque les cookies impliquent le traitement de données personnelles, ce traitement sera effectué conformément au RGPD et à la Politique de confidentialité de la Plateforme CPC.\n\nCette politique peut être mise à jour afin de refléter des changements techniques, juridiques ou opérationnels.",
       "sections": {
         "intro": {
           "title": "1. Introduction",
@@ -1664,6 +1681,7 @@
     },
     "privacy": {
       "title": "Politique de Confidentialité",
+      "body": "La protection des données personnelles est une priorité pour la Plateforme CPC. Cette Politique de confidentialité explique comment nous collectons, utilisons, stockons et protégeons les données personnelles des utilisateurs.\n\nLa plateforme traite les données nécessaires à l'inscription, l'authentification, le diagnostic, le suivi, la planification de sessions, l'accès aux contenus de formation, les candidatures, la communication et l'évaluation d'impact.\n\nLes données peuvent inclure des informations d'identification et de contact, des données de profil, des informations professionnelles, des besoins d'intégration, la progression dans les parcours de formation, les sessions, candidatures, communications et registres techniques nécessaires au fonctionnement sécurisé de la plateforme.\n\nLe traitement repose sur les bases légales applicables, notamment l'exécution de services demandés, le consentement lorsque nécessaire, le respect d'obligations légales et l'intérêt légitime lié à la gestion, la sécurité et l'amélioration de la plateforme.\n\nLes données ne sont consultées que par des utilisateurs autorisés selon leur profil et leur finalité. Elles peuvent être partagées avec des employeurs ou partenaires uniquement lorsque cela est nécessaire à des fonctionnalités spécifiques et conformément à la loi applicable.\n\nLa Plateforme CPC adopte des mesures techniques et organisationnelles pour protéger les données contre tout accès non autorisé, perte, altération ou divulgation indue.\n\nLes utilisateurs disposent de droits d'accès, rectification, effacement, limitation, opposition, portabilité et retrait du consentement lorsque applicable.\n\nCette politique peut être mise à jour si nécessaire. Les changements importants seront communiqués par des moyens appropriés.",
       "sections": {
         "intro": {
           "title": "Article 1.",
@@ -2590,6 +2608,7 @@
         "edit": "Modifier",
         "deactivate": "Désactiver",
         "reactivate": "Réactiver",
+        "delete": "Supprimer",
         "create_user": "Créer un utilisateur",
         "save_changes": "Enregistrer les modifications",
         "saving": "Garde..."
@@ -2628,6 +2647,11 @@
         "add_title": "Ajouter un nouvel utilisateur",
         "edit_title": "Modifier l'utilisateur"
       },
+      "delete": {
+        "title": "Supprimer l'utilisateur",
+        "confirm": "Voulez-vous vraiment supprimer définitivement « {name} » ? Cette action retire l'enregistrement de l'équipe et ne peut pas être annulée.",
+        "deleting": "Suppression…"
+      },
       "fields": {
         "name": "Nom",
         "email": "E-mail",
@@ -2645,6 +2669,10 @@
         "create_failed": "Erreur lors de la création de l'utilisateur.",
         "update_failed": "Erreur lors de la mise à jour de l'utilisateur.",
         "update_state_failed": "Erreur lors de la mise à jour du statut de l'utilisateur.",
+        "delete_failed": "Impossible de supprimer l'utilisateur.",
+        "delete_permission_denied": "Aucune autorisation pour supprimer les utilisateurs de l'équipe.",
+        "delete_not_persisted": "La suppression n'a pas été persistée. Vérifiez les règles/autorisations Firestore.",
+        "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre utilisateur.",
         "no_permission": "Aucune autorisation pour gérer les utilisateurs. Super Admin et Admin uniquement.",
         "cannot_assign_super_admin": "Seul Super Admin peut attribuer le profil Super Admin."
       }
@@ -2790,7 +2818,7 @@
         },
         "no_permission": {
           "title": "Sans autorisation",
-          "description": "Votre utilisateur n'est pas autorisé à supprimer des migrants."
+          "description": "Seuls Super Admin et Admin peuvent supprimer des migrants."
         },
         "success": {
           "title": "Migrant exclu",

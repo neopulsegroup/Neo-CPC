@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Migrant Menu",
       "sessionsLocked": "Available only to migrants classified as Profile A by the CPC team.",
+      "personalInfoLocked": "Complete Personal Information in Profile to unlock the platform.",
       "scasPending": "You have a pending SCAS questionnaire."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} applications total. The current view shows them all; pagination will arrive past 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Action required",
+        "bannerTitle": "Complete Personal Information",
+        "bannerBody": "The platform stays locked until you fill in all required fields in this section.",
+        "missingLabel": "Missing fields",
+        "cta": "Go to the form",
+        "alertTitle": "Required: complete Personal Information",
+        "alertBody": "The platform is locked until Personal Information is complete. Missing: {fields}.",
+        "unlockedTitle": "Profile completed",
+        "unlockedDescription": "Personal Information is complete. You can now use the platform."
+      },
       "documents": {
         "cpcCvLabel": "CPC RÉSUMÉ",
         "externalCvLabel": "EXTERNAL RÉSUMÉ",
@@ -1527,8 +1539,13 @@
         "email": "geral@oportoforte.com"
       }
     },
+    "terms": {
+      "title": "Terms of Service",
+      "body": "These Terms of Service govern access to and use of the CPC Platform, provided to support migrants, the CPC team and employers in integration, training, follow-up and employment connection processes.\n\nBy using the platform, the user agrees to provide truthful information, keep access credentials confidential and use the services only for legitimate purposes compatible with the platform's mission.\n\nThe CPC Platform may include registration, screening, session scheduling, training content, applications, communication and information management features. Some features may depend on validation by the CPC team or specific permissions.\n\nThe content, documents and tools available on the platform support integration and do not replace individual legal, medical, financial or professional advice where required.\n\nThe responsible team may suspend or limit access in case of misuse, attempted unauthorized access, false information or breach of these terms.\n\nPersonal data processed through the platform is managed according to the Privacy Policy and applicable data protection law.\n\nThese terms may be updated whenever necessary to reflect legal, technical or operational changes. Continued use of the platform after changes means acceptance of the updated terms.\n\nFor questions about these Terms of Service, contact the team through the channels provided on the platform."
+    },
     "cookies": {
       "title": "Cookie Policy",
+      "body": "This Cookie Policy explains how the CPC Platform uses cookies and similar technologies when users access the website or use digital services provided through the platform.\n\nCookies are small text files stored on the user's device that allow the system to recognize the device, keep sessions active, save preferences and improve the user experience.\n\nThe CPC Platform may use strictly necessary cookies for authentication, security, navigation and essential system operation. These cookies cannot be disabled without affecting basic features.\n\nOptional performance, analytics or personalization cookies may also be used only when the user gives consent. These cookies help understand platform usage and improve content and services.\n\nThe user can accept, reject or configure optional cookies through the consent panel displayed on the platform. Preferences can be changed at any time through cookie settings.\n\nDisabling certain cookies may affect some features but does not prevent access to essential features where technically possible.\n\nWhenever cookies involve personal data processing, that processing will be carried out in accordance with the GDPR and the CPC Platform Privacy Policy.\n\nThis policy may be updated to reflect technical, legal or operational changes.",
       "sections": {
         "intro": {
           "title": "1. Introduction",
@@ -1664,6 +1681,7 @@
     },
     "privacy": {
       "title": "Privacy Policy",
+      "body": "Protecting personal data is a priority for the CPC Platform. This Privacy Policy explains how we collect, use, store and protect users' personal data.\n\nThe platform processes data needed for registration, authentication, screening, follow-up, session scheduling, access to training content, applications, communication and impact assessment of the actions carried out.\n\nData may include identification and contact information, profile data, professional information, integration needs, progress in training trails, sessions, applications, communications and technical records necessary for secure platform operation.\n\nData processing is carried out based on applicable legal grounds, including the performance of requested services, consent where necessary, compliance with legal obligations and legitimate interest in managing, securing and improving the platform.\n\nData is accessed only by authorized users according to their profile and purpose. It may be shared with employers or partners only when necessary for specific features and as permitted by the user and applicable law.\n\nThe CPC Platform adopts technical and organizational measures to protect data against unauthorized access, loss, alteration or improper disclosure.\n\nUsers have rights of access, rectification, erasure, restriction, objection, portability and withdrawal of consent where applicable. These rights can be exercised through the contacts indicated on the platform.\n\nData will be retained only for the period necessary for the purposes for which it was collected or for the period required by legal obligations.\n\nThis policy may be updated whenever necessary. Relevant changes will be communicated through appropriate channels.",
       "sections": {
         "intro": {
           "title": "1. Introdução",
@@ -2590,6 +2608,7 @@
         "edit": "Edit",
         "deactivate": "Deactivate",
         "reactivate": "Reactivate",
+        "delete": "Delete",
         "create_user": "Create user",
         "save_changes": "Save changes",
         "saving": "Saving..."
@@ -2628,6 +2647,11 @@
         "add_title": "Add new user",
         "edit_title": "Edit user"
       },
+      "delete": {
+        "title": "Delete user",
+        "confirm": "Are you sure you want to permanently delete “{name}”? This removes the team record and cannot be undone.",
+        "deleting": "Deleting…"
+      },
       "fields": {
         "name": "Name",
         "email": "Email",
@@ -2645,6 +2669,10 @@
         "create_failed": "Error creating user.",
         "update_failed": "Error updating user.",
         "update_state_failed": "Error updating user status.",
+        "delete_failed": "Could not delete the user.",
+        "delete_permission_denied": "No permission to delete team users.",
+        "delete_not_persisted": "Deletion was not persisted. Check Firestore rules/permissions.",
+        "cannot_delete_self": "You cannot delete your own user.",
         "no_permission": "No permission to manage users. Super Admin and Admin only.",
         "cannot_assign_super_admin": "Only Super Admin can assign the Super Admin role."
       }
@@ -2790,7 +2818,7 @@
         },
         "no_permission": {
           "title": "No permission",
-          "description": "Your user does not have permission to delete migrants."
+          "description": "Only Super Admin and Admin can delete migrants."
         },
         "success": {
           "title": "Migrant deleted",

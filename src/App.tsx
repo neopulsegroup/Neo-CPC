@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import CreateTestUsersDev from "./pages/dev/CreateTestUsers";
 import Cookies from "./pages/Cookies";
 import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import HelpCenter from "./pages/HelpCenter";
 import ComingSoon from "./pages/ComingSoon";
 
@@ -123,7 +124,7 @@ function AppRoutes() {
       <Route path="/recuperar-senha" element={<ForgotPassword />} />
       <Route path="/ajuda" element={<HelpCenter />} />
       <Route path="/em-breve" element={<ComingSoon />} />
-      <Route path="/termos" element={<NotFound />} />
+      <Route path="/termos" element={<Terms />} />
       <Route path="/privacidade" element={<Privacy />} />
       <Route path="/cookies" element={<Cookies />} />
       <Route path="/trails" element={<NotFound />} />

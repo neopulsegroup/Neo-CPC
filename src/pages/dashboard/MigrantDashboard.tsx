@@ -9,6 +9,7 @@ import { inferNeedsProfile } from '@/features/needs/inferNeedsProfile';
 import { NeedsProfileCard } from '@/features/needs/NeedsProfileCard';
 import { inferFirstActions } from '@/features/recommendations/firstActions';
 import { FirstActionsCard } from '@/features/recommendations/FirstActionsCard';
+import { hasCpcCurriculum } from '@/features/curriculum/profileCurriculumModel';
 import { ScasPendingBanner } from '@/features/scas/ScasPendingBanner';
 import { PdiPendingBanner } from '@/features/pdi/PdiPendingBanner';
 import type { ServiceAreaId } from '@/features/serviceAreas/serviceAreas';
@@ -104,9 +105,11 @@ import ScasPage from './migrant/ScasPage';
 import PdiPage from './migrant/PdiPage';
 import MigrantJobsAccessGate from './migrant/MigrantJobsAccessGate';
 import MigrantProfileAGate from './migrant/MigrantProfileAGate';
+import MigrantPersonalInfoGate from './migrant/MigrantPersonalInfoGate';
 import BookingSessionWizardDialog from './migrant/BookingSessionWizardDialog';
 import { useMigrantJobsAccess } from '@/hooks/useMigrantJobsAccess';
 import { useMigrantProfileAAccess } from '@/hooks/useMigrantProfileAAccess';
+import { useMigrantPersonalInfoAccess } from '@/hooks/useMigrantPersonalInfoAccess';
 import { useMigrantScasPending } from '@/hooks/useMigrantScasPending';
 import {
   buildMigrantJobsAccessProfile,
@@ -114,6 +117,10 @@ import {
   hasEmployerProfessionalAuthorization,
   MIGRANT_JOBS_ACCESS_PROFILE_PATH,
 } from '@/lib/migrantJobsAccess';
+import {
+  getMissingMigrantPersonalInfoFields,
+  MIGRANT_PERSONAL_INFO_PROFILE_PATH,
+} from '@/lib/migrantProfileCompleteness';
 
 type MigrantDashboardProfileDoc = {
   id?: string;
@@ -482,7 +489,7 @@ function MigrantHome() {
     () =>
       inferFirstActions({
         triage,
-        hasCv: Boolean(profileDoc?.resumeUrl && profileDoc.resumeUrl.trim()),
+        hasCv: hasCpcCurriculum(profileDoc),
         triageCompleted: Boolean(triage?.completed),
       }),
     [triage, profileDoc]
@@ -499,56 +506,14 @@ function MigrantHome() {
   }, [extras, profileDoc, progress, upcomingSessions.length]);
 
   const profileRequiredAlert = useMemo(() => {
-    const nonEmpty = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
     const normalize = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-    const digits = (v: string) => v.replace(/\D/g, '');
-    const validateBirthDate = (raw: string) => {
-      if (!raw) return false;
-      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-      if (!m) return false;
-      const d = new Date(raw);
-      return Number.isFinite(d.getTime());
-    };
-    const validateCepComplete = (raw: string) => {
-      const v = raw.trim();
-      if (!v || !/^[\d-]+$/.test(v)) return false;
-      const d = v.replace(/\D/g, '');
-      return d.length >= 4 && d.length <= 9;
-    };
-    const validateRegion = (raw: string) => ['Lisboa', 'Norte', 'Centro', 'Alentejo', 'Algarve', 'Outra'].includes(raw);
 
     const p = mergedProfileDoc || {};
-
-    const missingPersonal: string[] = [];
+    const missingPersonal = getMissingMigrantPersonalInfoFields(p, {
+      authName: profile?.name,
+      authPhone: (profile as { phone?: string | null } | null)?.phone,
+    });
     const missingProfessional: string[] = [];
-
-    const name = normalize(p.name) || normalize(profile?.name);
-    if (!name) missingPersonal.push('Nome');
-
-    const phoneRaw = normalize(p.phone) || normalize((profile as { phone?: string | null } | null)?.phone);
-    if (!phoneRaw || digits(phoneRaw).length < 9) missingPersonal.push('Telefone');
-
-    const birthRaw = normalize(p.birthDate);
-    if (!birthRaw || !validateBirthDate(birthRaw)) missingPersonal.push('Data de nascimento');
-
-    const nationality = normalize(p.nationality);
-    if (!nationality) missingPersonal.push('Nacionalidade');
-
-    const address = normalize(p.address);
-    if (!address || address.length < 10) missingPersonal.push('Morada');
-
-    const addressNumber = normalize(p.addressNumber);
-    if (!addressNumber) missingPersonal.push('Número');
-
-    const cepRaw = normalize(p.cep) || normalize(p.identificationNumber);
-    if (!validateCepComplete(cepRaw)) missingPersonal.push('CEP');
-
-    const region = normalize(p.region);
-    if (!region || !validateRegion(region)) missingPersonal.push('Região');
-    if (region === 'Outra') {
-      const other = normalize(p.regionOther);
-      if (!other || other.length < 2) missingPersonal.push('Região (Outra)');
-    }
 
     const professionalTitle = normalize(p.professionalTitle);
     if (!professionalTitle || professionalTitle.length < 2) missingProfessional.push('Título profissional');
@@ -571,19 +536,28 @@ function MigrantHome() {
       return `${head} e mais ${items.length - 4}`;
     };
 
-    const parts: string[] = [];
-    if (missingPersonal.length) parts.push(`Informação Pessoal: ${summarize(missingPersonal)}.`);
-    if (missingProfessional.length) parts.push(`Perfil Profissional: ${summarize(missingProfessional)}.`);
+    if (missingPersonal.length) {
+      return {
+        id: 'personal-info-required-alert',
+        title: t.get('migrant.profile.personalInfoGate.alertTitle'),
+        body: t
+          .get('migrant.profile.personalInfoGate.alertBody')
+          .replace('{fields}', summarize(missingPersonal)),
+        date: new Date().toISOString(),
+        type: 'warning',
+        href: MIGRANT_PERSONAL_INFO_PROFILE_PATH,
+      };
+    }
 
     return {
       id: 'profile-required-alert',
       title: 'Complete o seu cadastro',
-      body: `${parts.join(' ')} Aceda ao seu Perfil para concluir.`,
+      body: `Perfil Profissional: ${summarize(missingProfessional)}. Aceda ao seu Perfil para concluir.`,
       date: new Date().toISOString(),
       type: 'warning',
-      href: '/dashboard/migrante/perfil',
+      href: MIGRANT_PERSONAL_INFO_PROFILE_PATH,
     };
-  }, [mergedProfileDoc, profile?.name, profile]);
+  }, [mergedProfileDoc, profile, t]);
 
   const jobsAccessAlert = useMemo(() => {
     if (hasEmployerProfessionalAuthorization(profileDoc)) return null;
@@ -1240,9 +1214,16 @@ export default function MigrantDashboard() {
   const migrantDisplayName = useDashboardDisplayName();
   const { canAccess: canAccessJobs, loading: jobsAccessLoading } = useMigrantJobsAccess();
   const { canAccess: canAccessScasPdi, loading: profileALoading } = useMigrantProfileAAccess();
-  const sessionsMenuLocked = !profileALoading && !canAccessScasPdi;
-  const scasPending = useMigrantScasPending(!profileALoading && canAccessScasPdi);
-  const jobsMenuPath = !jobsAccessLoading && !canAccessJobs ? MIGRANT_JOBS_ACCESS_PROFILE_PATH : '/dashboard/migrante/emprego';
+  const { isComplete: personalInfoComplete, loading: personalInfoLoading } = useMigrantPersonalInfoAccess();
+  const platformLocked = !personalInfoLoading && !personalInfoComplete;
+  const sessionsMenuLocked = platformLocked || (!profileALoading && !canAccessScasPdi);
+  const scasPending = useMigrantScasPending(!profileALoading && canAccessScasPdi && !platformLocked);
+  const jobsMenuPath =
+    platformLocked || (!jobsAccessLoading && !canAccessJobs)
+      ? platformLocked
+        ? MIGRANT_PERSONAL_INFO_PROFILE_PATH
+        : MIGRANT_JOBS_ACCESS_PROFILE_PATH
+      : '/dashboard/migrante/emprego';
   const isHome = location.pathname === '/dashboard/migrante' || location.pathname === '/dashboard/migrante/';
   const sidebarItemsMain = useMemo(() => {
     const items = [
@@ -1254,14 +1235,14 @@ export default function MigrantDashboard() {
       { to: '/dashboard/migrante/candidaturas', label: t.get('dashboard.applications'), icon: ListChecks },
       { to: '/dashboard/migrante/trilhas', label: t.get('dashboard.trails'), icon: BookOpen },
     ];
-    if (!profileALoading && canAccessScasPdi) {
+    if (!profileALoading && canAccessScasPdi && !platformLocked) {
       items.push(
         { to: '/dashboard/migrante/scas', label: t.get('dashboard.scas'), icon: ClipboardList },
         { to: '/dashboard/migrante/pdi', label: t.get('dashboard.pdi'), icon: FileCheck },
       );
     }
     return items;
-  }, [canAccessScasPdi, profileALoading, t]);
+  }, [canAccessScasPdi, platformLocked, profileALoading, t]);
   const role = normalizeDashboardRole(profile?.role);
   const isMigrant = role === 'migrant' || role === 'migrante' || role.length === 0;
   const sidebarItemsProfile = [
@@ -1271,12 +1252,12 @@ export default function MigrantDashboard() {
 
   return (
     <Layout>
-      <div className="cpc-section">
+      <div className="py-8 md:py-12">
         <div className="cpc-container">
           {/* Layout refactor: alinhar estrutura/estilos com o dashboard CPC (sidebar + conteúdo) */}
           <div className="grid lg:grid-cols-[250px_minmax(0,1fr)] gap-6">
-            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24">
-              <div className="mb-4 px-2">
+            <aside className="cpc-card p-4 h-fit lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:flex lg:flex-col">
+              <div className="mb-4 px-2 shrink-0">
                 <p className="text-sm text-muted-foreground">{t.get('migrant.menu.title')}</p>
                 <p className="font-semibold">{migrantDisplayName || t.get('cpc.menu.user_fallback')}</p>
               </div>
@@ -1286,16 +1267,22 @@ export default function MigrantDashboard() {
                 - Os itens principais ficam no topo; "Definições" (Perfil + Currículo) no final com separador (border-t).
                 - Visibilidade: secção de definições apenas para utilizadores com perfil migrante.
               */}
-              <nav className="space-y-1">
+              <nav className="space-y-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain cpc-sidebar-scroll">
                 {sidebarItemsMain.map((item) => {
                   const to = item.to === '/dashboard/migrante/emprego' ? jobsMenuPath : item.to;
                   const isSessionsItem = item.to === '/dashboard/migrante/sessoes';
+                  const lockedByPersonalInfo = platformLocked && item.to !== MIGRANT_PERSONAL_INFO_PROFILE_PATH;
+                  const lockedByProfileA = isSessionsItem && sessionsMenuLocked && !platformLocked;
 
-                  if (isSessionsItem && sessionsMenuLocked) {
+                  if (lockedByPersonalInfo || lockedByProfileA) {
                     return (
                       <div
                         key={item.to}
-                        title={t.get('migrant.menu.sessionsLocked')}
+                        title={
+                          lockedByPersonalInfo
+                            ? t.get('migrant.menu.personalInfoLocked')
+                            : t.get('migrant.menu.sessionsLocked')
+                        }
                         aria-disabled="true"
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
                       >
@@ -1335,7 +1322,23 @@ export default function MigrantDashboard() {
                     <div className="pt-4 mt-4 border-t">
                       <p className="px-2 text-xs font-semibold tracking-widest text-muted-foreground">{t.get('sidebar.sections.settings')}</p>
                       <div className="mt-2 space-y-1">
-                        {sidebarItemsProfile.map((item) => (
+                        {sidebarItemsProfile.map((item) => {
+                          const lockCurriculum = platformLocked && item.to === '/dashboard/migrante/curriculo';
+                          if (lockCurriculum) {
+                            return (
+                              <div
+                                key={item.to}
+                                title={t.get('migrant.menu.personalInfoLocked')}
+                                aria-disabled="true"
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+                              >
+                                <item.icon className="h-4 w-4 shrink-0 opacity-70" />
+                                <span className="leading-snug flex-1">{item.label}</span>
+                                <Lock className="h-4 w-4 shrink-0 ml-auto" aria-hidden />
+                              </div>
+                            );
+                          }
+                          return (
                           <NavLink
                             key={item.to}
                             to={item.to}
@@ -1346,7 +1349,8 @@ export default function MigrantDashboard() {
                             <item.icon className="h-4 w-4" />
                             <span>{item.label}</span>
                           </NavLink>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </>
@@ -1355,7 +1359,7 @@ export default function MigrantDashboard() {
             </aside>
 
             <div>
-              {isHome ? (
+              {isHome && !platformLocked ? (
                 <div className="mb-8">
                   <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
                     {t.get('dashboard.welcome')},{' '}
@@ -1367,25 +1371,27 @@ export default function MigrantDashboard() {
                 </div>
               ) : null}
 
-              <Routes>
-                <Route index element={<MigrantHome />} />
-                <Route path="sessoes" element={<MigrantProfileAGate><SessionsPage /></MigrantProfileAGate>} />
-                <Route path="trilhas" element={<TrailsPage />} />
-                <Route path="trilhas/:trailId" element={<TrailDetailPage />} />
-                <Route path="trilhas/:trailId/modulo/:moduleId" element={<ModuleViewerPage />} />
-                <Route path="emprego" element={<MigrantJobsAccessGate><JobsPage /></MigrantJobsAccessGate>} />
-                <Route path="emprego/:jobId" element={<MigrantJobsAccessGate><JobDetailPage /></MigrantJobsAccessGate>} />
-                {/* TASK-02 — Minhas Candidaturas */}
-                <Route path="candidaturas" element={<MyApplicationsPage />} />
-                <Route path="atividades" element={<MigrantActivitiesListPage />} />
-                <Route path="atividades/:activityId" element={<MigrantActivityDetailPage />} />
-                <Route path="perfil" element={<ProfilePage />} />
-                <Route path="curriculo" element={<CurriculumPage />} />
-                <Route path="curriculo/ver/:migrantId" element={<CurriculumViewPage />} />
-                <Route path="mensagens" element={<MigrantMessagesPage />} />
-                <Route path="scas" element={<MigrantProfileAGate><ScasPage /></MigrantProfileAGate>} />
-                <Route path="pdi" element={<MigrantProfileAGate><PdiPage /></MigrantProfileAGate>} />
-              </Routes>
+              <MigrantPersonalInfoGate>
+                <Routes>
+                  <Route index element={<MigrantHome />} />
+                  <Route path="sessoes" element={<MigrantProfileAGate><SessionsPage /></MigrantProfileAGate>} />
+                  <Route path="trilhas" element={<TrailsPage />} />
+                  <Route path="trilhas/:trailId" element={<TrailDetailPage />} />
+                  <Route path="trilhas/:trailId/modulo/:moduleId" element={<ModuleViewerPage />} />
+                  <Route path="emprego" element={<MigrantJobsAccessGate><JobsPage /></MigrantJobsAccessGate>} />
+                  <Route path="emprego/:jobId" element={<MigrantJobsAccessGate><JobDetailPage /></MigrantJobsAccessGate>} />
+                  {/* TASK-02 — Minhas Candidaturas */}
+                  <Route path="candidaturas" element={<MyApplicationsPage />} />
+                  <Route path="atividades" element={<MigrantActivitiesListPage />} />
+                  <Route path="atividades/:activityId" element={<MigrantActivityDetailPage />} />
+                  <Route path="perfil" element={<ProfilePage />} />
+                  <Route path="curriculo" element={<CurriculumPage />} />
+                  <Route path="curriculo/ver/:migrantId" element={<CurriculumViewPage />} />
+                  <Route path="mensagens" element={<MigrantMessagesPage />} />
+                  <Route path="scas" element={<MigrantProfileAGate><ScasPage /></MigrantProfileAGate>} />
+                  <Route path="pdi" element={<MigrantProfileAGate><PdiPage /></MigrantProfileAGate>} />
+                </Routes>
+              </MigrantPersonalInfoGate>
             </div>
           </div>
         </div>

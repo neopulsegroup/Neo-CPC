@@ -1290,6 +1290,7 @@
     "menu": {
       "title": "Menu Migrante",
       "sessionsLocked": "Disponível apenas para migrantes classificados como Perfil A pela equipa CPC.",
+      "personalInfoLocked": "Complete a Informação Pessoal no Perfil para desbloquear a plataforma.",
       "scasPending": "Tem um questionário SCAS pendente."
     },
     "applications": {
@@ -1332,6 +1333,17 @@
       "paginationHint": "{count} candidaturas no total. A versão atual mostra todas; paginação chega quando exceder 200."
     },
     "profile": {
+      "personalInfoGate": {
+        "badge": "Ação necessária",
+        "bannerTitle": "Complete a Informação Pessoal",
+        "bannerBody": "A plataforma permanece bloqueada até preencher todos os campos obrigatórios desta secção.",
+        "missingLabel": "Campos em falta",
+        "cta": "Ir para o formulário",
+        "alertTitle": "Obrigatório: complete a Informação Pessoal",
+        "alertBody": "A plataforma está bloqueada até concluir a Informação Pessoal. Em falta: {fields}.",
+        "unlockedTitle": "Perfil concluído",
+        "unlockedDescription": "A Informação Pessoal está completa. Já pode utilizar a plataforma."
+      },
       "documents": {
         "cpcCvLabel": "CURRÍCULO CPC",
         "externalCvLabel": "CURRÍCULO EXTERNO",
@@ -1527,8 +1539,13 @@
         "email": "geral@oportoforte.com"
       }
     },
+    "terms": {
+      "title": "Termos de Serviço",
+      "body": "Estes Termos de Serviço regulam o acesso e a utilização da Plataforma CPC, disponibilizada para apoiar pessoas migrantes, equipa CPC e entidades empregadoras nos processos de integração, formação, acompanhamento e ligação ao emprego.\n\nAo utilizar a plataforma, o utilizador compromete-se a fornecer informação verdadeira, manter a confidencialidade das suas credenciais de acesso e utilizar os serviços apenas para fins legítimos e compatíveis com o propósito da plataforma.\n\nA Plataforma CPC pode incluir funcionalidades de registo, triagem, agendamento de sessões, acesso a conteúdos formativos, candidaturas, comunicação e gestão de informação associada ao percurso de integração. Algumas funcionalidades podem depender de validação pela equipa CPC ou de permissões específicas.\n\nOs conteúdos, documentos e ferramentas disponibilizados na plataforma destinam-se a apoiar a integração e não substituem aconselhamento jurídico, médico, financeiro ou profissional individualizado quando este seja necessário.\n\nA equipa responsável pode suspender ou limitar o acesso em caso de utilização indevida, tentativa de acesso não autorizado, prestação de informação falsa ou violação destes termos.\n\nOs dados pessoais tratados no âmbito da plataforma são geridos de acordo com a Política de Privacidade e a legislação aplicável em matéria de proteção de dados.\n\nEstes termos podem ser atualizados sempre que necessário para refletir alterações legais, técnicas ou operacionais. A utilização continuada da plataforma após alterações constitui aceitação dos termos atualizados.\n\nPara questões relacionadas com estes Termos de Serviço, contacte a equipa através dos meios indicados na plataforma."
+    },
     "cookies": {
       "title": "Política de Cookies",
+      "body": "A presente Política de Cookies explica como a Plataforma CPC utiliza cookies e tecnologias semelhantes quando os utilizadores acedem ao website ou utilizam os serviços digitais disponibilizados através da plataforma.\n\nCookies são pequenos ficheiros de texto armazenados no dispositivo do utilizador que permitem reconhecer o dispositivo, manter sessões ativas, guardar preferências e melhorar a experiência de utilização.\n\nA Plataforma CPC pode utilizar cookies estritamente necessários para autenticação, segurança, navegação e funcionamento essencial do sistema. Estes cookies não podem ser desativados sem comprometer funcionalidades básicas.\n\nPodem também ser utilizados cookies opcionais de desempenho, estatística ou personalização, apenas quando o utilizador dá consentimento. Estes cookies ajudam a compreender a utilização da plataforma e a melhorar conteúdos e serviços.\n\nO utilizador pode aceitar, rejeitar ou configurar cookies opcionais através do painel de consentimento apresentado na plataforma. As preferências podem ser alteradas a qualquer momento através das configurações de cookies.\n\nA desativação de determinados cookies pode afetar algumas funcionalidades, mas não impede o acesso às funcionalidades essenciais quando tecnicamente possível.\n\nSempre que os cookies envolvam tratamento de dados pessoais, esse tratamento será realizado em conformidade com o RGPD e com a Política de Privacidade da Plataforma CPC.\n\nEsta política pode ser atualizada para refletir alterações técnicas, legais ou operacionais.",
       "sections": {
         "intro": {
           "title": "1. Introdução",
@@ -1664,6 +1681,7 @@
     },
     "privacy": {
       "title": "Política de Privacidade",
+      "body": "A proteção dos dados pessoais é uma prioridade para a Plataforma CPC. Esta Política de Privacidade explica como recolhemos, utilizamos, armazenamos e protegemos os dados pessoais dos utilizadores.\n\nA plataforma trata dados necessários para registo, autenticação, triagem, acompanhamento, agendamento de sessões, acesso a conteúdos formativos, candidaturas, comunicação e avaliação de impacto das ações desenvolvidas.\n\nOs dados podem incluir informação de identificação e contacto, dados de perfil, informação profissional, necessidades de integração, progresso em trilhas formativas, sessões, candidaturas, comunicações e registos técnicos necessários ao funcionamento seguro da plataforma.\n\nO tratamento de dados é realizado com base em fundamentos legais aplicáveis, incluindo execução de serviços solicitados, consentimento quando necessário, cumprimento de obrigações legais e interesse legítimo na gestão, segurança e melhoria da plataforma.\n\nOs dados são acedidos apenas por utilizadores autorizados de acordo com o respetivo perfil e finalidade. Poderão ser partilhados com entidades empregadoras ou parceiros apenas quando necessário para funcionalidades específicas e nos termos permitidos pelo utilizador e pela legislação aplicável.\n\nA Plataforma CPC adota medidas técnicas e organizativas para proteger os dados contra acesso não autorizado, perda, alteração ou divulgação indevida.\n\nOs utilizadores têm direitos de acesso, retificação, apagamento, limitação, oposição, portabilidade e retirada de consentimento quando aplicável. Estes direitos podem ser exercidos através dos contactos indicados na plataforma.\n\nOs dados serão conservados apenas pelo período necessário às finalidades para que foram recolhidos ou pelo período exigido por obrigações legais.\n\nEsta política pode ser atualizada sempre que necessário. Alterações relevantes serão comunicadas pelos meios adequados.",
       "sections": {
         "intro": {
           "title": "1. Introdução",
@@ -2590,6 +2608,7 @@
         "edit": "Editar",
         "deactivate": "Desativar",
         "reactivate": "Reativar",
+        "delete": "Excluir",
         "create_user": "Criar utilizador",
         "save_changes": "Guardar alterações",
         "saving": "A guardar..."
@@ -2628,6 +2647,11 @@
         "add_title": "Adicionar novo utilizador",
         "edit_title": "Editar utilizador"
       },
+      "delete": {
+        "title": "Excluir utilizador",
+        "confirm": "Tem a certeza de que deseja excluir permanentemente “{name}”? Esta ação remove o registo da equipa e não pode ser desfeita.",
+        "deleting": "A excluir…"
+      },
       "fields": {
         "name": "Nome",
         "email": "Email",
@@ -2646,6 +2670,10 @@
         "email_in_use": "Este e-mail já está associado a uma subscrição.",
         "update_failed": "Erro ao atualizar utilizador.",
         "update_state_failed": "Erro ao atualizar estado do utilizador.",
+        "delete_failed": "Não foi possível excluir o utilizador.",
+        "delete_permission_denied": "Sem permissão para excluir utilizadores da equipa.",
+        "delete_not_persisted": "A exclusão não foi persistida. Verifique as regras/permissões do Firestore.",
+        "cannot_delete_self": "Não pode excluir o seu próprio utilizador.",
         "no_permission": "Sem permissão para gerir utilizadores. Apenas Super Admin e Admin.",
         "cannot_assign_super_admin": "Apenas Super Admin pode atribuir o perfil Super Admin."
       }
@@ -2791,7 +2819,7 @@
         },
         "no_permission": {
           "title": "Sem permissão",
-          "description": "O seu utilizador não tem permissões para excluir migrantes."
+          "description": "Apenas Super Admin e Admin podem excluir migrantes."
         },
         "success": {
           "title": "Migrante excluído",

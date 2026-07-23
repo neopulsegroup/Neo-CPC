@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FirebaseError } from 'firebase/app';
 
 const mockCallable = vi.fn();
 const mockUploadBytes = vi.fn(async () => ({}));
@@ -47,20 +46,22 @@ describe('validateCvFile', () => {
   it('lança CvValidationError invalid_type para tipo não suportado', () => {
     try {
       validateCvFile(makeFile({ type: 'image/jpeg', name: 'foto.jpg' }));
-      expect.unreachable('deveria ter lançado');
     } catch (e) {
       expect(e).toBeInstanceOf(CvValidationError);
       expect((e as CvValidationError).code).toBe('invalid_type');
+      return;
     }
+    expect.unreachable('deveria ter lançado');
   });
 
   it('lança CvValidationError too_large para ficheiro acima de 5 MB', () => {
     try {
       validateCvFile(makeFile({ sizeBytes: 6 * 1024 * 1024 }));
-      expect.unreachable('deveria ter lançado');
     } catch (e) {
       expect((e as CvValidationError).code).toBe('too_large');
+      return;
     }
+    expect.unreachable('deveria ter lançado');
   });
 
   it('aceita PDF válido dentro do limite', () => {
@@ -79,7 +80,7 @@ describe('uploadCvFile', () => {
       data: {
         url: 'https://storage.example.com/cv.pdf',
         fileName: 'cv.pdf',
-        storagePath: 'cv_uploads/migrant/migrant-uid/curriculo.pdf',
+        storagePath: 'cv_uploads/application/app1/cv.pdf',
       },
     });
   });
@@ -88,55 +89,48 @@ describe('uploadCvFile', () => {
     await expect(
       uploadCvFile({
         file: makeFile({ type: 'image/png', name: 'x.png' }),
-        contextId: 'migrant-uid',
-        contextType: 'migrant',
+        contextId: 'app1',
+        contextType: 'application',
         uploaderUid: 'u1',
       })
     ).rejects.toBeInstanceOf(CvValidationError);
     expect(mockCallable).not.toHaveBeenCalled();
   });
 
-  it('upload com sucesso devolve url e fileName via Cloud Function', async () => {
-    const result = await uploadCvFile({
-      file: makeFile({ name: 'João CV final.pdf' }),
-      contextId: 'app1',
-      contextType: 'application',
-      uploaderUid: 'migrant-uid',
-    });
-    expect(result.url).toBe('https://storage.example.com/cv.pdf');
-    expect(result.fileName).toBe('cv.pdf');
-    expect(mockCallable).toHaveBeenCalledTimes(1);
+  it('bloqueia upload de currículo externo do migrante (contextType migrant)', async () => {
+    await expect(
+      uploadCvFile({
+        file: makeFile({}),
+        contextId: 'migrant-uid',
+        contextType: 'migrant',
+        uploaderUid: 'migrant-uid',
+      })
+    ).rejects.toMatchObject({ name: 'CvValidationError', code: 'invalid_type' });
+    expect(mockCallable).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia upload de currículo externo do migrante (contextType profile)', async () => {
+    await expect(
+      uploadCvFile({
+        file: makeFile({}),
+        contextId: 'migrant-uid',
+        contextType: 'profile',
+        uploaderUid: 'migrant-uid',
+      })
+    ).rejects.toMatchObject({ name: 'CvValidationError', code: 'invalid_type' });
+    expect(mockCallable).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia upload de CV anexado pela empresa (contextType application)', async () => {
+    await expect(
+      uploadCvFile({
+        file: makeFile({ name: 'João CV final.pdf' }),
+        contextId: 'app1',
+        contextType: 'application',
+        uploaderUid: 'company-uid',
+      })
+    ).rejects.toMatchObject({ name: 'CvValidationError', code: 'invalid_type' });
+    expect(mockCallable).not.toHaveBeenCalled();
     expect(mockUploadBytes).not.toHaveBeenCalled();
-  });
-
-  it('faz fallback para upload direto quando a Cloud Function falha com internal', async () => {
-    mockCallable.mockRejectedValueOnce(new FirebaseError('functions/internal', 'falha no servidor'));
-
-    const result = await uploadCvFile({
-      file: makeFile({ name: 'cv.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
-      contextId: 'app1',
-      contextType: 'application',
-      uploaderUid: 'migrant-uid',
-    });
-
-    expect(result.url).toBe('https://storage.example.com/direct.pdf');
-    expect(mockUploadBytes).toHaveBeenCalledTimes(1);
-    expect(mockSetDocument).toHaveBeenCalledTimes(1);
-  });
-
-  it('faz fallback para upload direto quando profile não é suportado pela função', async () => {
-    mockCallable.mockRejectedValueOnce(
-      new FirebaseError('functions/invalid-argument', 'Tipo de contexto não suportado.')
-    );
-
-    const result = await uploadCvFile({
-      file: makeFile({ name: 'cv.pdf' }),
-      contextId: 'migrant-uid',
-      contextType: 'profile',
-      uploaderUid: 'migrant-uid',
-    });
-
-    expect(result.url).toBe('https://storage.example.com/direct.pdf');
-    expect(mockUploadBytes).toHaveBeenCalledTimes(1);
   });
 });

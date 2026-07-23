@@ -310,10 +310,10 @@ export default function JobDetailPage() {
                   Já se candidatou a esta oferta. A empresa irá contactá-lo se houver interesse.
                 </p>
                 <Link
-                  to="/dashboard/migrante/perfil"
+                  to="/dashboard/migrante/curriculo"
                   className="mt-4 inline-flex text-sm text-primary hover:underline"
                 >
-                  {t.get('migrant.profile.documents.manageExternalCvLink')}
+                  {t.get('migrant.profile.documents.editCpcCvLink')}
                 </Link>
               </div>
             ) : showApplicationForm ? (

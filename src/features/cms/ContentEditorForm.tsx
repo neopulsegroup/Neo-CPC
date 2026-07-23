@@ -56,6 +56,7 @@ function shouldSpanTwoColumns(key: string): boolean {
     lower.endsWith('.a') ||
     lower.includes('lead') ||
     lower.includes('text') ||
+    lower.includes('body') ||
     lower.includes('placeholder')
   );
 }
